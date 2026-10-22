@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>MyTube Vault</title>
+  <meta name="description" content="Playlist YouTube pribadi yang tidak bergantung akun YouTube, dengan auto-backup ke GitHub Gist.">
+  <meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f6f6f7" media="(prefers-color-scheme: light)">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23e5484d'/%3E%3Cpath d='M12.5 9.5v13l10-6.5z' fill='white'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <button type="button" class="icon-btn only-mobile" data-action="toggle-sidebar" data-icon="menu" aria-label="Buka menu"></button>
+      <a class="brand" href="./" aria-label="MyTube Vault">
+        <span class="brand-mark" data-icon="logo"></span><span class="brand-name">MyTube Vault</span>
+      </a>
+      <label class="search">
+        <span class="search-icon" data-icon="search"></span>
+        <input id="search" type="search" placeholder="Cari judul atau channel…" autocomplete="off" aria-label="Cari video">
+        <kbd class="search-kbd">/</kbd>
+      </label>
+      <button type="button" id="sync-badge" class="sync-badge" data-action="sync-badge"></button>
+      <button type="button" class="icon-btn" data-action="open-settings" data-tab="general" data-icon="settings" aria-label="Pengaturan" title="Pengaturan"></button>
+    </header>
+
+    <div class="sidebar-scrim" data-action="close-sidebar"></div>
+    <nav class="sidebar" id="sidebar" aria-label="Navigasi">
+      <div class="nav-group" id="smart-nav"></div>
+      <div class="nav-title">
+        <span>Playlist</span>
+        <button type="button" class="icon-btn sm" data-action="new-playlist" data-icon="plus" aria-label="Playlist baru" title="Playlist baru"></button>
+      </div>
+      <div class="nav-group" id="playlist-nav"></div>
+      <button type="button" class="nav-new" data-action="new-playlist">+ Playlist baru</button>
+      <div class="sidebar-foot">
+        <button type="button" class="link-btn" data-action="open-settings" data-tab="cloud">Cloud Sync</button>
+        <span aria-hidden="true">·</span>
+        <button type="button" class="link-btn" data-action="open-settings" data-tab="backup">Backup</button>
+      </div>
+    </nav>
+
+    <main class="main" id="main">
+      <div id="banner"></div>
+
+      <form class="add-panel" id="add-form" autocomplete="off">
+        <div class="add-row">
+          <div class="add-field">
+            <span class="add-icon" data-icon="link"></span>
+            <input id="add-input" type="text" inputmode="url" placeholder="Tempel link YouTube lalu tekan Enter…" aria-label="Link YouTube">
+            <textarea id="add-multi" rows="4" placeholder="Tempel banyak link sekaligus — satu per baris (Ctrl+Enter untuk menambahkan)" aria-label="Banyak link YouTube" hidden></textarea>
+          </div>
+          <label class="add-target-wrap"><span class="sr-only">Tambahkan ke playlist</span>
+            <select id="add-target" aria-label="Tambahkan ke playlist"></select></label>
+          <button type="submit" class="btn btn-primary add-submit" data-icon="plus"><span>Tambah</span></button>
+        </div>
+        <div class="add-foot">
+          <button type="button" class="link-btn" id="toggle-multi" data-action="toggle-multi">Tempel banyak link sekaligus</button>
+          <span id="add-feedback" class="add-feedback" aria-live="polite"></span>
+        </div>
+      </form>
+
+      <section class="view-head" id="view-head"></section>
+      <p class="list-hint" id="list-hint" hidden></p>
+      <ol class="video-list" id="video-list"></ol>
+      <div class="list-empty" id="list-empty" hidden></div>
+      <div class="list-more" id="list-more"></div>
+    </main>
+  </div>
+
+  <section class="stage" id="stage" hidden aria-label="Video yang sedang diputar">
+    <div class="stage-bar">
+      <span class="stage-title" id="stage-title"></span>
+      <button type="button" class="icon-btn sm" id="stage-size" data-action="stage-toggle" aria-label="Ubah ukuran video"></button>
+      <button type="button" class="icon-btn sm" data-action="stage-close" data-icon="x" aria-label="Tutup player"></button>
+    </div>
+    <div class="stage-video">
+      <div id="yt-player"></div>
+      <div class="stage-error" id="stage-error" hidden></div>
+    </div>
+  </section>
+
+  <aside class="queue-panel" id="queue-panel" hidden aria-label="Antrean">
+    <header class="queue-head">
+      <h2>Antrean</h2>
+      <button type="button" class="icon-btn" data-action="queue-toggle" data-icon="x" aria-label="Tutup antrean"></button>
+    </header>
+    <div class="queue-list" id="queue-list"></div>
+  </aside>
+
+  <footer class="dock" id="dock" hidden>
+    <div class="dock-progress" id="dock-progress" title="Klik untuk melompat"><div class="dock-bar" id="dock-bar"></div></div>
+    <div class="dock-track">
+      <img id="dock-thumb" class="dock-thumb" alt="">
+      <div class="dock-meta">
+        <div id="dock-title" class="dock-title"></div>
+        <div id="dock-sub" class="dock-sub"></div>
+      </div>
+      <button type="button" class="icon-btn" id="dock-fav" data-action="dock-fav" aria-label="Favorit"></button>
+    </div>
+    <div class="dock-controls">
+      <button type="button" class="icon-btn" id="dock-shuffle" data-action="dock-shuffle" aria-label="Acak"></button>
+      <button type="button" class="icon-btn" data-action="dock-prev" data-icon="prev" aria-label="Sebelumnya" title="Sebelumnya (P)"></button>
+      <button type="button" class="play-btn" id="dock-play" data-action="dock-play" aria-label="Putar"></button>
+      <button type="button" class="icon-btn" data-action="dock-next" data-icon="next" aria-label="Berikutnya" title="Berikutnya (N)"></button>
+      <button type="button" class="icon-btn" id="dock-repeat" data-action="dock-repeat" aria-label="Ulangi"></button>
+    </div>
+    <div class="dock-extra">
+      <span class="dock-time" id="dock-time"></span>
+      <button type="button" class="icon-btn" id="dock-stage" data-action="stage-toggle" aria-label="Ubah ukuran video"></button>
+      <button type="button" class="icon-btn" data-action="queue-toggle" data-icon="queue" aria-label="Antrean" title="Antrean"></button>
+    </div>
+  </footer>
+
+  <noscript><p style="padding:24px">MyTube Vault butuh JavaScript.</p></noscript>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
