@@ -13,6 +13,9 @@ import { openSettings } from './settings.js';
 import * as ui from './ui.js';
 import { icon } from './icons.js';
 import { sortEntries, filterEntries, copyText, downloadText, escapeHtml, slugify } from './utils.js';
+import {
+  isPhone, overlay, enableTouchReorder, setupMediaSession, setupPwa, promptInstall, isStandalone, takeLaunchParams,
+} from './mobile.js';
 
 const PAGE = 200;
 const $ = (id) => document.getElementById(id);
@@ -57,7 +60,22 @@ function render() {
   ui.renderSyncBadge(sync, store);
   ui.renderDock(player, store);
   ui.renderQueue(player, store);
+  renderBottomNav();
   local.lastView = store.ui.view;
+}
+
+function renderBottomNav() {
+  const v = store.ui.view;
+  const active = {
+    library: !v.startsWith('pl:') && !overlay.isOpen('sidebar'),
+    playlists: v.startsWith('pl:') || overlay.isOpen('sidebar'),
+    queue: !$('queue-panel').hidden,
+  };
+  document.querySelectorAll('#bottom-nav [data-nav]').forEach((b) => {
+    const on = !!active[b.dataset.nav];
+    b.classList.toggle('active', on);
+    if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  });
 }
 
 function renderMain() {
@@ -161,6 +179,7 @@ function handleAdd(e) {
   const msg = parts.join(' · ') || 'Tidak ada yang ditambahkan.';
   feedback(msg, res.added ? 'ok' : '');
   if (res.added) toast(msg, 'success');
+  if (res.added && overlay.isOpen('add')) overlay.close('add');
 
   if (local.multi) { $('add-multi').value = ''; if (res.added) setMulti(false); } else $('add-input').value = '';
 }
@@ -303,15 +322,81 @@ function openPlaylistMenu(anchor) {
   ]);
 }
 
-// ---------- event delegasi ----------
-function closeSidebar() { document.body.classList.remove('sidebar-open'); }
+// ---------- panel (sidebar, antrean, sheet tambah, player layar penuh) ----------
+// Di HP setiap panel tercatat di riwayat, jadi tombol Back Android menutupnya.
+function setPanel(name, open, apply) {
+  if (open) {
+    apply(true);
+    overlay.open(name, () => { apply(false); renderBottomNav(); });
+  } else if (overlay.isOpen(name)) {
+    overlay.close(name);
+  } else {
+    apply(false);
+  }
+  renderBottomNav();
+}
+
+function openSidebar(open = true) {
+  setPanel('sidebar', open, (on) => document.body.classList.toggle('sidebar-open', on));
+}
+function closeSidebar() {
+  if (document.body.classList.contains('sidebar-open')) openSidebar(false);
+}
 
 function toggleQueue(force) {
   const panel = $('queue-panel');
   const open = force !== undefined ? force : panel.hidden;
-  panel.hidden = !open;
-  document.body.classList.toggle('queue-open', open);
-  ui.renderQueue(player, store);
+  if (open === !panel.hidden) return;
+  setPanel('queue', open, (on) => {
+    panel.hidden = !on;
+    document.body.classList.toggle('queue-open', on);
+    ui.renderQueue(player, store);
+  });
+}
+
+function openAddSheet(open = true) {
+  if (!isPhone()) {
+    if (open) { window.scrollTo({ top: 0, behavior: 'smooth' }); (local.multi ? $('add-multi') : $('add-input')).focus(); }
+    return;
+  }
+  if (open === document.body.classList.contains('add-open')) return;
+  setPanel('add', open, (on) => {
+    document.body.classList.toggle('add-open', on);
+    if (on) setTimeout(() => (local.multi ? $('add-multi') : $('add-input')).focus(), 60);
+    else document.activeElement && document.activeElement.blur && document.activeElement.blur();
+  });
+}
+
+function openNowPlaying(open = true) {
+  if (!isPhone() || (open && !player.current)) return;
+  if (open === document.body.classList.contains('np-open')) return;
+  setPanel('np', open, (on) => document.body.classList.toggle('np-open', on));
+}
+
+async function pasteLink() {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text || !text.trim()) { toast('Clipboard kosong.'); return; }
+    fillAdd(text);
+  } catch {
+    toast('Tidak bisa membaca clipboard. Tekan lama kolom link lalu pilih Tempel.', 'info', 5000);
+    $('add-input').focus();
+  }
+}
+
+/** Isi form tambah dari teks bebas (clipboard / Bagikan dari aplikasi YouTube). */
+function fillAdd(text) {
+  const r = parseMany(text);
+  if (r.valid.length > 1) {
+    setMulti(true);
+    $('add-multi').value = text.trim();
+    feedback(`${r.valid.length} link valid terdeteksi — tekan Tambah.`, 'ok');
+  } else {
+    if (local.multi) setMulti(false);
+    const link = r.valid.length ? `https://youtu.be/${r.valid[0]}` : text.trim();
+    $('add-input').value = link;
+    feedback(r.valid.length ? 'Link siap — pilih playlist lalu tekan Tambah.' : 'Tidak ada link YouTube yang dikenali.', r.valid.length ? 'ok' : 'error');
+  }
 }
 
 document.addEventListener('click', async (e) => {
@@ -329,8 +414,19 @@ document.addEventListener('click', async (e) => {
       closeSidebar();
       window.scrollTo({ top: 0 });
       break;
-    case 'toggle-sidebar': document.body.classList.toggle('sidebar-open'); break;
+    case 'toggle-sidebar': openSidebar(!document.body.classList.contains('sidebar-open')); break;
+    case 'open-playlists': openSidebar(true); break;
     case 'close-sidebar': closeSidebar(); break;
+    case 'open-add': openAddSheet(true); break;
+    case 'close-add': openAddSheet(false); break;
+    case 'paste-link': pasteLink(); break;
+    case 'np-open': openNowPlaying(true); break;
+    case 'np-close': openNowPlaying(false); break;
+    case 'install-app': {
+      const outcome = await promptInstall();
+      if (outcome === 'accepted') toast('MyTube Vault dipasang. Buka dari layar utama HP-mu.', 'success');
+      break;
+    }
     case 'new-playlist': {
       closeSidebar();
       const name = await promptDialog('Playlist baru', { label: 'Nama playlist', placeholder: 'mis. Musik fokus', ok: 'Buat' });
@@ -367,8 +463,11 @@ document.addEventListener('click', async (e) => {
       break;
     }
     case 'dock-fav': if (player.current) store.toggleFavorite(player.current.youtubeId); break;
-    case 'stage-toggle': store.ui.stageLarge = !store.ui.stageLarge; store.saveUi(); break;
-    case 'stage-close': player.stop(); toggleQueue(false); break;
+    case 'stage-toggle':
+      if (isPhone()) { openNowPlaying(!document.body.classList.contains('np-open')); break; }
+      store.ui.stageLarge = !store.ui.stageLarge; store.saveUi();
+      break;
+    case 'stage-close': openNowPlaying(false); player.stop(); toggleQueue(false); break;
     case 'queue-toggle': toggleQueue(); break;
     case 'queue-jump': player.jumpTo(Number(el.dataset.pos)); break;
     case 'queue-remove': player.removeAt(Number(el.dataset.pos)); break;
@@ -427,6 +526,12 @@ document.addEventListener('change', (e) => {
   });
 })();
 
+enableTouchReorder($('video-list'), {
+  canReorder,
+  entryByKey,
+  move: (plId, from, to) => store.moveItem(plId, from, to),
+});
+
 // ---------- form tambah & pencarian ----------
 $('add-form').addEventListener('submit', handleAdd);
 $('add-input').addEventListener('paste', (e) => {
@@ -480,7 +585,12 @@ document.addEventListener('keydown', (e) => {
     case 'n': case 'N': player.next(); break;
     case 'p': case 'P': player.prev(); break;
     case '/': e.preventDefault(); $('search').focus(); break;
-    case 'Escape': closeSidebar(); if (!$('queue-panel').hidden) toggleQueue(false); break;
+    case 'Escape':
+      closeSidebar();
+      if (!$('queue-panel').hidden) toggleQueue(false);
+      openAddSheet(false);
+      openNowPlaying(false);
+      break;
     default: break;
   }
 });
@@ -516,6 +626,8 @@ player.on((type, data) => {
     }
   }
   if (type === 'end-of-queue') toast('Sudah di akhir antrean.');
+  updateMediaSession();
+  if (type === 'track' && !data) openNowPlaying(false);
   if (type === 'error') toast(data && data.skipping ? `${player.error} Melewati ke video berikutnya…` : player.error, 'error', 5000);
   ui.renderDock(player, store);
   ui.renderQueue(player, store);
@@ -544,8 +656,12 @@ window.addEventListener('storage', (e) => {
   if (e.key === 'mytube_vault_state_v1') { store.load(); store.emit('external'); }
 });
 
+const updateMediaSession = setupMediaSession(player, store);
+let tick = 0;
 setInterval(() => {
-  if (player.current && document.visibilityState === 'visible') ui.renderProgress(player.time(), player.duration());
+  if (!player.current) return;
+  if (document.visibilityState === 'visible') ui.renderProgress(player.time(), player.duration());
+  if (++tick % 10 === 0) updateMediaSession(); // posisi di notifikasi, tiap ±5 detik
 }, 500);
 
 // ---------- start ----------
@@ -562,7 +678,21 @@ async function onboarding() {
     dismissValue: 'local',
   });
   if (choice === 'cloud') openSettings('cloud');
+  else if (isPhone()) openAddSheet(true);
   else $('add-input').focus();
+}
+
+function handleLaunch() {
+  const p = takeLaunchParams();
+  if (p.view && ['all', 'favorites', 'unwatched'].includes(p.view)) store.setView(p.view);
+  if (p.shared) {
+    openAddSheet(true);
+    fillAdd(p.shared);
+    if (!isPhone()) window.scrollTo({ top: 0 });
+    return true;
+  }
+  if (p.action === 'add') { openAddSheet(true); return true; }
+  return false;
 }
 
 document.querySelectorAll('[data-icon]').forEach((el) => el.insertAdjacentHTML('afterbegin', icon(el.dataset.icon)));
@@ -572,4 +702,9 @@ sync.init();
 render();
 const missing = Object.values(store.data.videos).filter((v) => !v.title).map((v) => v.youtubeId).slice(0, 50);
 if (missing.length) metaQueue.add(missing);
-if (store.isFresh) onboarding();
+setupPwa((available) => {
+  document.querySelectorAll('[data-action=install-app]').forEach((b) => { b.hidden = !available || isStandalone(); });
+});
+document.body.classList.toggle('standalone', isStandalone());
+const launched = handleLaunch();
+if (store.isFresh && !launched) onboarding();

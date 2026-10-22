@@ -43,6 +43,9 @@ const P = {
   volume: '<path d="M11 5L6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/>',
   history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/><polyline points="12 7 12 12 15 14"/>',
   logo: '<rect x="2" y="4" width="20" height="16" rx="4"/><path d="M10 8.5v7l6-3.5z"/>',
+  chevronDown: '<polyline points="5 9 12 16 19 9"/>',
+  clipboard: '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>',
+  install: '<rect x="5" y="2" width="14" height="20" rx="3"/><polyline points="9 11 12 14 15 11"/><line x1="12" y1="6" x2="12" y2="14"/><line x1="10" y1="18" x2="14" y2="18"/>',
 };
 
 export function icon(name, cls = '') {

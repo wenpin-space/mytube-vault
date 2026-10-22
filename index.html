@@ -2,13 +2,17 @@
 <html lang="id">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>MyTube Vault</title>
   <meta name="description" content="Playlist YouTube pribadi yang tidak bergantung akun YouTube, dengan auto-backup ke GitHub Gist.">
   <meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f6f6f7" media="(prefers-color-scheme: light)">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23e5484d'/%3E%3Cpath d='M12.5 9.5v13l10-6.5z' fill='white'/%3E%3C/svg%3E">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="MyTube Vault">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -40,13 +44,20 @@
         <button type="button" class="link-btn" data-action="open-settings" data-tab="cloud">Cloud Sync</button>
         <span aria-hidden="true">·</span>
         <button type="button" class="link-btn" data-action="open-settings" data-tab="backup">Backup</button>
+        <button type="button" class="link-btn install-btn" data-action="install-app" hidden>Pasang aplikasi</button>
       </div>
     </nav>
 
     <main class="main" id="main">
       <div id="banner"></div>
 
+      <div class="sheet-scrim" data-action="close-add"></div>
       <form class="add-panel" id="add-form" autocomplete="off">
+        <div class="sheet-head only-phone">
+          <b>Tambah video</b>
+          <button type="button" class="btn sm" data-action="paste-link" data-icon="clipboard"><span>Tempel</span></button>
+          <button type="button" class="icon-btn sm" data-action="close-add" data-icon="x" aria-label="Tutup"></button>
+        </div>
         <div class="add-row">
           <div class="add-field">
             <span class="add-icon" data-icon="link"></span>
@@ -92,8 +103,13 @@
   </aside>
 
   <footer class="dock" id="dock" hidden>
+    <div class="np-head only-phone">
+      <button type="button" class="icon-btn" data-action="np-close" data-icon="chevronDown" aria-label="Kecilkan player"></button>
+      <span>Sedang diputar</span>
+      <button type="button" class="icon-btn" data-action="queue-toggle" data-icon="queue" aria-label="Antrean"></button>
+    </div>
     <div class="dock-progress" id="dock-progress" title="Klik untuk melompat"><div class="dock-bar" id="dock-bar"></div></div>
-    <div class="dock-track">
+    <div class="dock-track" data-action="np-open">
       <img id="dock-thumb" class="dock-thumb" alt="">
       <div class="dock-meta">
         <div id="dock-title" class="dock-title"></div>
@@ -114,6 +130,14 @@
       <button type="button" class="icon-btn" data-action="queue-toggle" data-icon="queue" aria-label="Antrean" title="Antrean"></button>
     </div>
   </footer>
+
+  <nav class="bottom-nav only-phone" id="bottom-nav" aria-label="Navigasi utama">
+    <button type="button" data-action="view" data-view="all" data-nav="library" data-icon="grid"><span>Library</span></button>
+    <button type="button" data-action="open-playlists" data-nav="playlists" data-icon="music"><span>Playlist</span></button>
+    <button type="button" class="bn-add" data-action="open-add" data-nav="add" aria-label="Tambah video" data-icon="plus"><span>Tambah</span></button>
+    <button type="button" data-action="queue-toggle" data-nav="queue" data-icon="queue"><span>Antrean</span></button>
+    <button type="button" data-action="open-settings" data-tab="general" data-nav="settings" data-icon="settings"><span>Setelan</span></button>
+  </nav>
 
   <noscript><p style="padding:24px">MyTube Vault butuh JavaScript.</p></noscript>
   <script type="module" src="js/main.js"></script>

@@ -128,7 +128,7 @@ kbd { border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 
 .brand-mark { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: var(--accent); color: #fff; }
 .brand-mark .i { width: 20px; height: 20px; }
 .search {
-  flex: 1; max-width: 520px; display: flex; align-items: center; gap: 8px;
+  flex: 1; min-width: 0; max-width: 520px; display: flex; align-items: center; gap: 8px;
   height: 38px; padding: 0 10px 0 12px; border-radius: 10px;
   background: var(--panel); border: 1px solid var(--border); color: var(--muted);
 }
@@ -176,8 +176,8 @@ body.has-player .sidebar { height: calc(100dvh - var(--top-h) - var(--dock-h)); 
 .nav-new { margin-top: 6px; padding: 8px 10px; border: 1px dashed var(--border); border-radius: 9px; background: none; color: var(--muted); cursor: pointer; text-align: left; font-size: 14px; }
 .nav-new:hover { color: var(--accent); border-color: var(--accent); }
 .sidebar-foot { margin-top: auto; padding: 16px 10px 0; display: flex; gap: 8px; font-size: 13px; color: var(--muted); }
-.sidebar-scrim { display: none; }
-.only-mobile { display: none; }
+.sidebar-scrim, .sheet-scrim { display: none; }
+.only-mobile, .only-phone { display: none !important; }
 
 .main { min-width: 0; padding: 20px 28px 48px; }
 body.has-player .main { padding-bottom: calc(var(--dock-h) + 260px); }
@@ -445,7 +445,7 @@ body.has-player > .toasts { bottom: calc(var(--dock-h) + 16px); }
 
 @media (max-width: 860px) {
   .app { grid-template-columns: minmax(0, 1fr); }
-  .only-mobile { display: inline-grid; }
+  .only-mobile { display: inline-grid !important; }
   .brand { width: auto; }
   .brand-name { display: none; }
   .sidebar {
@@ -465,22 +465,170 @@ body.has-player > .toasts { bottom: calc(var(--dock-h) + 16px); }
   .search-kbd { display: none; }
 }
 
+/* ===================== HP / Android (≤ 640px) =====================
+   Pola aplikasi musik Android: navigasi bawah, mini player di atasnya,
+   player layar penuh saat mini player diketuk, sheet dari bawah untuk tambah video & menu. */
 @media (max-width: 640px) {
-  :root { --dock-h: 118px; }
+  :root { --nav-h: 60px; --mini-h: 64px; --dock-h: var(--mini-h); --safe-b: env(safe-area-inset-bottom, 0px); --safe-t: env(safe-area-inset-top, 0px); }
+  body { font-size: 15.5px; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+  .only-phone { display: revert !important; }
+  .only-mobile { display: none !important; } /* hamburger diganti tab "Playlist" */
+  .topbar { gap: 8px; padding: var(--safe-t) 12px 0; height: calc(var(--top-h) + var(--safe-t)); }
+  .app { grid-template-rows: calc(var(--top-h) + var(--safe-t)) 1fr; }
+  .topbar > [data-action=open-settings] { display: none; }
+  .search { height: 40px; }
+  .brand-mark { width: 34px; height: 34px; }
+
+  .main { padding: 14px 14px calc(var(--nav-h) + var(--safe-b) + 24px); }
+  body.has-player .main { padding-bottom: calc(var(--nav-h) + var(--mini-h) + var(--safe-b) + 220px); }
+  .banner { flex-wrap: wrap; }
+  .banner p { flex-basis: calc(100% - 40px); font-size: 13.5px; }
+
+  /* ----- navigasi bawah ----- */
+  .bottom-nav {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 45;
+    display: grid !important; grid-template-columns: repeat(5, 1fr);
+    height: calc(var(--nav-h) + var(--safe-b)); padding-bottom: var(--safe-b);
+    background: var(--panel); border-top: 1px solid var(--border);
+  }
+  .bottom-nav button {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    border: 0; background: none; color: var(--muted); font-size: 11.5px; font-weight: 600; cursor: pointer;
+  }
+  .bottom-nav button .i { width: 52px; height: 30px; padding: 4px 15px; border-radius: 999px; transition: background 0.15s; }
+  .bottom-nav button.active { color: var(--text); }
+  .bottom-nav button.active .i { color: var(--accent); background: var(--accent-soft); }
+  .bottom-nav .bn-add .i { background: var(--accent); color: #fff; }
+  .bottom-nav .bn-add { color: var(--text); }
+
+  /* ----- sheet tambah video ----- */
+  .add-panel {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 66; margin: 0;
+    padding: 6px 16px calc(18px + var(--safe-b)); border-radius: 20px 20px 0 0; border-bottom: 0;
+    box-shadow: var(--shadow); transform: translateY(105%); transition: transform 0.22s ease; visibility: hidden;
+  }
+  body.add-open .add-panel { transform: none; visibility: visible; }
+  body.add-open .sheet-scrim { display: block; position: fixed; inset: 0; z-index: 65; background: rgba(0, 0, 0, 0.5); }
+  .sheet-head { display: flex !important; align-items: center; gap: 8px; padding: 10px 0 12px; }
+  .sheet-head::before { content: ""; position: absolute; left: 50%; top: 7px; width: 38px; height: 4px; margin-left: -19px; border-radius: 4px; background: var(--panel-3); }
+  .sheet-head b { flex: 1; font-size: 17px; }
   .add-row { flex-wrap: wrap; }
   .add-field { flex-basis: 100%; }
+  .add-field input { height: 48px; font-size: 16px; } /* 16px: cegah zoom otomatis */
+  .add-field textarea { font-size: 16px; }
   .add-target-wrap { flex: 1; min-width: 0; }
-  .add-target-wrap select { max-width: none; width: 100%; }
-  .view-head { align-items: flex-start; }
-  .vh-text h1 { font-size: 23px; }
-  .vrow { gap: 10px; padding: 8px 4px; }
-  .thumb { width: 108px; }
-  .idx, .grip, .hide-sm { display: none !important; }
-  .dock { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; row-gap: 2px; padding: 10px 12px calc(6px + env(safe-area-inset-bottom)); }
-  .dock-track { grid-column: 1; grid-row: 1; }
-  .dock-extra { grid-column: 2; grid-row: 1; }
-  .dock-controls { grid-column: 1 / -1; grid-row: 2; justify-content: center; gap: 14px; }
-  .dock-time { display: none; }
+  .add-target-wrap select { max-width: none; width: 100%; height: 48px; font-size: 16px; }
+  .add-submit { height: 48px; padding: 0 20px; }
+
+  /* ----- kepala view & daftar ----- */
+  .view-head { align-items: stretch; flex-direction: column; gap: 12px; }
+  .vh-text h1 { font-size: 24px; }
+  .vh-actions { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; }
+  .vh-actions .btn { height: 42px; }
+  .vh-actions .select-wrap { grid-column: 1 / 3; grid-row: 2; }
+  .vh-actions .select-wrap select { width: 100%; height: 40px; max-width: none; font-size: 15px; }
+  .vh-actions [data-action=playlist-menu] { grid-column: 3; grid-row: 2; height: 40px; }
+  .vrow { gap: 10px; padding: 8px 2px; border-radius: 10px; }
+  .vrow:hover { background: none; }
+  .vrow:active { background: var(--panel-2); }
+  .vrow.playing { background: var(--accent-soft); }
+  .thumb { width: 112px; }
+  .title { font-size: 14.5px; }
+  .idx, .hide-sm { display: none !important; }
+  .grip { opacity: 0.7; padding: 10px 2px; margin: -10px 0; touch-action: none; }
+  .row-actions .icon-btn { width: 40px; height: 40px; }
+
+  /* ----- menu jadi action sheet dari bawah ----- */
+  .menu {
+    left: 0 !important; right: 0; top: auto !important; bottom: 0;
+    min-width: 0; max-width: none; max-height: 78dvh; overflow-y: auto;
+    padding: 10px 8px calc(10px + var(--safe-b)); border-radius: 20px 20px 0 0; border-bottom: 0;
+    box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.5); animation: sheet-up 0.18s ease-out;
+  }
+  .menu-item { padding: 13px 14px; font-size: 15.5px; border-radius: 10px; }
+  .menu-item .i { width: 20px; height: 20px; }
+  @keyframes sheet-up { from { transform: translateY(40px); opacity: 0.4; } }
+
+  /* ----- mini player ----- */
+  .dock {
+    bottom: calc(var(--nav-h) + var(--safe-b)); height: var(--mini-h); z-index: 44;
+    grid-template-columns: minmax(0, 1fr) auto; gap: 4px; padding: 0 6px 0 8px;
+    background: var(--panel-2); border-top: 0;
+  }
+  .dock-progress { top: auto; bottom: -3px; height: 6px; pointer-events: none; }
+  .dock-progress::before, .dock-bar { top: 2px; height: 2px; }
+  .dock-track { cursor: pointer; gap: 10px; }
+  .dock-thumb { width: 48px; height: 48px; border-radius: 8px; }
+  .dock-title { font-size: 14px; }
+  .dock-track .icon-btn, .dock-extra, #dock-shuffle, #dock-repeat, .dock-controls [data-action=dock-prev] { display: none; }
+  .dock-controls { gap: 0; }
+  .dock-controls .icon-btn { width: 44px; height: 44px; color: var(--text); }
+  .play-btn { width: 44px; height: 44px; background: none; color: var(--text); }
+  .play-btn .i { width: 24px; height: 24px; }
+  .np-head { display: none !important; }
+
+  /* video saat mini: kartu kecil mengambang di atas mini player */
+  .stage, .stage.large {
+    left: auto; right: 8px; width: min(300px, 74vw);
+    bottom: calc(var(--nav-h) + var(--mini-h) + var(--safe-b) + 8px); border-radius: 12px;
+  }
+  .stage-bar { padding: 2px 2px 2px 10px; }
+  .stage-video { min-height: 0; }
+  #stage-size .i { transform: none; }
+
+  /* ----- player layar penuh ----- */
+  body.np-open { overflow: hidden; }
+  body.np-open .dock {
+    inset: 0; height: auto; z-index: 75; display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch;
+    padding: calc(var(--safe-t) + 56px + max(56.25vw, 200px) + 24px) 22px calc(24px + var(--safe-b));
+    background: var(--bg); overflow-y: auto;
+  }
+  body.np-open .np-head {
+    display: flex !important; align-items: center; justify-content: space-between;
+    position: absolute; top: var(--safe-t); left: 0; right: 0; height: 56px; padding: 0 8px;
+    font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+  }
+  body.np-open .np-head .icon-btn { width: 44px; height: 44px; color: var(--text); }
+  body.np-open .np-head .icon-btn .i { width: 24px; height: 24px; }
+  body.np-open .stage {
+    left: 0; right: 0; width: 100%; top: calc(var(--safe-t) + 56px); bottom: auto;
+    border-radius: 0; border: 0; box-shadow: none; z-index: 76;
+  }
+  body.np-open .stage-bar { display: none; }
+  body.np-open .stage-video { min-height: 200px; }
+  body.np-open .dock-track { order: 1; cursor: default; align-items: flex-start; }
+  body.np-open .dock-thumb { display: none; }
+  body.np-open .dock-meta { flex: 1; }
+  body.np-open .dock-title { font-size: 20px; line-height: 1.3; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  body.np-open .dock-sub { font-size: 14.5px; margin-top: 4px; white-space: normal; }
+  body.np-open .dock-track .icon-btn { display: inline-grid; width: 44px; height: 44px; }
+  body.np-open .dock-track .icon-btn .i { width: 24px; height: 24px; }
+  body.np-open .dock-progress { order: 2; position: relative; top: auto; bottom: auto; height: 28px; margin-top: 22px; pointer-events: auto; flex: none; }
+  body.np-open .dock-progress::before, body.np-open .dock-bar { top: 12px; height: 4px; border-radius: 4px; }
+  body.np-open .dock-progress::before { background: var(--border); }
+  body.np-open .dock-extra { order: 3; display: flex; justify-content: space-between; }
+  body.np-open .dock-extra .icon-btn { display: none; }
+  body.np-open .dock-time { display: block; margin: 0; font-size: 12.5px; }
+  body.np-open .dock-controls { order: 4; justify-content: space-between; margin-top: 18px; }
+  body.np-open .dock-controls .icon-btn, body.np-open #dock-shuffle, body.np-open #dock-repeat { display: inline-grid; width: 52px; height: 52px; }
+  body.np-open .dock-controls .icon-btn .i { width: 26px; height: 26px; }
+  body.np-open #dock-shuffle:not(.on), body.np-open #dock-repeat:not(.on) { color: var(--muted); }
+  body.np-open .play-btn { width: 72px; height: 72px; background: var(--text); color: var(--bg); }
+  body.np-open .play-btn .i { width: 30px; height: 30px; }
+  body.np-open .bottom-nav { display: none !important; }
+
+  /* ----- antrean & sidebar ----- */
+  .queue-panel { top: 0; bottom: 0; z-index: 80; padding: var(--safe-t) 0 var(--safe-b); }
+  .q-main { padding: 8px; }
+  .sidebar { z-index: 60; padding-bottom: calc(24px + var(--safe-b)); }
+  .nav-item { padding: 12px 12px; font-size: 15px; }
+  .sidebar-foot { flex-wrap: wrap; }
+
+  /* ----- lain-lain ----- */
+  .toasts { bottom: calc(var(--nav-h) + var(--safe-b) + 12px); }
+  body.has-player > .toasts { bottom: calc(var(--nav-h) + var(--mini-h) + var(--safe-b) + 12px); }
+  body.np-open > .toasts { bottom: calc(24px + var(--safe-b)); }
+  .modal { max-width: calc(100vw - 16px); }
   .compare, .choice-grid { grid-template-columns: 1fr; }
   .field.inline { flex-direction: column; align-items: stretch; }
 }
