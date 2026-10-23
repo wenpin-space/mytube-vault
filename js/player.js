@@ -259,17 +259,62 @@ export class Player {
     this.loadCurrent();
   }
 
+  /**
+   * Samakan antrean dengan isi sumbernya (mis. playlist yang sedang diputar) setelah berubah:
+   * lagu baru ikut masuk, lagu yang dihapus keluar dari "berikutnya". Lagu sekarang tidak diganggu,
+   * begitu juga lagu yang ditambahkan manual lewat "Putar berikutnya"/"Tambah ke antrean".
+   */
+  syncQueue(entries) {
+    if (!this.order.length) return false;
+    const curQi = this.order[this.pos];
+    const want = new Map(entries.map((e, i) => [e.key, i]));
+    let changed = false;
+
+    // 1) keluarkan lagu sumber yang sudah tidak ada
+    const before = this.order.length;
+    this.order = this.order.filter((qi) => qi === curQi || this.queue[qi].manual || want.has(this.queue[qi].key));
+    if (this.order.length !== before) changed = true;
+
+    // 2) masukkan lagu baru
+    const have = new Set(this.order.map((qi) => this.queue[qi].key));
+    entries.forEach((e, i) => {
+      if (have.has(e.key)) return;
+      this.queue.push({ key: e.key, youtubeId: e.youtubeId });
+      const qi = this.queue.length - 1;
+      const pos = this.order.indexOf(curQi);
+      let at;
+      if (this.shuffle) {
+        at = pos + 1 + Math.floor(Math.random() * (this.order.length - pos)); // acak di antara yang belum diputar
+      } else {
+        // tepat setelah lagu yang mendahuluinya di sumber, supaya urutan playlist terjaga
+        at = this.order.length;
+        for (let j = i - 1; j >= 0; j--) {
+          const k = this.order.findIndex((q) => this.queue[q].key === entries[j].key);
+          if (k >= 0) { at = k + 1; break; }
+        }
+        if (i === 0) at = this.order.findIndex((q) => !this.queue[q].manual);
+        if (at < 0) at = this.order.length;
+      }
+      this.order.splice(at, 0, qi);
+      have.add(e.key);
+      changed = true;
+    });
+    this.pos = this.order.indexOf(curQi);
+    if (changed) this.emit('queue');
+    return changed;
+  }
+
   /** Sisipkan tepat setelah video yang sedang diputar. */
   playNext(entry) {
     if (!this.order.length) { this.playList([entry], 0); return; }
-    this.queue.push({ key: entry.key, youtubeId: entry.youtubeId });
+    this.queue.push({ key: entry.key, youtubeId: entry.youtubeId, manual: true });
     this.order.splice(this.pos + 1, 0, this.queue.length - 1);
     this.emit('queue');
   }
 
   addToQueue(entry) {
     if (!this.order.length) { this.playList([entry], 0); return; }
-    this.queue.push({ key: entry.key, youtubeId: entry.youtubeId });
+    this.queue.push({ key: entry.key, youtubeId: entry.youtubeId, manual: true });
     this.order.push(this.queue.length - 1);
     this.emit('queue');
   }

@@ -288,3 +288,41 @@ test('riwayat, operasi banyak item, kelola playlist, posisi', async () => {
   store.setPosition(B, 0);
   assert.equal(store.getPosition(B), 0);
 });
+
+test('antrean ikut berubah saat playlist sumber ditambah/dikurangi', async () => {
+  const { Player } = await import('../js/player.js');
+  const e = (k) => ({ key: k, youtubeId: `${k}`.padEnd(11, 'x') });
+  const keysOf = (p) => p.order.map((qi) => p.queue[qi].key);
+
+  // urutan normal: lagu baru di akhir playlist → di akhir antrean
+  const p = new Player('x');
+  p.loadCurrent = async () => {};
+  await p.playList([e('a'), e('b'), e('c')], 1); // sedang memutar b
+  p.syncQueue([e('a'), e('b'), e('c'), e('d')]);
+  assert.deepEqual(keysOf(p), ['a', 'b', 'c', 'd']);
+  assert.equal(p.current.key, 'b');
+  // disisipkan di tengah playlist → posisi di antrean mengikuti
+  p.syncQueue([e('a'), e('b'), e('x'), e('c'), e('d')]);
+  assert.deepEqual(keysOf(p), ['a', 'b', 'x', 'c', 'd']);
+  // dihapus dari playlist → keluar dari antrean; lagu yang sedang diputar tidak diganggu
+  p.syncQueue([e('a'), e('x'), e('d')]);
+  assert.deepEqual(keysOf(p), ['a', 'b', 'x', 'd']);
+  assert.equal(p.current.key, 'b');
+  // lagu tambahan manual ("Tambah ke antrean") tidak ikut terhapus
+  p.addToQueue(e('m'));
+  p.syncQueue([e('a'), e('x'), e('d')]);
+  assert.ok(keysOf(p).includes('m'));
+  // next() sekarang benar-benar sampai ke lagu baru
+  p.next(); assert.equal(p.current.key, 'x');
+
+  // acak: lagu baru masuk ke bagian yang belum diputar
+  const s = new Player('y');
+  s.loadCurrent = async () => {};
+  s.shuffle = true;
+  await s.playList([e('a'), e('b'), e('c')], 0);
+  const cur = s.current.key;
+  s.syncQueue([e('a'), e('b'), e('c'), e('n')]);
+  const ks = keysOf(s);
+  assert.equal(ks.length, 4);
+  assert.ok(ks.indexOf('n') > ks.indexOf(cur), 'lagu baru setelah lagu sekarang');
+});

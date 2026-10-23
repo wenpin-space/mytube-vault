@@ -245,7 +245,21 @@ function playFromEntry(entry) {
   }
   const entries = visibleEntries();
   const idx = entries.findIndex((e) => e.key === entry.key);
+  rememberQueueSource(entries.length > 0);
   player.playList(entries.length ? entries : [entry], Math.max(0, idx));
+}
+
+/** Antrean dibuat dari view ini → saat isinya berubah (lagu baru ditambah/dihapus), antrean ikut disesuaikan. */
+function rememberQueueSource(on = true) {
+  local.queueSource = on ? { view: store.ui.view, sort: currentSort(), query: local.query } : null;
+}
+function syncQueueWithSource() {
+  const src = local.queueSource;
+  if (!src || !player.current) return;
+  const view = src.view;
+  if (view.startsWith('pl:') && !store.getPlaylist(view.slice(3))) { local.queueSource = null; return; }
+  const entries = sortEntries(filterEntries(store.viewEntries(view), src.query), src.sort);
+  player.syncQueue(entries);
 }
 
 function playVisible(shuffleAll) {
@@ -253,6 +267,7 @@ function playVisible(shuffleAll) {
   if (!entries.length) return;
   if (shuffleAll) store.setPlayerSetting('shuffle', true);
   const start = shuffleAll ? Math.floor(Math.random() * entries.length) : 0;
+  rememberQueueSource();
   player.playList(entries, start);
 }
 
@@ -489,7 +504,7 @@ async function selectionAction(act) {
       renderMain(); renderSelectBar();
       return;
     }
-    case 'sel-play': player.playList(ents, 0); break;
+    case 'sel-play': rememberQueueSource(false); player.playList(ents, 0); break;
     case 'sel-queue': ents.forEach((e) => player.addToQueue(e)); toast(`${ents.length} video ditambahkan ke antrean.`, 'success'); break;
     case 'sel-add': {
       const target = await resolvePick(await pickPlaylistDialog(store.data.playlists, { title: `Tambah ${ids.length} video ke playlist` }));
@@ -898,6 +913,17 @@ enableTouchReorder($('video-list'), {
   bar.addEventListener('pointercancel', end);
 })();
 
+// Bayangan pada kolom tambah saat sudah menempel di atas (sticky).
+(() => {
+  const panel = $('add-form');
+  const sentinel = document.createElement('div');
+  sentinel.style.height = '1px';
+  panel.before(sentinel);
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(([e]) => panel.classList.toggle('stuck', !e.isIntersecting && e.boundingClientRect.top < 100), { rootMargin: '-80px 0px 0px 0px' }).observe(sentinel);
+  }
+})();
+
 // ---------- form tambah & pencarian ----------
 $('add-form').addEventListener('submit', handleAdd);
 $('add-input').addEventListener('paste', (e) => {
@@ -987,7 +1013,7 @@ store.on((type) => {
     toast('Gagal menyimpan ke browser (penyimpanan penuh?). Segera export backup.', 'error', 8000, { label: 'Backup', fn: () => openSettings('backup') });
     return;
   }
-  if (type === 'change') checkQuota();
+  if (type === 'change') { checkQuota(); syncQueueWithSource(); }
   if (local.selecting) {
     // buang pilihan yang sudah tidak ada (mis. setelah dihapus)
     const keys = new Set(store.viewEntries().map((x) => x.key));
@@ -1161,7 +1187,7 @@ const missing = Object.values(store.data.videos).filter((v) => !v.title).map((v)
 if (missing.length) metaQueue.add(missing);
 setupPwa((available) => {
   document.querySelectorAll('[data-action=install-app]').forEach((b) => { b.hidden = !available || isStandalone(); });
-});
+}, () => toast('Versi baru MyTube Vault tersedia.', 'info', 15000, { label: 'Muat ulang', fn: () => location.reload() }));
 document.body.classList.toggle('standalone', isStandalone());
 const launched = handleLaunch();
 if (store.isFresh && !launched) onboarding();

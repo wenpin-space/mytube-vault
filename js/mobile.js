@@ -105,11 +105,16 @@ export function enableTouchReorder(list, { canReorder, entryByKey, move }) {
 // ---------- PWA ----------
 let installEvent = null;
 
-export function setupPwa(onInstallAvailable) {
+export function setupPwa(onInstallAvailable, onUpdate) {
   const okContext = window.isSecureContext && location.protocol !== 'file:';
   if ('serviceWorker' in navigator && okContext) {
+    const hadController = !!navigator.serviceWorker.controller;
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js').catch((e) => console.warn('Service worker gagal didaftarkan:', e));
+      navigator.serviceWorker.register('sw.js').then((reg) => reg.update()).catch((e) => console.warn('Service worker gagal didaftarkan:', e));
+    });
+    // Versi baru aktif → tawarkan muat ulang (tidak otomatis, supaya musik tidak terputus).
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (hadController && typeof onUpdate === 'function') onUpdate();
     });
   }
   window.addEventListener('beforeinstallprompt', (e) => {

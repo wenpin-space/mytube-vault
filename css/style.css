@@ -760,3 +760,10 @@ body.selecting .main { padding-bottom: 160px; }
   body.np-open .stage.min .stage-video { height: auto; min-height: 200px; aspect-ratio: 16 / 9; }
   body.has-player:not(.np-open) .main { scroll-padding-bottom: 0; }
 }
+
+/* ===================== Kolom tambah link tetap terlihat saat menggulir ===================== */
+@media (min-width: 641px) {
+  .add-panel { position: sticky; top: calc(var(--top-h) + 10px); z-index: 25; transition: box-shadow 0.2s, padding 0.2s; }
+  .add-panel.stuck { box-shadow: 0 -11px 0 0 var(--bg), var(--shadow); padding: 8px 10px; }
+  .add-panel.stuck .add-foot { margin-top: 4px; }
+}
