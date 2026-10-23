@@ -225,7 +225,7 @@ let menuEl = null;
 let menuCleanup = null;
 
 export function closeMenu() {
-  if (menuEl) { menuEl.remove(); menuEl = null; }
+  if (menuEl) { if (menuEl.scrim) menuEl.scrim.remove(); menuEl.remove(); menuEl = null; }
   if (menuCleanup) { menuCleanup(); menuCleanup = null; }
 }
 
@@ -278,6 +278,17 @@ export function openMenu(anchor, items) {
   const openedAt = performance.now();
   // Di HP menu tampil sebagai sheet di bawah layar, jadi scroll halaman tidak membuatnya salah posisi.
   const isSheet = getComputedStyle(m).bottom === '0px';
+  if (isSheet) {
+    // Lapisan gelap yang menelan ketukan, supaya ketuk di luar menu hanya menutup menu
+    // (tidak ikut menekan tombol/kolom di bawahnya).
+    const scrim = document.createElement('div');
+    scrim.className = 'menu-scrim';
+    const swallow = (e) => { e.preventDefault(); e.stopPropagation(); closeMenu(); };
+    scrim.addEventListener('pointerdown', swallow);
+    scrim.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); });
+    document.body.insertBefore(scrim, m);
+    m.scrim = scrim;
+  }
   const onScroll = (e) => { if (!isSheet && !m.contains(e.target) && performance.now() - openedAt > 300) closeMenu(); };
   // Bilah alamat Chrome Android muncul/hilang saat disentuh → memicu resize tinggi. Tutup hanya kalau lebarnya berubah.
   const startW = window.innerWidth;

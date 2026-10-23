@@ -7,6 +7,7 @@ import { modal, toast, confirmDialog, passphraseDialog, textInputDialog } from '
 import { icon } from './icons.js';
 import { escapeHtml, formatDateTime, timeAgo, downloadText, todayStamp, copyText, formatBytes } from './utils.js';
 import { syncLabel } from './ui.js';
+import { getApiKey, setApiKey } from './sources.js';
 
 const TOKEN_URL = 'https://github.com/settings/tokens/new?scopes=gist&description=MyTube%20Vault';
 const TABS = [['cloud', 'Cloud Sync'], ['backup', 'Backup & Riwayat'], ['general', 'Umum']];
@@ -190,8 +191,15 @@ export async function openSettings(initialTab = 'cloud') {
             <h3>Player</h3>
             <label class="check"><input type="checkbox" data-player="autoNext" ${p.autoNext ? 'checked' : ''}><span>Lanjut otomatis ke video berikutnya</span></label>
             <label class="check"><input type="checkbox" data-player="autoMarkWatched" ${p.autoMarkWatched ? 'checked' : ''}><span>Tandai “sudah ditonton” saat video selesai</span></label>
-            <label class="check"><input type="checkbox" data-player="backgroundPlay" ${p.backgroundPlay !== false ? 'checked' : ''}><span>Tetap putar saat aplikasi ditinggal / layar mati <span class="pill">HP</span><br><span class="muted small">Kalau YouTube menjeda video saat kamu keluar aplikasi, MyTube Vault melanjutkannya lagi. Jeda dari notifikasi tetap dihormati. Hasilnya tergantung Chrome dan pengaturan baterai HP.</span></span></label>
+            <label class="check"><input type="checkbox" data-player="backgroundPlay" ${p.backgroundPlay !== false ? 'checked' : ''}><span>Coba lanjutkan saat aplikasi ditinggal <span class="pill">HP</span><br><span class="muted small">Player YouTube di dalam aplikasi web biasanya tetap menjeda diri saat layar mati. Untuk dengar di latar belakang dengan pasti, pakai <b>Putar di aplikasi YouTube</b> (menu ⋮ atau player layar penuh).</span></span></label>
             <p class="hint">Pintasan keyboard: <kbd>Spasi</kbd>/<kbd>K</kbd> putar/jeda · <kbd>N</kbd> berikutnya · <kbd>P</kbd> sebelumnya · <kbd>/</kbd> cari</p>
+          </section>
+          <section class="card">
+            <h3>Pencarian YouTube</h3>
+            <p class="muted">Untuk mencari lagu langsung dari aplikasi (Tambah → Cari di YouTube). Butuh YouTube Data API key gratis milikmu sendiri, disimpan hanya di perangkat ini.</p>
+            <div class="row"><input type="text" id="yt-key" placeholder="AIza…" value="${escapeHtml(getApiKey())}" aria-label="YouTube API key">
+              <button type="button" class="btn" data-act="yt-key-save">Simpan</button></div>
+            <p class="hint">Cara membuat: <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener">aktifkan YouTube Data API v3</a> → <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Credentials → Create API key</a>.</p>
           </section>
           <section class="card">
             <h3>Data di browser ini</h3>
@@ -358,6 +366,13 @@ export async function openSettings(initialTab = 'cloud') {
               downloadText(`mytube-vault-${b.dataset.sha.slice(0, 7)}.json`, await sync.loadRevisionText(b.dataset.sha));
             });
             break;
+          case 'yt-key-save': {
+            const k = panel.querySelector('#yt-key').value.trim();
+            if (k && !/^[\w-]{20,}$/.test(k)) { toast('Format API key tidak dikenali.', 'error'); break; }
+            setApiKey(k);
+            toast(k ? 'API key disimpan.' : 'API key dihapus.', 'success');
+            break;
+          }
           case 'clear-all':
             if (await confirmDialog('Hapus semua data di browser ini?',
               'Semua playlist, pengaturan, token GitHub, dan passphrase di browser ini dihapus. Gist di GitHub TIDAK ikut terhapus.',

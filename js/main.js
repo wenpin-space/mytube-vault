@@ -16,6 +16,7 @@ import { sortEntries, filterEntries, copyText, downloadText, escapeHtml, slugify
 import {
   isPhone, overlay, enableTouchReorder, setupMediaSession, setupBackgroundPlay, setupPwa, promptInstall, isStandalone, takeLaunchParams,
 } from './mobile.js';
+import { libraryPicker, ytSearchDialog, youtubeAppUrl } from './sources.js';
 
 const PAGE = 200;
 const $ = (id) => document.getElementById(id);
@@ -278,11 +279,48 @@ function openItemMenu(anchor, entry) {
   ]);
 }
 
+/** Serahkan daftar putar ke aplikasi YouTube (Premium: tetap jalan di latar belakang). */
+function playInYouTubeApp(ids) {
+  if (!ids.length) { toast('Tidak ada video untuk diputar.'); return; }
+  if (player.isPlaying) player.toggle(); // hindari dua suara sekaligus
+  const url = youtubeAppUrl(ids);
+  if (ids.length > 50) toast('YouTube hanya menerima 50 video pertama.', 'info', 5000);
+  if (url.startsWith('intent:')) location.href = url;
+  else window.open(url, '_blank', 'noopener');
+}
+
+function currentQueueIds() {
+  if (!player.current) return visibleEntries().map((e) => e.youtubeId);
+  const ord = player.order.slice(player.pos).concat(player.repeat === 'all' ? player.order.slice(0, player.pos) : []);
+  return ord.map((i) => player.queue[i].youtubeId);
+}
+
+function addTarget() {
+  const pl = store.currentPlaylist();
+  return (pl && pl.id) || $('add-target').value;
+}
+
 function openPlaylistMenu(anchor) {
   const pl = store.currentPlaylist();
-  if (!pl) return;
+  const viewIds = () => visibleEntries().map((e) => e.youtubeId);
+  if (!pl) {
+    openMenu(anchor, [
+      { label: 'Putar di aplikasi YouTube', icon: 'external', disabled: !viewIds().length, action: () => playInYouTubeApp(viewIds()) },
+      {
+        label: 'Salin semua link', icon: 'copy', disabled: !viewIds().length,
+        action: async () => toast((await copyText(viewIds().map(watchUrl).join('\n'))) ? 'Link disalin.' : 'Gagal menyalin.'),
+      },
+    ]);
+    return;
+  }
   const links = () => pl.items.map((i) => watchUrl(i.youtubeId)).join('\n');
   openMenu(anchor, [
+    { label: 'Tambah lagu (link)', icon: 'link', action: () => openAddSheet(true) },
+    { label: 'Cari lagu di YouTube', icon: 'search', action: () => ytSearchDialog(store, { targetId: pl.id }) },
+    { label: 'Tambah dari library', icon: 'grid', action: () => libraryPicker(store, pl.id) },
+    'sep',
+    { label: 'Putar di aplikasi YouTube', icon: 'external', disabled: !pl.items.length, action: () => playInYouTubeApp(viewIds()) },
+    'sep',
     {
       label: 'Ganti nama', icon: 'edit',
       action: async () => {
@@ -420,6 +458,13 @@ document.addEventListener('click', async (e) => {
     case 'open-add': openAddSheet(true); break;
     case 'close-add': openAddSheet(false); break;
     case 'paste-link': pasteLink(); break;
+    case 'yt-search': {
+      const target = overlay.isOpen('add') || el.closest('#add-form') ? $('add-target').value : addTarget();
+      ytSearchDialog(store, { targetId: target, query: el.dataset.q || '' });
+      break;
+    }
+    case 'add-from-library': libraryPicker(store, $('add-target').value); break;
+    case 'play-in-yt': playInYouTubeApp(currentQueueIds()); break;
     case 'np-open': openNowPlaying(true); break;
     case 'np-close': openNowPlaying(false); break;
     case 'install-app': {

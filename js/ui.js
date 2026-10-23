@@ -70,8 +70,9 @@ export function renderViewHead(store, info) {
     <div class="vh-actions">
       <button type="button" class="btn btn-primary" data-action="play-all" ${info.visible ? '' : 'disabled'}>${icon('play', 'fill')}<span>Putar</span></button>
       <button type="button" class="btn" data-action="shuffle-all" ${info.visible ? '' : 'disabled'}>${icon('shuffle')}<span>Acak</span></button>
+      ${pl ? `<button type="button" class="btn add-song" data-action="open-add" title="Tambah lagu">${icon('plus')}<span>Tambah lagu</span></button>` : ''}
       <label class="select-wrap" title="Urutkan">${icon('sort')}<select data-action="sort" aria-label="Urutkan">${options}</select></label>
-      ${pl ? `<button type="button" class="icon-btn" data-action="playlist-menu" aria-label="Opsi playlist">${icon('more')}</button>` : ''}
+      <button type="button" class="icon-btn" data-action="playlist-menu" aria-label="Opsi lainnya">${icon('more')}</button>
     </div>`;
 }
 
@@ -125,7 +126,8 @@ function row(e, i, opt) {
 
 function emptyState(opt) {
   if (opt.query) {
-    return `<div class="empty-icon">${icon('search')}</div><h3>Tidak ada hasil</h3><p>Tidak ada video yang cocok dengan “${escapeHtml(opt.query)}”.</p>`;
+    return `<div class="empty-icon">${icon('search')}</div><h3>Tidak ada hasil</h3><p>Tidak ada video di library yang cocok dengan “${escapeHtml(opt.query)}”.</p>
+      <p><button type="button" class="btn btn-primary" data-action="yt-search" data-q="${escapeHtml(opt.query)}">${icon('search')}<span>Cari “${escapeHtml(opt.query)}” di YouTube</span></button></p>`;
   }
   if (opt.view === 'favorites') {
     return `<div class="empty-icon">${icon('heart')}</div><h3>Belum ada favorit</h3><p>Klik ikon hati di sebuah video untuk menandainya.</p>`;
@@ -134,7 +136,8 @@ function emptyState(opt) {
     return `<div class="empty-icon">${icon('checkCircle')}</div><h3>Semua sudah ditonton</h3><p>Video yang belum ditandai “ditonton” akan muncul di sini.</p>`;
   }
   return `<div class="empty-icon">${icon('link')}</div><h3>${opt.isPlaylist ? 'Playlist ini masih kosong' : 'Belum ada video'}</h3>
-    <p>Tempel link YouTube di kolom atas lalu tekan Enter. Bisa juga tempel banyak link sekaligus.</p>
+    <p>Tempel link YouTube, cari lagu di YouTube, atau pilih dari library lewat tombol <b>Tambah</b>.</p>
+    ${opt.isPlaylist ? `<p><button type="button" class="btn btn-primary" data-action="open-add">${icon('plus')}<span>Tambah lagu</span></button></p>` : ''}
     <p class="muted small">Contoh: https://youtu.be/… · youtube.com/watch?v=… · /shorts/… · music.youtube.com/…</p>`;
 }
 

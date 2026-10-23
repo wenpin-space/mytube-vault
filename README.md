@@ -89,10 +89,13 @@ Aplikasinya PWA: satu kode yang sama untuk desktop dan Android, tanpa Play Store
 
 **Mau file APK?** Bungkus PWA ini lewat [PWABuilder](https://www.pwabuilder.com): masukkan URL GitHub Pages → *Package for stores* → **Android** → download. Hasilnya aplikasi Trusted Web Activity yang tetap memakai Chrome (jadi login Premium ikut), dan otomatis ter-update setiap kamu push ke GitHub Pages.
 
-**Putar di latar belakang (seperti "On-the-go"):** aktif secara default (*Setelan → Umum → Tetap putar saat aplikasi ditinggal*). Kalau YouTube menjeda video saat kamu pindah aplikasi atau layar mati, MyTube Vault melanjutkannya lagi; jeda dari notifikasi tetap dihormati. Supaya Android tidak mematikan Chrome:
-- **Setelan HP → Aplikasi → Chrome → Penghemat baterai → Tanpa batasan** (di Xiaomi/HyperOS: *Battery saver → No restrictions*, dan aktifkan *Autostart*).
-- Di layar *Recent apps*, **kunci** kartu Chrome / MyTube Vault (tekan lama kartunya → ikon gembok) supaya tidak ikut dibersihkan.
-- Alternatif yang pasti jalan: ketuk tombol layar penuh di video lalu tekan **Home**, maka Chrome memindahkan video ke jendela mengambang (Picture-in-Picture). *Floating windows* bawaan HyperOS juga bisa.
+**Menambah lagu di HP:** buka playlist → tombol **+** (atau ⋮) → pilih:
+- **Tempel link**: kolom Tambah, tombol *Tempel* membaca clipboard.
+- **Cari di YouTube**: ketik judul, ketuk **+** di hasilnya. Butuh YouTube Data API key gratis (sekali saja, *Setelan → Umum → Pencarian YouTube*; ±100 pencarian/hari). Tanpa key tersedia tombol *Buka pencarian YouTube*.
+- **Dari library**: centang lagu yang sudah pernah ditambahkan.
+Kolom cari di atas hanya mencari di library; kalau tidak ketemu muncul tombol *Cari di YouTube*.
+
+**Dengar di latar belakang / layar mati:** player YouTube di dalam aplikasi web menjeda dirinya sendiri saat aplikasi ditinggal, dan itu tidak bisa diubah dari luar player. Solusinya: **Putar di aplikasi YouTube** (player layar penuh, atau menu ⋮ playlist). Daftar putar (maks. 50 lagu, urutan sesuai antrean) dibuka di aplikasi YouTube, yang dengan Premium bisa diputar di latar belakang. Agar Android tidak menutup aplikasinya: *Setelan HP → Aplikasi → YouTube/Chrome → Penghemat baterai → Tanpa batasan*, dan kunci kartunya di Recent apps.
 
 > Setelah update kode, service worker mengambil versi terbaru dari jaringan. Kalau tampilan belum berubah, tutup aplikasi lalu buka lagi.
 
