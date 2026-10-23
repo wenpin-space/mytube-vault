@@ -54,6 +54,7 @@ export class Player {
     this.autoNext = true;
     this.errorStreak = 0;
     this.skipTimer = null;
+    this.pauseIntentAt = 0; // kapan jeda terakhir diminta oleh pengguna/aplikasi (bukan oleh YouTube)
     this.listeners = new Set();
   }
 
@@ -145,6 +146,10 @@ export class Player {
         this.emit('playing', this.current);
         break;
       case S.PAUSED: this.state = 'paused'; this.emit('state'); break;
+      case S.CUED:
+      case -1: // belum mulai (mis. autoplay ditahan browser saat aplikasi di latar belakang)
+        if (this.state === 'loading') this.emit('unstarted', this.current);
+        break;
       case S.BUFFERING: this.state = 'buffering'; this.emit('state'); break;
       case S.ENDED:
         this.state = 'ended';
@@ -202,7 +207,7 @@ export class Player {
 
   toggle() {
     if (!this.yt || !this.current) return;
-    if (this.isPlaying) this.yt.pauseVideo();
+    if (this.isPlaying) { this.pauseIntentAt = Date.now(); this.yt.pauseVideo(); }
     else if (this.state === 'ended') { this.yt.seekTo(0, true); this.yt.playVideo(); } else this.yt.playVideo();
   }
 
@@ -251,7 +256,11 @@ export class Player {
     this.emit('queue');
   }
 
+  /** Lanjutkan pemutaran tanpa dianggap aksi pengguna (dipakai mode latar belakang). */
+  resume() { try { if (this.yt && this.current) this.yt.playVideo(); } catch { /* abaikan */ } }
+
   stop() {
+    this.pauseIntentAt = Date.now();
     clearTimeout(this.skipTimer);
     try { if (this.yt) this.yt.stopVideo(); } catch { /* abaikan */ }
     this.queue = [];

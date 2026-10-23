@@ -276,15 +276,20 @@ export function openMenu(anchor, items) {
   };
   // Abaikan scroll sesaat setelah menu dibuka (sisa momentum scroll di HP).
   const openedAt = performance.now();
-  const onScroll = (e) => { if (!m.contains(e.target) && performance.now() - openedAt > 300) closeMenu(); };
+  // Di HP menu tampil sebagai sheet di bawah layar, jadi scroll halaman tidak membuatnya salah posisi.
+  const isSheet = getComputedStyle(m).bottom === '0px';
+  const onScroll = (e) => { if (!isSheet && !m.contains(e.target) && performance.now() - openedAt > 300) closeMenu(); };
+  // Bilah alamat Chrome Android muncul/hilang saat disentuh → memicu resize tinggi. Tutup hanya kalau lebarnya berubah.
+  const startW = window.innerWidth;
+  const onResize = () => { if (window.innerWidth !== startW) closeMenu(); };
   setTimeout(() => document.addEventListener('pointerdown', onDown), 0);
   document.addEventListener('keydown', onKey);
-  window.addEventListener('resize', closeMenu);
+  window.addEventListener('resize', onResize);
   document.addEventListener('scroll', onScroll, true);
   menuCleanup = () => {
     document.removeEventListener('pointerdown', onDown);
     document.removeEventListener('keydown', onKey);
-    window.removeEventListener('resize', closeMenu);
+    window.removeEventListener('resize', onResize);
     document.removeEventListener('scroll', onScroll, true);
   };
   const first = m.querySelector('.menu-item:not(:disabled)');

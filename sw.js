@@ -1,7 +1,7 @@
 // Service worker: menyimpan "kerangka" aplikasi supaya bisa dibuka offline dan dipasang di Android.
 // Data playlist TIDAK lewat sini (ada di LocalStorage); YouTube & GitHub selalu langsung ke jaringan.
 
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE = `mytube-vault-${VERSION}`;
 const SHELL = [
   './',

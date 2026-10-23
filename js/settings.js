@@ -190,6 +190,7 @@ export async function openSettings(initialTab = 'cloud') {
             <h3>Player</h3>
             <label class="check"><input type="checkbox" data-player="autoNext" ${p.autoNext ? 'checked' : ''}><span>Lanjut otomatis ke video berikutnya</span></label>
             <label class="check"><input type="checkbox" data-player="autoMarkWatched" ${p.autoMarkWatched ? 'checked' : ''}><span>Tandai “sudah ditonton” saat video selesai</span></label>
+            <label class="check"><input type="checkbox" data-player="backgroundPlay" ${p.backgroundPlay !== false ? 'checked' : ''}><span>Tetap putar saat aplikasi ditinggal / layar mati <span class="pill">HP</span><br><span class="muted small">Kalau YouTube menjeda video saat kamu keluar aplikasi, MyTube Vault melanjutkannya lagi. Jeda dari notifikasi tetap dihormati. Hasilnya tergantung Chrome dan pengaturan baterai HP.</span></span></label>
             <p class="hint">Pintasan keyboard: <kbd>Spasi</kbd>/<kbd>K</kbd> putar/jeda · <kbd>N</kbd> berikutnya · <kbd>P</kbd> sebelumnya · <kbd>/</kbd> cari</p>
           </section>
           <section class="card">

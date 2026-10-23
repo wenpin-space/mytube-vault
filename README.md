@@ -89,6 +89,11 @@ Aplikasinya PWA: satu kode yang sama untuk desktop dan Android, tanpa Play Store
 
 **Mau file APK?** Bungkus PWA ini lewat [PWABuilder](https://www.pwabuilder.com): masukkan URL GitHub Pages → *Package for stores* → **Android** → download. Hasilnya aplikasi Trusted Web Activity yang tetap memakai Chrome (jadi login Premium ikut), dan otomatis ter-update setiap kamu push ke GitHub Pages.
 
+**Putar di latar belakang (seperti "On-the-go"):** aktif secara default (*Setelan → Umum → Tetap putar saat aplikasi ditinggal*). Kalau YouTube menjeda video saat kamu pindah aplikasi atau layar mati, MyTube Vault melanjutkannya lagi; jeda dari notifikasi tetap dihormati. Supaya Android tidak mematikan Chrome:
+- **Setelan HP → Aplikasi → Chrome → Penghemat baterai → Tanpa batasan** (di Xiaomi/HyperOS: *Battery saver → No restrictions*, dan aktifkan *Autostart*).
+- Di layar *Recent apps*, **kunci** kartu Chrome / MyTube Vault (tekan lama kartunya → ikon gembok) supaya tidak ikut dibersihkan.
+- Alternatif yang pasti jalan: ketuk tombol layar penuh di video lalu tekan **Home**, maka Chrome memindahkan video ke jendela mengambang (Picture-in-Picture). *Floating windows* bawaan HyperOS juga bisa.
+
 > Setelah update kode, service worker mengambil versi terbaru dari jaringan. Kalau tampilan belum berubah, tutup aplikasi lalu buka lagi.
 
 ---

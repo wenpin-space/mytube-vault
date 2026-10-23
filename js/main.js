@@ -14,7 +14,7 @@ import * as ui from './ui.js';
 import { icon } from './icons.js';
 import { sortEntries, filterEntries, copyText, downloadText, escapeHtml, slugify } from './utils.js';
 import {
-  isPhone, overlay, enableTouchReorder, setupMediaSession, setupPwa, promptInstall, isStandalone, takeLaunchParams,
+  isPhone, overlay, enableTouchReorder, setupMediaSession, setupBackgroundPlay, setupPwa, promptInstall, isStandalone, takeLaunchParams,
 } from './mobile.js';
 
 const PAGE = 200;
@@ -463,6 +463,9 @@ document.addEventListener('click', async (e) => {
       break;
     }
     case 'dock-fav': if (player.current) store.toggleFavorite(player.current.youtubeId); break;
+    case 'dock-add':
+      if (player.current) addToOther({ youtubeId: player.current.youtubeId, playlistId: null });
+      break;
     case 'stage-toggle':
       if (isPhone()) { openNowPlaying(!document.body.classList.contains('np-open')); break; }
       store.ui.stageLarge = !store.ui.stageLarge; store.saveUi();
@@ -657,6 +660,7 @@ window.addEventListener('storage', (e) => {
 });
 
 const updateMediaSession = setupMediaSession(player, store);
+setupBackgroundPlay(player, () => store.data.settings.player.backgroundPlay !== false);
 let tick = 0;
 setInterval(() => {
   if (!player.current) return;

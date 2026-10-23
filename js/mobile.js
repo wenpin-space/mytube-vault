@@ -104,6 +104,45 @@ export function enableTouchReorder(list, { canReorder, entryByKey, move }) {
   list.addEventListener('pointercancel', () => end(false));
 }
 
+// ---------- tetap putar di latar belakang ----------
+// Saat aplikasi ditinggal (pindah app / layar mati), player YouTube bisa menjeda dirinya sendiri.
+// Kalau jeda itu BUKAN dari pengguna (tombol jeda, notifikasi), lanjutkan lagi.
+export function setupBackgroundPlay(player, enabled) {
+  let keep = false; // apakah musik seharusnya tetap jalan selama halaman tersembunyi
+  let attempts = [];
+  const canRetry = () => {
+    const now = Date.now();
+    attempts = attempts.filter((t) => now - t < 30000);
+    if (attempts.length >= 5) return false; // jangan berebut terus dengan browser
+    attempts.push(now);
+    return true;
+  };
+  const resumeSoon = (delay) => setTimeout(() => {
+    if (document.hidden && keep && enabled() && !player.isPlaying && player.current && canRetry()) player.resume();
+  }, delay);
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      keep = player.isPlaying || player.state === 'loading';
+    } else {
+      keep = false;
+      attempts = [];
+    }
+  });
+
+  player.on((type) => {
+    if (!document.hidden || !enabled()) return;
+    if (type === 'playing') { keep = true; return; }
+    if (!keep) return;
+    if (type === 'state' && player.state === 'paused') {
+      if (Date.now() - player.pauseIntentAt < 2000) { keep = false; return; } // dijeda oleh pengguna
+      resumeSoon(400);
+    } else if (type === 'unstarted') {
+      resumeSoon(800); // lagu berikutnya tertahan, dorong mulai
+    }
+  });
+}
+
 // ---------- Media Session (notifikasi & layar kunci Android) ----------
 export function setupMediaSession(player, store) {
   if (!('mediaSession' in navigator)) return () => {};
