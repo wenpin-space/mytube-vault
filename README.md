@@ -95,7 +95,9 @@ Aplikasinya PWA: satu kode yang sama untuk desktop dan Android, tanpa Play Store
 - **Dari library**: centang lagu yang sudah pernah ditambahkan.
 Kolom cari di atas hanya mencari di library; kalau tidak ketemu muncul tombol *Cari di YouTube*.
 
-**Dengar di latar belakang / layar mati:** player YouTube di dalam aplikasi web menjeda dirinya sendiri saat aplikasi ditinggal, dan itu tidak bisa diubah dari luar player. Solusinya: **Putar di aplikasi YouTube** (player layar penuh, atau menu ⋮ playlist). Daftar putar (maks. 50 lagu, urutan sesuai antrean) dibuka di aplikasi YouTube, yang dengan Premium bisa diputar di latar belakang. Agar Android tidak menutup aplikasinya: *Setelan HP → Aplikasi → YouTube/Chrome → Penghemat baterai → Tanpa batasan*, dan kunci kartunya di Recent apps.
+**Notifikasi & layar kunci:** saat musik jalan, aplikasi memutar audio hening (tak terdengar) di halaman utama supaya Android memakai notifikasi milik MyTube Vault: judul lagu, tombol **Back / Play-Pause / Next**, dan geser posisi lagu.
+
+**Dengar di latar belakang / layar mati:** player YouTube di halaman web bisa menjeda dirinya saat aplikasi ditinggal. MyTube Vault terus memintanya lanjut selama ±1,5 menit, dan otomatis melanjutkan saat kamu kembali ke aplikasi. Kalau di HP-mu tetap berhenti, pakai **Putar di aplikasi YouTube** (player layar penuh atau menu ⋮): antrean (maks. 50 lagu) dibuka di aplikasi YouTube, yang dengan Premium pasti bisa di latar belakang. Agar Android tidak menutup Chrome: *Setelan HP → Aplikasi → Chrome → Penghemat baterai → Tanpa batasan*, dan kunci kartunya di Recent apps.
 
 > Setelah update kode, service worker mengambil versi terbaru dari jaringan. Kalau tampilan belum berubah, tutup aplikasi lalu buka lagi.
 

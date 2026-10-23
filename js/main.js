@@ -14,7 +14,7 @@ import * as ui from './ui.js';
 import { icon } from './icons.js';
 import { sortEntries, filterEntries, copyText, downloadText, escapeHtml, slugify } from './utils.js';
 import {
-  isPhone, overlay, enableTouchReorder, setupMediaSession, setupBackgroundPlay, setupPwa, promptInstall, isStandalone, takeLaunchParams,
+  isPhone, overlay, enableTouchReorder, setupBackgroundAudio, setupPwa, promptInstall, isStandalone, takeLaunchParams,
 } from './mobile.js';
 import { libraryPicker, ytSearchDialog, youtubeAppUrl } from './sources.js';
 
@@ -704,8 +704,7 @@ window.addEventListener('storage', (e) => {
   if (e.key === 'mytube_vault_state_v1') { store.load(); store.emit('external'); }
 });
 
-const updateMediaSession = setupMediaSession(player, store);
-setupBackgroundPlay(player, () => store.data.settings.player.backgroundPlay !== false);
+const updateMediaSession = setupBackgroundAudio(player, store, () => store.data.settings.player.backgroundPlay !== false);
 let tick = 0;
 setInterval(() => {
   if (!player.current) return;

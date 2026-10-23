@@ -191,7 +191,7 @@ export async function openSettings(initialTab = 'cloud') {
             <h3>Player</h3>
             <label class="check"><input type="checkbox" data-player="autoNext" ${p.autoNext ? 'checked' : ''}><span>Lanjut otomatis ke video berikutnya</span></label>
             <label class="check"><input type="checkbox" data-player="autoMarkWatched" ${p.autoMarkWatched ? 'checked' : ''}><span>Tandai “sudah ditonton” saat video selesai</span></label>
-            <label class="check"><input type="checkbox" data-player="backgroundPlay" ${p.backgroundPlay !== false ? 'checked' : ''}><span>Coba lanjutkan saat aplikasi ditinggal <span class="pill">HP</span><br><span class="muted small">Player YouTube di dalam aplikasi web biasanya tetap menjeda diri saat layar mati. Untuk dengar di latar belakang dengan pasti, pakai <b>Putar di aplikasi YouTube</b> (menu ⋮ atau player layar penuh).</span></span></label>
+            <label class="check"><input type="checkbox" data-player="backgroundPlay" ${p.backgroundPlay !== false ? 'checked' : ''}><span>Usahakan tetap putar saat aplikasi ditinggal / layar mati <span class="pill">HP</span><br><span class="muted small">Kalau YouTube menjeda sendiri, aplikasi terus memintanya lanjut (±1,5 menit) dan melanjutkan otomatis saat kamu kembali. Kalau tetap berhenti, pakai <b>Putar di aplikasi YouTube</b>.</span></span></label>
             <p class="hint">Pintasan keyboard: <kbd>Spasi</kbd>/<kbd>K</kbd> putar/jeda · <kbd>N</kbd> berikutnya · <kbd>P</kbd> sebelumnya · <kbd>/</kbd> cari</p>
           </section>
           <section class="card">
