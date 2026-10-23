@@ -222,3 +222,69 @@ test('sync: token tanpa scope gist ditolak', async () => {
   await assert.rejects(sync.connectToken('ghp_x'), /scope "gist"/);
   setToken('');
 });
+
+test('riwayat, operasi banyak item, kelola playlist, posisi', async () => {
+  const tick = () => new Promise((r) => setTimeout(r, 3));
+  mem.clear();
+  store.load();
+  const A = 'aaaaaaaaaa1', B = 'bbbbbbbbbb2', C = 'cccccccccc3';
+  const main = store.data.playlists[0];
+  store.addVideos([A, B, C], main.id);
+
+  // riwayat
+  store.recordPlay(B); await tick();
+  store.recordPlay(A); await tick();
+  store.recordPlay(B);
+  let h = store.viewEntries('history');
+  assert.deepEqual(h.map((e) => e.youtubeId), [B, A], 'terbaru diputar di atas');
+  assert.equal(store.data.videos[B].playCount, 2);
+  // riwayat ikut tersimpan & lolos normalisasi (dipakai sync/import)
+  const n = normalizeData(JSON.parse(JSON.stringify(store.data)));
+  assert.equal(n.videos[B].playCount, 2);
+  assert.ok(n.videos[B].lastPlayedAt);
+  store.clearHistory();
+  assert.equal(store.viewEntries('history').length, 0);
+
+  // hapus banyak + urungkan (urutan kembali seperti semula)
+  const items = main.items.map((i) => i.itemId);
+  const removed = store.removeItems(main.id, [items[0], items[2]]);
+  assert.deepEqual(main.items.map((i) => i.youtubeId), [B]);
+  store.restoreItems(main.id, removed);
+  assert.deepEqual(main.items.map((i) => i.youtubeId), [A, B, C]);
+
+  // favorit banyak
+  assert.equal(store.setFavoriteMany([A, C], true), 2);
+  assert.equal(store.viewEntries('favorites').length, 2);
+
+  // pindah banyak ke playlist lain
+  const other = store.createPlaylist('Lain', { switchView: false });
+  store.addVideos([C], other.id);
+  const moved = store.moveItemsToPlaylist(main.id, main.items.filter((i) => i.youtubeId !== B).map((i) => i.itemId), other.id);
+  assert.equal(moved, 2);
+  assert.deepEqual(main.items.map((i) => i.youtubeId), [B]);
+  assert.deepEqual(other.items.map((i) => i.youtubeId), [C, A], 'yang sudah ada tidak dobel');
+
+  // duplikat & urutkan playlist
+  const copy = store.duplicatePlaylist(other.id);
+  assert.equal(copy.name, 'Lain (salinan)');
+  assert.deepEqual(copy.items.map((i) => i.youtubeId), [C, A]);
+  assert.notEqual(copy.items[0].itemId, other.items[0].itemId);
+  const names = () => store.data.playlists.map((p) => p.name);
+  assert.deepEqual(names(), ['Playlist Utama', 'Lain', 'Lain (salinan)']);
+  store.movePlaylist(copy.id, -1);
+  assert.deepEqual(names(), ['Playlist Utama', 'Lain (salinan)', 'Lain']);
+  store.movePlaylist(main.id, -1); // sudah paling atas: tidak berubah
+  assert.equal(names()[0], 'Playlist Utama');
+
+  // hapus banyak dari library
+  store.deleteVideos([A, C]);
+  assert.deepEqual(Object.keys(store.data.videos), [B]);
+  assert.ok(store.data.playlists.every((p) => p.items.every((i) => i.youtubeId === B)));
+
+  // posisi terakhir: lokal saja, tidak masuk data yang disinkronkan
+  store.setPosition(B, 125.7);
+  assert.equal(store.getPosition(B), 125);
+  assert.ok(!JSON.stringify(store.data).includes('125'));
+  store.setPosition(B, 0);
+  assert.equal(store.getPosition(B), 0);
+});

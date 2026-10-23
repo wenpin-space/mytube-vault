@@ -7,7 +7,8 @@ import { SORT_MODES } from './store.js';
 
 const $ = (id) => document.getElementById(id);
 
-const VIEW_TITLES = { all: 'Semua video', favorites: 'Favorit', unwatched: 'Belum ditonton' };
+const VIEW_TITLES = { all: 'Semua video', favorites: 'Favorit', unwatched: 'Belum ditonton', history: 'Riwayat' };
+export const viewTitle = (v) => VIEW_TITLES[v] || '';
 
 const SYNC_UI = {
   disabled: ['cloudOff', 'Lokal saja', 'muted'],
@@ -38,9 +39,10 @@ export function renderSidebar(store) {
     all: all.length,
     favorites: all.filter((v) => v.favorite).length,
     unwatched: all.filter((v) => !v.watched).length,
+    history: all.filter((v) => v.lastPlayedAt).length,
   };
   const v = store.ui.view;
-  const smart = [['all', 'grid'], ['favorites', 'heart'], ['unwatched', 'clock']];
+  const smart = [['all', 'grid'], ['favorites', 'heart'], ['unwatched', 'clock'], ['history', 'history']];
   $('smart-nav').innerHTML = smart.map(([id, ic]) => navItem(id, VIEW_TITLES[id], ic, counts[id], v === id)).join('');
   $('playlist-nav').innerHTML = store.data.playlists
     .map((p) => navItem(`pl:${p.id}`, p.name, 'music', p.items.length, v === `pl:${p.id}`))
@@ -58,7 +60,7 @@ export function renderViewHead(store, info) {
   const countText = info.query ? `${info.visible} dari ${info.total} video` : `${info.total} video`;
   const dur = formatTotal(info.duration);
   const options = SORT_MODES.map(([k, l]) => {
-    const label = !pl && k === 'manual' ? 'Urutan ditambahkan' : l;
+    const label = !pl && k === 'manual' ? (store.ui.view === 'history' ? 'Terakhir diputar' : 'Urutan ditambahkan') : l;
     return `<option value="${k}"${k === info.sort ? ' selected' : ''}>${label}</option>`;
   }).join('');
   $('view-head').innerHTML = `
@@ -88,7 +90,8 @@ export function renderList(entries, opt) {
   }
   empty.hidden = true;
   const shown = entries.slice(0, opt.limit);
-  list.classList.toggle('reorderable', opt.canReorder);
+  list.classList.toggle('reorderable', opt.canReorder && !opt.selecting);
+  list.classList.toggle('selecting', !!opt.selecting);
   list.innerHTML = shown.map((e, i) => row(e, i, opt)).join('');
   const rest = entries.length - shown.length;
   $('list-more').innerHTML = rest > 0
@@ -96,13 +99,29 @@ export function renderList(entries, opt) {
     : '';
 }
 
+/** Teks dengan bagian yang cocok dengan pencarian ditandai <mark>. */
+function highlight(text, q) {
+  const safe = escapeHtml(text);
+  if (!q) return safe;
+  const lower = text.toLocaleLowerCase('id');
+  const ql = q.toLocaleLowerCase('id');
+  const at = lower.indexOf(ql);
+  if (at < 0) return safe;
+  return `${escapeHtml(text.slice(0, at))}<mark>${escapeHtml(text.slice(at, at + q.length))}</mark>${escapeHtml(text.slice(at + q.length))}`;
+}
+
 function row(e, i, opt) {
   const v = e.video;
   const playing = opt.playingId === e.youtubeId;
   const loading = !v.title && opt.metaPending(v.youtubeId);
   const title = v.title || (loading ? 'Memuat judul…' : `Judul belum tersedia (${v.youtubeId})`);
-  const reorder = opt.canReorder;
-  return `<li class="vrow${playing ? ' playing' : ''}${v.watched ? ' watched' : ''}" data-key="${escapeHtml(e.key)}"${reorder ? ' draggable="true"' : ''}>
+  const sel = !!opt.selecting;
+  const reorder = opt.canReorder && !sel;
+  const picked = sel && opt.selected.has(e.key);
+  const fresh = opt.flashKeys && opt.flashKeys.has(e.youtubeId);
+  const sub = opt.view === 'history' && v.lastPlayedAt ? `diputar ${timeAgo(v.lastPlayedAt)}${v.playCount > 1 ? ` · ${v.playCount}×` : ''}` : timeAgo(e.addedAt);
+  return `<li class="vrow${playing ? ' playing' : ''}${v.watched ? ' watched' : ''}${picked ? ' selected' : ''}${fresh ? ' flash' : ''}" data-key="${escapeHtml(e.key)}"${reorder ? ' draggable="true"' : ''}${sel ? ` aria-selected="${picked}"` : ''}>
+    ${sel ? `<span class="pick" data-action="select-toggle" role="checkbox" aria-checked="${picked}" aria-label="Pilih">${icon(picked ? 'checkCircle' : 'circle')}</span>` : ''}
     ${reorder ? `<span class="grip" title="Geser untuk mengubah urutan">${icon('grip')}</span>` : ''}
     <span class="idx">${playing ? icon('volume') : i + 1}</span>
     <button type="button" class="thumb" data-action="play" aria-label="Putar ${escapeHtml(v.title || '')}">
@@ -111,8 +130,8 @@ function row(e, i, opt) {
       <span class="thumb-overlay">${icon(playing && opt.isPlaying ? 'pause' : 'play', 'fill')}</span>
     </button>
     <div class="meta" data-action="play">
-      <div class="title${v.title ? '' : ' untitled'}" title="${escapeHtml(v.title || '')}">${escapeHtml(title)}</div>
-      <div class="sub">${v.channel ? `<span>${escapeHtml(v.channel)}</span>` : ''}<span>${timeAgo(e.addedAt)}</span>${v.watched ? '<span class="tag">ditonton</span>' : ''}</div>
+      <div class="title${v.title ? '' : ' untitled'}" title="${escapeHtml(v.title || '')}">${highlight(title, opt.query)}</div>
+      <div class="sub">${v.channel ? `<span>${highlight(v.channel, opt.query)}</span>` : ''}<span>${sub}</span>${v.watched ? '<span class="tag">ditonton</span>' : ''}</div>
     </div>
     <div class="row-actions">
       <button type="button" class="icon-btn fav${v.favorite ? ' on' : ''}" data-action="fav" aria-label="Favorit" aria-pressed="${v.favorite}" title="Favorit">${icon('heart', v.favorite ? 'fill' : '')}</button>
@@ -135,6 +154,9 @@ function emptyState(opt) {
   if (opt.view === 'unwatched') {
     return `<div class="empty-icon">${icon('checkCircle')}</div><h3>Semua sudah ditonton</h3><p>Video yang belum ditandai “ditonton” akan muncul di sini.</p>`;
   }
+  if (opt.view === 'history') {
+    return `<div class="empty-icon">${icon('history')}</div><h3>Belum ada riwayat</h3><p>Lagu yang kamu putar akan muncul di sini, terbaru di atas.</p>`;
+  }
   return `<div class="empty-icon">${icon('link')}</div><h3>${opt.isPlaylist ? 'Playlist ini masih kosong' : 'Belum ada video'}</h3>
     <p>Tempel link YouTube, cari lagu di YouTube, atau pilih dari library lewat tombol <b>Tambah</b>.</p>
     ${opt.isPlaylist ? `<p><button type="button" class="btn btn-primary" data-action="open-add">${icon('plus')}<span>Tambah lagu</span></button></p>` : ''}
@@ -144,7 +166,9 @@ function emptyState(opt) {
 export function renderBanner(store, sync) {
   const c = store.cloud;
   let html = '';
-  if (c.connected && sync.status === 'conflict') {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    html = banner('warn', 'cloudOff', 'Kamu sedang offline. Playlist tetap bisa dibuka dan diatur — perubahan disimpan di perangkat dan disinkronkan otomatis saat online. Memutar video & mencari di YouTube butuh internet.', 'banner-settings', 'Status sync');
+  } else if (c.connected && sync.status === 'conflict') {
     html = banner('err', 'alert', 'Konflik data dengan cloud. Pilih versi yang mau dipakai.', 'banner-resolve', 'Selesaikan');
   } else if (c.connected && sync.status === 'locked') {
     html = banner('warn', 'lock', 'Backup terenkripsi butuh passphrase untuk sinkron.', 'banner-resolve', 'Masukkan passphrase');
@@ -162,7 +186,7 @@ function banner(cls, ic, text, action, label, dismiss = false) {
     ${dismiss ? `<button type="button" class="icon-btn sm" data-action="banner-dismiss" aria-label="Tutup">${icon('x')}</button>` : ''}</div>`;
 }
 
-export function renderDock(player, store) {
+export function renderDock(player, store, opts = {}) {
   const cur = player.current;
   const dock = $('dock');
   const stage = $('stage');
@@ -197,6 +221,13 @@ export function renderDock(player, store) {
   rp.innerHTML = icon(player.repeat === 'one' ? 'repeatOne' : 'repeat');
   rp.classList.toggle('on', player.repeat !== 'off');
   rp.title = { off: 'Ulangi: mati', all: 'Ulangi: semua', one: 'Ulangi: satu video' }[player.repeat];
+
+  const sleep = $('dock-sleep');
+  const info = [];
+  if (player.rate !== 1) info.push(`${player.rate}×`);
+  if (opts && opts.sleepLabel) info.push(`${opts.sleepLabel}`);
+  sleep.hidden = !info.length;
+  sleep.textContent = info.join(' · ');
 
   const fav = $('dock-fav');
   fav.innerHTML = icon('heart', v && v.favorite ? 'fill' : '');

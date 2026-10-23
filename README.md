@@ -23,7 +23,7 @@ Vanilla JavaScript (ES modules), tanpa build step, tanpa backend. Tinggal taruh 
 - Antrean: lihat, lompat, hapus, “Putar berikutnya”, “Tambah ke antrean”
 - Mini player ⇄ video besar, progress bar yang bisa diklik
 - Video yang tidak boleh di-embed → pesan jelas + tombol “Buka di YouTube”, otomatis lanjut ke video berikutnya
-- Pintasan: `Spasi`/`K` putar-jeda · `N` berikutnya · `P` sebelumnya · `/` cari
+- Pintasan: `Spasi`/`K` putar-jeda · `N` berikutnya · `P` sebelumnya · `/` cari · `?` semua pintasan
 
 **Android / HP** (PWA)
 - Bisa dipasang seperti aplikasi: ikon di layar utama, terbuka tanpa bilah browser
@@ -32,6 +32,17 @@ Vanilla JavaScript (ES modules), tanpa build step, tanpa backend. Tinggal taruh 
 - **Bagikan** dari aplikasi YouTube → pilih *MyTube Vault* → link langsung terisi
 - Tombol **Tempel** membaca link dari clipboard
 - Ubah urutan dengan menggeser pegangan ⠿
+
+**Kenyamanan pakai** (dari review QA)
+- **Pilih banyak**: menu ⋮ → *Pilih beberapa*, atau tekan lama sebuah lagu di HP. Lalu putar, masukkan antrean, tambah/pindah ke playlist, favoritkan, atau hapus sekaligus (hapus dari playlist bisa **Urungkan**).
+- **Timer tidur** (15–90 menit atau *akhir lagu ini*) dan **kecepatan putar** 0.5×–2× lewat tombol ⋮ di player
+- **Riwayat**: koleksi otomatis lagu yang pernah diputar (terbaru di atas, dengan jumlah putar)
+- **Lanjut dari posisi terakhir** untuk video panjang (≥ 8 menit), seperti YouTube; lagu biasa selalu mulai dari awal
+- Pencarian dengan **sorotan** kata yang cocok dan tombol hapus ×; daftar panjang **termuat otomatis** saat digulir
+- Video baru disorot & digulir ke posisinya; duplikat playlist; naik/turunkan playlist di daftar
+- Banner **offline**, pesan jelas kalau player YouTube gagal/timeout (dengan tombol *Buka di YouTube*), notifikasi kesalahan tak terduga, peringatan saat penyimpanan browser hampir penuh
+- Aksesibilitas: tautan *Lewati ke daftar video*, judul iframe player, toast bisa ditutup & berhenti saat disentuh/di-hover, error diumumkan ke pembaca layar
+- Pintasan: `?` daftar pintasan · `←/→` seek 5 dtk · `↑/↓` volume · `M` bisu · `S` acak · `R` ulangi · `Ctrl+A` pilih semua
 
 **Penyimpanan & backup**
 - LocalStorage sebagai penyimpanan utama (local-first, jalan offline)
@@ -234,6 +245,21 @@ Mencakup parser link, migrasi format lama, operasi store, envelope + enkripsi, d
 - **Putar di latar belakang / layar mati** di Android mengikuti kebijakan YouTube dan Chrome; kontrol di notifikasi bersifat best-effort karena audio berasal dari iframe YouTube.
 - LocalStorage umumnya dibatasi ±5 MB — cukup untuk puluhan ribu video. Ukuran saat ini terlihat di *Pengaturan → Umum*.
 - GitHub membatasi request yang membuat konten; karena itu ada jarak minimal 8 detik antar-penyimpanan. Kalau tetap kena limit, sync dicoba ulang otomatis.
+
+## Status rekomendasi review QA
+
+**Sudah ada sebelum review** (klaim review tidak berlaku): validasi & pratinjau import + snapshot sebelum menimpa, antrean metadata dengan batas paralel, service worker/offline shell, `loading="lazy"` + `decoding="async"`, badge durasi & total durasi playlist, Urungkan saat hapus dari playlist, konfirmasi kosongkan/hapus playlist, toast `aria-live`, `lang="id"`, `prefers-reduced-motion`, `:focus-visible`, escape HTML untuk semua teks pengguna (anti-XSS), penanganan penyimpanan penuh.
+
+**Dikerjakan di putaran ini:** fallback/timeout player, banner offline, penangkap error global, peringatan kuota, batas ukuran file import, pilih banyak + aksi massal, timer tidur, kecepatan putar, riwayat + lanjut posisi, muat otomatis saat gulir, sorotan pencarian + tombol hapus, debounce 250 ms, pintasan keyboard + modal `?`, skip link, judul iframe, toast yang bisa ditutup/dijeda, animasi favorit, sorot item baru, duplikat & urutkan playlist.
+
+**Sengaja tidak dikerjakan:**
+- *Mode audio saja, unduh video untuk offline, pemilih kualitas*: melanggar ketentuan YouTube / API kualitas sudah tidak berpengaruh sejak YouTube mengatur kualitas otomatis.
+- *Putar di latar belakang di dalam aplikasi web*: sudah dicoba, player YouTube menjeda dirinya sendiri; solusinya **Putar di aplikasi YouTube**.
+- *Picture-in-Picture tombol sendiri*: video ada di iframe YouTube (lintas domain), jadi tidak bisa dipanggil dari aplikasi; pakai tombol layar penuh → Home di Android.
+- *Library React (react-window, zod, p-queue), Sentry/analitik, CDN, A/B test, kolaborasi & follow pengguna*: aplikasi ini sengaja tanpa build step dan tanpa server; GitHub Pages sudah memakai CDN + kompresi.
+- *Virtualisasi penuh*: diganti muat-bertahap 200 item saat digulir — cukup untuk ribuan video tanpa menambah kerumitan.
+
+**Berikutnya (P2):** tag/label + smart playlist berbasis aturan, statistik putar, import dari URL playlist YouTube (pakai API key yang sama dengan pencarian), gesture swipe, tata letak landscape.
 
 ## Ide pengembangan berikutnya
 

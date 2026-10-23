@@ -21,10 +21,12 @@ function loadApi() {
     const s = document.createElement('script');
     s.src = 'https://www.youtube.com/iframe_api';
     s.async = true;
-    s.onerror = () => {
-      apiPromise = null;
-      reject(new Error('Gagal memuat player YouTube. Periksa koneksi internet.'));
-    };
+    const fail = (msg) => { clearTimeout(timer); apiPromise = null; s.remove(); reject(new Error(msg)); };
+    // Pemblokir iklan/jaringan lambat bisa membuat script tidak pernah selesai → jangan menunggu selamanya.
+    const timer = setTimeout(() => fail('Player YouTube tidak termuat (koneksi lambat atau diblokir ekstensi). Coba lagi, atau buka di YouTube.'), 12000);
+    s.onerror = () => fail('Gagal memuat player YouTube. Periksa koneksi internet atau ekstensi pemblokir.');
+    const prevReady = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => { clearTimeout(timer); if (typeof prevReady === 'function') prevReady(); };
     document.head.appendChild(s);
   });
   return apiPromise;
@@ -55,6 +57,9 @@ export class Player {
     this.errorStreak = 0;
     this.skipTimer = null;
     this.pauseIntentAt = 0; // kapan jeda terakhir diminta oleh pengguna/aplikasi (bukan oleh YouTube)
+    this.rate = 1;
+    this.stopAfterCurrent = false; // timer tidur "akhir lagu ini"
+    this.startAt = 0; // detik awal untuk lagu yang sedang dimuat (lanjut dari posisi terakhir)
     this.listeners = new Set();
   }
 
@@ -87,7 +92,10 @@ export class Player {
           height: '100%',
           playerVars: vars,
           events: {
-            onReady: () => resolve(),
+            onReady: () => {
+              try { const f = this.yt.getIframe(); f.title = 'Player video YouTube'; f.setAttribute('allow', `${f.getAttribute('allow') || ''}; picture-in-picture`); } catch { /* abaikan */ }
+              resolve();
+            },
             onStateChange: (e) => this.onState(e),
             onError: (e) => this.onError(e),
           },
@@ -116,9 +124,12 @@ export class Player {
     await this.loadCurrent();
   }
 
-  async loadCurrent() {
+  /** startAt null → tanyakan resumeLookup (lanjut dari posisi terakhir untuk video panjang). */
+  async loadCurrent(startAt = null) {
     const cur = this.current;
     if (!cur) return;
+    if (startAt == null) startAt = typeof this.resumeLookup === 'function' ? (this.resumeLookup(cur.youtubeId) || 0) : 0;
+    this.startAt = startAt;
     clearTimeout(this.skipTimer);
     this.error = null;
     this.state = 'loading';
@@ -132,13 +143,15 @@ export class Player {
       return;
     }
     if (this.current !== cur) return; // user sudah pindah lagu saat API dimuat
-    this.yt.loadVideoById(cur.youtubeId);
+    if (this.startAt > 0) this.yt.loadVideoById({ videoId: cur.youtubeId, startSeconds: this.startAt });
+    else this.yt.loadVideoById(cur.youtubeId);
   }
 
   onState(e) {
     const S = window.YT.PlayerState;
     switch (e.data) {
       case S.PLAYING:
+        if (this.rate !== 1) { try { if (this.yt.getPlaybackRate() !== this.rate) this.yt.setPlaybackRate(this.rate); } catch { /* abaikan */ } }
         this.state = 'playing';
         this.error = null;
         this.errorStreak = 0;
@@ -154,6 +167,7 @@ export class Player {
       case S.ENDED:
         this.state = 'ended';
         this.emit('ended', this.current);
+        if (this.stopAfterCurrent) { this.stopAfterCurrent = false; this.emit('sleep'); this.emit('state'); break; }
         if (this.repeat === 'one') { this.yt.seekTo(0, true); this.yt.playVideo(); } else if (this.autoNext) this.next(true);
         else this.emit('state');
         break;
@@ -227,6 +241,17 @@ export class Player {
   }
 
   setRepeat(mode) { this.repeat = mode; this.emit('state'); }
+
+  setRate(rate) {
+    this.rate = rate;
+    try { if (this.yt) this.yt.setPlaybackRate(rate); } catch { /* abaikan */ }
+    this.emit('state');
+  }
+  pause() { if (this.isPlaying) { this.pauseIntentAt = Date.now(); try { this.yt.pauseVideo(); } catch { /* abaikan */ } } }
+  volume() { try { return this.yt ? this.yt.getVolume() : 100; } catch { return 100; } }
+  setVolume(v) { try { if (this.yt) { this.yt.setVolume(Math.max(0, Math.min(100, v))); if (v > 0) this.yt.unMute(); } } catch { /* abaikan */ } }
+  isMuted() { try { return !!(this.yt && this.yt.isMuted()); } catch { return false; } }
+  toggleMute() { try { if (!this.yt) return false; if (this.yt.isMuted()) this.yt.unMute(); else this.yt.mute(); return !this.yt.isMuted(); } catch { return false; } }
 
   jumpTo(orderPos) {
     if (orderPos < 0 || orderPos >= this.order.length) return;

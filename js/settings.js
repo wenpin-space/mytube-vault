@@ -390,6 +390,7 @@ export async function openSettings(initialTab = 'cloud') {
         else if (t.id === 'import-file' && t.files && t.files[0]) {
           const file = t.files[0];
           t.value = '';
+          if (file.size > 10 * 1024 * 1024) { toast('File terlalu besar (maks. 10 MB). Pastikan itu file backup MyTube Vault.', 'error', 6000); return; }
           await run(null, async () => importText(await file.text()));
         }
       });

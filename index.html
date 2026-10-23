@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+  <a class="skip-link" href="#main">Lewati ke daftar video</a>
   <div class="app">
     <header class="topbar">
       <button type="button" class="icon-btn only-mobile" data-action="toggle-sidebar" data-icon="menu" aria-label="Buka menu"></button>
@@ -24,7 +25,8 @@
       </a>
       <label class="search">
         <span class="search-icon" data-icon="search"></span>
-        <input id="search" type="search" placeholder="Cari judul atau channel…" autocomplete="off" aria-label="Cari video">
+        <input id="search" type="search" placeholder="Cari judul atau channel…" autocomplete="off" aria-label="Cari video" enterkeyhint="search">
+        <button type="button" class="search-clear" id="search-clear" data-action="search-clear" data-icon="x" aria-label="Hapus pencarian" hidden></button>
         <kbd class="search-kbd">/</kbd>
       </label>
       <button type="button" id="sync-badge" class="sync-badge" data-action="sync-badge"></button>
@@ -48,7 +50,7 @@
       </div>
     </nav>
 
-    <main class="main" id="main">
+    <main class="main" id="main" tabindex="-1">
       <div id="banner"></div>
 
       <div class="sheet-scrim" data-action="close-add"></div>
@@ -108,7 +110,10 @@
     <div class="np-head only-phone">
       <button type="button" class="icon-btn" data-action="np-close" data-icon="chevronDown" aria-label="Kecilkan player"></button>
       <span>Sedang diputar</span>
-      <button type="button" class="icon-btn" data-action="queue-toggle" data-icon="queue" aria-label="Antrean"></button>
+      <span class="np-head-right">
+        <button type="button" class="icon-btn" data-action="player-menu" data-icon="more" aria-label="Opsi player"></button>
+        <button type="button" class="icon-btn" data-action="queue-toggle" data-icon="queue" aria-label="Antrean"></button>
+      </span>
     </div>
     <div class="dock-progress" id="dock-progress" title="Klik untuk melompat"><div class="dock-bar" id="dock-bar"></div></div>
     <div class="dock-track" data-action="np-open">
@@ -116,6 +121,7 @@
       <div class="dock-meta">
         <div id="dock-title" class="dock-title"></div>
         <div id="dock-sub" class="dock-sub"></div>
+        <span id="dock-sleep" class="dock-badge" hidden></span>
       </div>
       <button type="button" class="icon-btn" id="dock-fav" data-action="dock-fav" aria-label="Favorit"></button>
       <button type="button" class="icon-btn" data-action="dock-add" data-icon="plus" aria-label="Tambah ke playlist" title="Tambah ke playlist"></button>
@@ -129,6 +135,7 @@
     </div>
     <div class="dock-extra">
       <span class="dock-time" id="dock-time"></span>
+      <button type="button" class="icon-btn" data-action="player-menu" data-icon="more" aria-label="Opsi player" title="Kecepatan, timer tidur, dll."></button>
       <button type="button" class="icon-btn" id="dock-stage" data-action="stage-toggle" aria-label="Ubah ukuran video"></button>
       <button type="button" class="icon-btn" data-action="queue-toggle" data-icon="queue" aria-label="Antrean" title="Antrean"></button>
     </div>
@@ -137,6 +144,8 @@
       <p class="muted small">Pakai ini kalau mau tetap dengar saat layar mati atau pindah aplikasi (YouTube Premium).</p>
     </div>
   </footer>
+
+  <div class="select-bar" id="select-bar" hidden role="toolbar" aria-label="Aksi untuk video terpilih"></div>
 
   <nav class="bottom-nav only-phone" id="bottom-nav" aria-label="Navigasi utama">
     <button type="button" data-action="view" data-view="all" data-nav="library" data-icon="grid"><span>Library</span></button>

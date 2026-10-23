@@ -14,7 +14,8 @@ const SNAPSHOT_KEY = 'mytube_vault_snapshot_v1';
 const TOKEN_KEY = 'mytube_vault_gh_token';
 export const PASS_KEY = 'mytube_vault_passphrase';
 export const VAULT_FILE = 'mytube-vault.json';
-const SMART_VIEWS = ['all', 'favorites', 'unwatched'];
+const SMART_VIEWS = ['all', 'favorites', 'unwatched', 'history'];
+const POS_KEY = 'mytube_vault_positions_v1';
 
 export const SORT_MODES = [
   ['manual', 'Urutan manual'],
@@ -81,6 +82,8 @@ function normVideo(id, v = {}, t = nowISO()) {
     favorite: !!v.favorite,
     watched: !!v.watched,
     tags: Array.isArray(v.tags) ? v.tags.filter((x) => typeof x === 'string').slice(0, 30) : [],
+    playCount: Number.isFinite(v.playCount) && v.playCount > 0 ? Math.floor(v.playCount) : 0,
+    lastPlayedAt: typeof v.lastPlayedAt === 'string' && !Number.isNaN(Date.parse(v.lastPlayedAt)) ? v.lastPlayedAt : null,
     firstAddedAt: iso(v.firstAddedAt ?? v.addedAt, t),
     updatedAt: iso(v.updatedAt, t),
   };
@@ -250,6 +253,8 @@ export const store = {
       if (!cur.duration && v.duration) cur.duration = v.duration;
       cur.favorite = cur.favorite || v.favorite;
       cur.watched = cur.watched || v.watched;
+      cur.playCount = Math.max(cur.playCount || 0, v.playCount || 0);
+      if (v.lastPlayedAt && (!cur.lastPlayedAt || v.lastPlayedAt > cur.lastPlayedAt)) cur.lastPlayedAt = v.lastPlayedAt;
     }
     for (const p of inc.playlists) {
       const target = this.getPlaylist(p.id) ||
@@ -296,7 +301,12 @@ export const store = {
     let vids = Object.values(this.data.videos);
     if (view === 'favorites') vids = vids.filter((v) => v.favorite);
     if (view === 'unwatched') vids = vids.filter((v) => !v.watched);
-    vids.sort((a, b) => a.firstAddedAt.localeCompare(b.firstAddedAt));
+    if (view === 'history') {
+      // Urutan "manual" untuk riwayat = terakhir diputar paling atas.
+      vids = vids.filter((v) => v.lastPlayedAt).sort((a, b) => b.lastPlayedAt.localeCompare(a.lastPlayedAt));
+    } else {
+      vids.sort((a, b) => a.firstAddedAt.localeCompare(b.firstAddedAt));
+    }
     return vids.map((v, index) => ({
       key: `v:${v.youtubeId}`, itemId: null, playlistId: null, index,
       youtubeId: v.youtubeId, addedAt: v.firstAddedAt, video: v,
@@ -391,6 +401,127 @@ export const store = {
     p.updatedAt = nowISO();
     this.commit('restore-item');
   },
+  /** Catat pemutaran (untuk Riwayat). */
+  recordPlay(id) {
+    const v = this.data.videos[id];
+    if (!v) return;
+    v.playCount = (v.playCount || 0) + 1;
+    v.lastPlayedAt = nowISO();
+    this.commit('play');
+  },
+  clearHistory() {
+    for (const v of Object.values(this.data.videos)) { v.lastPlayedAt = null; v.playCount = 0; }
+    this.commit('history-clear');
+  },
+
+  // ---------- operasi banyak item sekaligus ----------
+  /** Hapus beberapa item dari playlist. Mengembalikan data untuk Urungkan. */
+  removeItems(playlistId, itemIds) {
+    const p = this.getPlaylist(playlistId);
+    if (!p) return [];
+    const ids = new Set(itemIds);
+    const removed = [];
+    p.items.forEach((it, index) => { if (ids.has(it.itemId)) removed.push({ item: it, index }); });
+    if (!removed.length) return [];
+    p.items = p.items.filter((it) => !ids.has(it.itemId));
+    p.updatedAt = nowISO();
+    this.commit('remove-many');
+    return removed;
+  },
+  restoreItems(playlistId, removed) {
+    const p = this.getPlaylist(playlistId);
+    if (!p || !removed.length) return;
+    for (const { item, index } of [...removed].sort((a, b) => a.index - b.index)) {
+      if (p.items.some((i) => i.youtubeId === item.youtubeId)) continue;
+      p.items.splice(Math.min(index, p.items.length), 0, item);
+    }
+    p.updatedAt = nowISO();
+    this.commit('restore-many');
+  },
+  setFavoriteMany(ids, value) {
+    const t = nowISO();
+    let n = 0;
+    for (const id of ids) {
+      const v = this.data.videos[id];
+      if (v && v.favorite !== value) { v.favorite = value; v.updatedAt = t; n++; }
+    }
+    if (n) this.commit('favorite-many');
+    return n;
+  },
+  setWatchedMany(ids, value) {
+    const t = nowISO();
+    let n = 0;
+    for (const id of ids) {
+      const v = this.data.videos[id];
+      if (v && v.watched !== value) { v.watched = value; v.updatedAt = t; n++; }
+    }
+    if (n) this.commit('watched-many');
+    return n;
+  },
+  deleteVideos(ids) {
+    const set = new Set(ids);
+    for (const id of set) delete this.data.videos[id];
+    for (const p of this.data.playlists) {
+      const n = p.items.length;
+      p.items = p.items.filter((i) => !set.has(i.youtubeId));
+      if (p.items.length !== n) p.updatedAt = nowISO();
+    }
+    this.commit('delete-many');
+  },
+  moveItemsToPlaylist(fromId, itemIds, toId) {
+    const from = this.getPlaylist(fromId);
+    const to = this.getPlaylist(toId);
+    if (!from || !to || from === to) return 0;
+    const ids = new Set(itemIds);
+    const have = new Set(to.items.map((i) => i.youtubeId));
+    const t = nowISO();
+    let moved = 0;
+    for (const it of from.items) {
+      if (!ids.has(it.itemId)) continue;
+      moved++;
+      if (!have.has(it.youtubeId)) { to.items.push({ ...it, itemId: uid('it'), addedAt: t }); have.add(it.youtubeId); }
+    }
+    from.items = from.items.filter((i) => !ids.has(i.itemId));
+    from.updatedAt = t;
+    to.updatedAt = t;
+    this.commit('move-many');
+    return moved;
+  },
+
+  // ---------- kelola playlist ----------
+  duplicatePlaylist(id) {
+    const p = this.getPlaylist(id);
+    if (!p) return null;
+    const t = nowISO();
+    const copy = { id: uid('pl'), name: `${p.name} (salinan)`.slice(0, 100), createdAt: t, updatedAt: t, items: p.items.map((it) => ({ ...it, itemId: uid('it') })) };
+    this.data.playlists.splice(this.data.playlists.indexOf(p) + 1, 0, copy);
+    this.ui.view = `pl:${copy.id}`;
+    this.commit('playlist-duplicate');
+    return copy;
+  },
+  movePlaylist(id, delta) {
+    const arr = this.data.playlists;
+    const i = arr.findIndex((p) => p.id === id);
+    const j = i + delta;
+    if (i < 0 || j < 0 || j >= arr.length) return;
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+    this.commit('playlist-reorder');
+  },
+
+  // ---------- posisi terakhir (hanya di perangkat ini, tidak disinkronkan) ----------
+  getPosition(id) {
+    try { const m = JSON.parse(localStorage.getItem(POS_KEY) || '{}'); return m[id] ? m[id].t : 0; } catch { return 0; }
+  },
+  setPosition(id, seconds) {
+    try {
+      const m = JSON.parse(localStorage.getItem(POS_KEY) || '{}');
+      if (seconds > 0) m[id] = { t: Math.floor(seconds), at: Date.now() }; else delete m[id];
+      const keys = Object.keys(m);
+      if (keys.length > 300) keys.sort((a, b) => m[a].at - m[b].at).slice(0, keys.length - 300).forEach((k) => delete m[k]);
+      localStorage.setItem(POS_KEY, JSON.stringify(m));
+    } catch { /* abaikan */ }
+  },
+
   /** Hapus total dari library dan semua playlist. */
   deleteVideo(id) {
     delete this.data.videos[id];
@@ -444,7 +575,7 @@ export const store = {
     try { return new Blob([localStorage.getItem(STATE_KEY) || '']).size; } catch { return 0; }
   },
   clearAll() {
-    for (const k of [STATE_KEY, SNAPSHOT_KEY, TOKEN_KEY, PASS_KEY]) {
+    for (const k of [STATE_KEY, SNAPSHOT_KEY, TOKEN_KEY, PASS_KEY, POS_KEY]) {
       try { localStorage.removeItem(k); } catch { /* abaikan */ }
     }
   },

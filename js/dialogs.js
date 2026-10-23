@@ -17,6 +17,7 @@ export function toast(message, type = 'info', ms = 3500, action = null) {
   }
   const el = document.createElement('div');
   el.className = `toast toast-${type}`;
+  if (type === 'error') el.setAttribute('role', 'alert');
   el.innerHTML = `<span>${escapeHtml(message)}</span>`;
   if (action) {
     const b = document.createElement('button');
@@ -26,9 +27,26 @@ export function toast(message, type = 'info', ms = 3500, action = null) {
     b.addEventListener('click', () => { action.fn(); dismiss(); });
     el.appendChild(b);
   }
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'toast-close';
+  close.setAttribute('aria-label', 'Tutup notifikasi');
+  close.innerHTML = icon('x');
+  close.addEventListener('click', () => dismiss());
+  el.appendChild(close);
   box.appendChild(el);
+  // Batasi jumlah toast yang menumpuk.
+  const all = box.querySelectorAll('.toast');
+  if (all.length > 3) all[0].remove();
   requestAnimationFrame(() => el.classList.add('show'));
-  const timer = setTimeout(dismiss, ms);
+  // Timer berhenti selama disentuh/di-hover/difokus supaya sempat dibaca (WCAG 2.2.1).
+  let timer = setTimeout(dismiss, ms);
+  const hold = () => clearTimeout(timer);
+  const release = () => { clearTimeout(timer); timer = setTimeout(dismiss, 2500); };
+  el.addEventListener('pointerenter', hold);
+  el.addEventListener('pointerleave', release);
+  el.addEventListener('focusin', hold);
+  el.addEventListener('focusout', release);
   function dismiss() {
     clearTimeout(timer);
     el.classList.remove('show');

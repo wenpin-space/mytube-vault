@@ -162,6 +162,7 @@ export function ytSearchDialog(store, { targetId, query = '' } = {}) {
         const key = getApiKey();
         if (!key) { needKey(qText); return; }
         if (!qText) { input.focus(); return; }
+        if (navigator.onLine === false) { box.innerHTML = '<p class="error-text pad">Kamu sedang offline. Pencarian YouTube butuh internet.</p>'; return; }
         input.blur(); // tutup keyboard HP supaya hasil terlihat
         box.innerHTML = '<p class="muted pad"><span class="spinner"></span> Mencari…</p>';
         try {
