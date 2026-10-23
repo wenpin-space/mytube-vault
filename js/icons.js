@@ -44,6 +44,8 @@ const P = {
   history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/><polyline points="12 7 12 12 15 14"/>',
   logo: '<rect x="2" y="4" width="20" height="16" rx="4"/><path d="M10 8.5v7l6-3.5z"/>',
   chevronDown: '<polyline points="5 9 12 16 19 9"/>',
+  chevronUp: '<polyline points="5 15 12 8 19 15"/>',
+  minimize: '<line x1="5" y1="18" x2="19" y2="18"/>',
   circle: '<circle cx="12" cy="12" r="9"/>',
   moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
   gauge: '<path d="M12 14l4-4"/><path d="M3.3 17a9 9 0 1 1 17.4 0"/>',

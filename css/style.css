@@ -731,3 +731,32 @@ body.selecting .main { padding-bottom: 160px; }
   .dock-badge { display: none; }
   body.np-open .dock-badge { display: inline-block; }
 }
+
+/* ===================== Player mengambang: minimize & pindah pojok ===================== */
+.stage-bar { cursor: grab; user-select: none; -webkit-user-select: none; touch-action: none; }
+.stage.dragging { transition: none; opacity: 0.92; }
+.stage.dragging .stage-bar { cursor: grabbing; }
+.stage.dragging .stage-video { pointer-events: none; }
+/* Video tetap ada (tidak di-display:none) supaya pemutaran tidak terputus; hanya dilipat. */
+.stage.min { width: 300px; }
+.stage.min .stage-video { height: 0; min-height: 0; aspect-ratio: auto; overflow: hidden; }
+.stage.min .stage-bar { padding: 6px 4px 6px 12px; }
+.stage.min .stage-title::before { content: "♪ "; color: var(--accent); }
+.stage.min #stage-size { display: none; }
+
+@media (min-width: 861px) {
+  .stage[data-corner="bl"] { right: auto; left: calc(var(--side-w) + 16px); }
+  .stage[data-corner="tr"] { bottom: auto; top: calc(var(--top-h) + 12px); }
+  .stage[data-corner="tl"] { bottom: auto; top: calc(var(--top-h) + 12px); right: auto; left: calc(var(--side-w) + 16px); }
+  body.queue-open .stage[data-corner="bl"], body.queue-open .stage[data-corner="tl"] { right: auto; }
+}
+@media (max-width: 860px) {
+  .stage-bar { cursor: default; }
+  .stage.min { left: auto; width: min(260px, 70vw); }
+}
+@media (max-width: 640px) {
+  /* Di player layar penuh video selalu tampil. */
+  body.np-open .stage.min { width: 100%; }
+  body.np-open .stage.min .stage-video { height: auto; min-height: 200px; aspect-ratio: 16 / 9; }
+  body.has-player:not(.np-open) .main { scroll-padding-bottom: 0; }
+}

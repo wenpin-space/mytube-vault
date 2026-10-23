@@ -234,7 +234,16 @@ export function renderDock(player, store, opts = {}) {
   fav.classList.toggle('on', !!(v && v.favorite));
 
   const large = !!store.ui.stageLarge;
-  stage.classList.toggle('large', large);
+  const min = !!store.ui.stageMin;
+  stage.classList.toggle('large', large && !min);
+  stage.classList.toggle('min', min);
+  const corner = ['br', 'bl', 'tr', 'tl'].includes(store.ui.stageCorner) ? store.ui.stageCorner : 'br';
+  stage.dataset.corner = corner;
+  const minBtn = $('stage-min');
+  minBtn.innerHTML = icon(min ? 'chevronUp' : 'minimize');
+  minBtn.title = min ? 'Tampilkan video' : 'Minimize video (musik tetap jalan)';
+  minBtn.setAttribute('aria-label', minBtn.title);
+  minBtn.setAttribute('aria-expanded', String(!min));
   const sizeIcon = icon(large ? 'shrink' : 'expand');
   $('dock-stage').innerHTML = sizeIcon;
   $('stage-size').innerHTML = sizeIcon;

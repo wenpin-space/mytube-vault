@@ -791,6 +791,7 @@ document.addEventListener('click', async (e) => {
       store.ui.stageLarge = !store.ui.stageLarge; store.saveUi();
       break;
     case 'stage-close': openNowPlaying(false); player.stop(); toggleQueue(false); break;
+    case 'stage-min': store.ui.stageMin = !store.ui.stageMin; store.saveUi(); break;
     case 'queue-toggle': toggleQueue(); break;
     case 'queue-jump': player.jumpTo(Number(el.dataset.pos)); break;
     case 'queue-remove': player.removeAt(Number(el.dataset.pos)); break;
@@ -854,6 +855,48 @@ enableTouchReorder($('video-list'), {
   entryByKey,
   move: (plId, from, to) => store.moveItem(plId, from, to),
 });
+
+// ---------- player mengambang: geser ke pojok mana pun (desktop/tablet lebar) ----------
+(() => {
+  const stage = $('stage');
+  const bar = stage.querySelector('.stage-bar');
+  let drag = null;
+  bar.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || e.target.closest('button') || window.innerWidth <= 860) return;
+    const r = stage.getBoundingClientRect();
+    drag = { dx: e.clientX - r.left, dy: e.clientY - r.top, moved: false, x0: e.clientX, y0: e.clientY };
+    bar.setPointerCapture(e.pointerId);
+  });
+  bar.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    if (!drag.moved && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 5) return;
+    drag.moved = true;
+    stage.classList.add('dragging');
+    const w = stage.offsetWidth;
+    const h = stage.offsetHeight;
+    const x = Math.max(0, Math.min(window.innerWidth - w, e.clientX - drag.dx));
+    const y = Math.max(0, Math.min(window.innerHeight - h, e.clientY - drag.dy));
+    Object.assign(stage.style, { left: `${x}px`, top: `${y}px`, right: 'auto', bottom: 'auto' });
+  });
+  const end = (e) => {
+    if (!drag) return;
+    const d = drag;
+    drag = null;
+    stage.classList.remove('dragging');
+    stage.style.left = ''; stage.style.top = ''; stage.style.right = ''; stage.style.bottom = '';
+    if (!d.moved) {
+      if (store.ui.stageMin) { store.ui.stageMin = false; store.saveUi(); } // ketuk bilah saat diminimize = tampilkan lagi
+      return;
+    }
+    // Tempel ke pojok terdekat.
+    const cx = e.clientX < window.innerWidth / 2 ? 'l' : 'r';
+    const cy = e.clientY < window.innerHeight / 2 ? 't' : 'b';
+    store.ui.stageCorner = cy + cx;
+    store.saveUi();
+  };
+  bar.addEventListener('pointerup', end);
+  bar.addEventListener('pointercancel', end);
+})();
 
 // ---------- form tambah & pencarian ----------
 $('add-form').addEventListener('submit', handleAdd);

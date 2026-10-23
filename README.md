@@ -22,6 +22,7 @@ Vanilla JavaScript (ES modules), tanpa build step, tanpa backend. Tinggal taruh 
 - Shuffle (urutan asli kembali saat dimatikan), repeat off / semua / satu
 - Antrean: lihat, lompat, hapus, “Putar berikutnya”, “Tambah ke antrean”
 - Mini player ⇄ video besar, progress bar yang bisa diklik
+- Player mengambang bisa di-**minimize** (tombol ▁ di bilahnya: video dilipat, musik tetap jalan; ketuk bilah untuk menampilkan lagi) dan **digeser** ke pojok mana pun (desktop)
 - Video yang tidak boleh di-embed → pesan jelas + tombol “Buka di YouTube”, otomatis lanjut ke video berikutnya
 - Pintasan: `Spasi`/`K` putar-jeda · `N` berikutnya · `P` sebelumnya · `/` cari · `?` semua pintasan
 
