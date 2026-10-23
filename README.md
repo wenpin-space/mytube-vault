@@ -32,7 +32,6 @@ Vanilla JavaScript (ES modules), tanpa build step, tanpa backend. Tinggal taruh 
 - **Bagikan** dari aplikasi YouTube → pilih *MyTube Vault* → link langsung terisi
 - Tombol **Tempel** membaca link dari clipboard
 - Ubah urutan dengan menggeser pegangan ⠿
-- Kontrol di notifikasi / layar kunci (Media Session)
 
 **Penyimpanan & backup**
 - LocalStorage sebagai penyimpanan utama (local-first, jalan offline)
@@ -95,9 +94,7 @@ Aplikasinya PWA: satu kode yang sama untuk desktop dan Android, tanpa Play Store
 - **Dari library**: centang lagu yang sudah pernah ditambahkan.
 Kolom cari di atas hanya mencari di library; kalau tidak ketemu muncul tombol *Cari di YouTube*.
 
-**Notifikasi & layar kunci:** saat musik jalan, aplikasi memutar audio hening (tak terdengar) di halaman utama supaya Android memakai notifikasi milik MyTube Vault: judul lagu, tombol **Back / Play-Pause / Next**, dan geser posisi lagu.
-
-**Dengar di latar belakang / layar mati:** player YouTube di halaman web bisa menjeda dirinya saat aplikasi ditinggal. MyTube Vault terus memintanya lanjut selama ±1,5 menit, dan otomatis melanjutkan saat kamu kembali ke aplikasi. Kalau di HP-mu tetap berhenti, pakai **Putar di aplikasi YouTube** (player layar penuh atau menu ⋮): antrean (maks. 50 lagu) dibuka di aplikasi YouTube, yang dengan Premium pasti bisa di latar belakang. Agar Android tidak menutup Chrome: *Setelan HP → Aplikasi → Chrome → Penghemat baterai → Tanpa batasan*, dan kunci kartunya di Recent apps.
+**Dengar di latar belakang / layar mati:** player YouTube di halaman web menjeda dirinya saat aplikasi ditinggal; notifikasi & layar kunci memakai kontrol bawaan player YouTube. Untuk dengar di latar belakang, pakai **Putar di aplikasi YouTube** (player layar penuh atau menu ⋮): antrean (maks. 50 lagu) dibuka di aplikasi YouTube, yang dengan Premium bisa di latar belakang.
 
 > Setelah update kode, service worker mengambil versi terbaru dari jaringan. Kalau tampilan belum berubah, tutup aplikasi lalu buka lagi.
 
@@ -205,7 +202,7 @@ js/ui.js            fungsi render (sidebar, daftar, dock, antrean, banner)
 js/dialogs.js       modal, toast, menu, dialog passphrase/konflik
 js/settings.js      dialog Pengaturan (Cloud Sync, Backup & Riwayat, Umum)
 js/utils.js         helper (format waktu, sort/filter, download, clipboard)
-js/mobile.js        khusus HP: tombol Back, geser-urut sentuh, Media Session, PWA, share target
+js/mobile.js        khusus HP: tombol Back, geser-urut sentuh, PWA, share target
 sw.js               service worker (kerangka aplikasi offline)
 manifest.webmanifest  metadata PWA (nama, ikon, share target, shortcut)
 icons/              ikon aplikasi (biasa + maskable untuk Android)

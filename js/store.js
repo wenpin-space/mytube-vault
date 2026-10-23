@@ -37,7 +37,7 @@ export function clearToken() { try { localStorage.removeItem(TOKEN_KEY); } catch
 // ---------- default & normalisasi ----------
 export function defaultSettings() {
   return {
-    player: { shuffle: false, repeat: 'all', autoNext: true, autoMarkWatched: true, backgroundPlay: true },
+    player: { shuffle: false, repeat: 'all', autoNext: true, autoMarkWatched: true },
     sync: { autoSync: true, debounceMs: 2000, encryptionEnabled: false },
   };
 }

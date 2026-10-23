@@ -14,7 +14,7 @@ import * as ui from './ui.js';
 import { icon } from './icons.js';
 import { sortEntries, filterEntries, copyText, downloadText, escapeHtml, slugify } from './utils.js';
 import {
-  isPhone, overlay, enableTouchReorder, setupBackgroundAudio, setupPwa, promptInstall, isStandalone, takeLaunchParams,
+  isPhone, overlay, enableTouchReorder, setupPwa, promptInstall, isStandalone, takeLaunchParams,
 } from './mobile.js';
 import { libraryPicker, ytSearchDialog, youtubeAppUrl } from './sources.js';
 
@@ -674,7 +674,6 @@ player.on((type, data) => {
     }
   }
   if (type === 'end-of-queue') toast('Sudah di akhir antrean.');
-  updateMediaSession();
   if (type === 'track' && !data) openNowPlaying(false);
   if (type === 'error') toast(data && data.skipping ? `${player.error} Melewati ke video berikutnya…` : player.error, 'error', 5000);
   ui.renderDock(player, store);
@@ -704,12 +703,9 @@ window.addEventListener('storage', (e) => {
   if (e.key === 'mytube_vault_state_v1') { store.load(); store.emit('external'); }
 });
 
-const updateMediaSession = setupBackgroundAudio(player, store, () => store.data.settings.player.backgroundPlay !== false);
-let tick = 0;
+// Notifikasi & layar kunci memakai kontrol bawaan player YouTube (paling andal saat aplikasi ditinggal).
 setInterval(() => {
-  if (!player.current) return;
-  if (document.visibilityState === 'visible') ui.renderProgress(player.time(), player.duration());
-  if (++tick % 10 === 0) updateMediaSession(); // posisi di notifikasi, tiap ±5 detik
+  if (player.current && document.visibilityState === 'visible') ui.renderProgress(player.time(), player.duration());
 }, 500);
 
 // ---------- start ----------
