@@ -417,3 +417,70 @@ test('lirik: bersihkan judul, parse LRC, baris aktif, pilih hasil terbaik', asyn
   assert.equal(best.id, 3);
   assert.equal(bestMatch([{ id: 9 }]), null);
 });
+
+test('tambah: banyak link di satu baris (berspasi atau menempel) terbaca semua', () => {
+  const r = parseMany('https://youtu.be/dQw4w9WgXcQhttps://youtu.be/9bZkkPVEQC0 https://www.youtube.com/watch?v=kJQP7kiw5Fk');
+  assert.deepEqual(r.valid, ['dQw4w9WgXcQ', '9bZkkPVEQC0', 'kJQP7kiw5Fk']);
+});
+
+test('pencarian beberapa kata + filter cepat', async () => {
+  const { filterEntries, quickFilter } = await import('../js/utils.js');
+  const mk = (id, v) => ({ key: id, youtubeId: id, video: { youtubeId: id, title: '', channel: '', tags: [], ...v } });
+  const es = [
+    mk('a', { title: 'Lofi beats to study', channel: 'Chill', duration: 200, tags: ['lofi'] }),
+    mk('b', { title: 'Study with me', channel: 'Lofi Girl', duration: 3600, favorite: true, playCount: 3 }),
+    mk('c', { title: 'Rock anthem', channel: 'Band', duration: 250, watched: true }),
+  ];
+  assert.deepEqual(filterEntries(es, 'study lofi').map((e) => e.key), ['a', 'b']);
+  assert.deepEqual(filterEntries(es, 'lofi #lo').map((e) => e.key), ['a']);
+  assert.deepEqual(quickFilter(es, 'short').map((e) => e.key), ['a', 'c']);
+  assert.deepEqual(quickFilter(es, 'long').map((e) => e.key), ['b']);
+  assert.deepEqual(quickFilter(es, 'unwatched').map((e) => e.key), ['a', 'b']);
+  assert.deepEqual(quickFilter(es, 'never').map((e) => e.key), ['a', 'c']);
+  assert.deepEqual(quickFilter(es, 'fav').map((e) => e.key), ['b']);
+  assert.deepEqual(quickFilter(es, 'tag:lofi').map((e) => e.key), ['a']);
+  assert.equal(quickFilter(es, '').length, 3);
+});
+
+test('antrean: geser urutan, hapus & kosongkan tidak dimasukkan lagi oleh sync', async () => {
+  const { Player } = await import('../js/player.js');
+  const e = (k) => ({ key: k, youtubeId: `${k}`.padEnd(11, 'x') });
+  const keysOf = (p) => p.order.map((qi) => p.queue[qi].key);
+  const p = new Player('z');
+  p.loadCurrent = async () => {};
+  await p.playList([e('a'), e('b'), e('c'), e('d')], 0);
+  p.moveInQueue(3, 1);
+  assert.deepEqual(keysOf(p), ['a', 'd', 'b', 'c']);
+  p.moveInQueue(0, 2); // lagu sekarang tidak boleh dipindah
+  assert.deepEqual(keysOf(p), ['a', 'd', 'b', 'c']);
+  p.removeAt(2); // hapus b
+  p.syncQueue([e('a'), e('b'), e('c'), e('d'), e('n')]);
+  assert.deepEqual(keysOf(p), ['a', 'd', 'n', 'c'], 'b tidak kembali, lagu baru n masuk setelah d');
+  p.clearUpcoming();
+  p.syncQueue([e('a'), e('b'), e('c'), e('d'), e('n'), e('z')]);
+  assert.deepEqual(keysOf(p), ['a', 'z'], 'hanya lagu yang benar-benar baru');
+});
+
+test('command palette: skor fuzzy', async () => {
+  const { fuzzyScore } = await import('../js/palette.js');
+  assert.ok(fuzzyScore('Playlist Utama', 'utama') > fuzzyScore('Playlist Utama', 'pltm'));
+  assert.ok(fuzzyScore('Playlist Utama', 'pltm') > 0);
+  assert.equal(fuzzyScore('Favorit', 'xyz'), -1);
+  assert.ok(fuzzyScore('Musik fokus kerja', 'kerja fokus') > 0);
+  assert.ok(fuzzyScore('Statistik', 'stat') > fuzzyScore('Antrean statis', 'stat'));
+});
+
+test('warna lagu: ambil warna hidup, abaikan hitam/putih', async () => {
+  const { pickColor, toAccent } = await import('../js/tint.js');
+  const px = [];
+  for (let i = 0; i < 60; i++) px.push(0, 0, 0, 255); // bar hitam
+  for (let i = 0; i < 20; i++) px.push(250, 250, 250, 255); // putih
+  for (let i = 0; i < 20; i++) px.push(30, 120, 220, 255); // biru
+  const [r, g, b] = pickColor(px);
+  assert.ok(b > r && b > g, 'biru dominan');
+  const [ar, ag, ab] = toAccent([30, 120, 220], true);
+  assert.ok(ab > ar && ab > ag);
+  const lum = (ar + ag + ab) / 3;
+  assert.ok(lum > 110, 'cukup terang untuk tema gelap');
+  assert.deepEqual(pickColor([0, 0, 0, 255]), [0, 0, 0]);
+});

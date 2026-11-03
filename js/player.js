@@ -48,6 +48,7 @@ export class Player {
     this.ready = null;
     this.queue = [];
     this.order = [];
+    this.dropped = new Set();
     this.pos = -1;
     this.state = 'idle'; // idle|loading|playing|paused|buffering|ended|error
     this.error = null;
@@ -110,6 +111,7 @@ export class Player {
   async playList(entries, startIndex = 0) {
     if (!entries.length) return;
     this.queue = entries.map((e) => ({ key: e.key, youtubeId: e.youtubeId }));
+    this.dropped = new Set();
     const start = Math.min(Math.max(0, startIndex), this.queue.length - 1);
     const idx = [...this.queue.keys()];
     if (this.shuffle) {
@@ -277,8 +279,9 @@ export class Player {
 
     // 2) masukkan lagu baru
     const have = new Set(this.order.map((qi) => this.queue[qi].key));
+    const dropped = this.dropped || new Set();
     entries.forEach((e, i) => {
-      if (have.has(e.key)) return;
+      if (have.has(e.key) || dropped.has(e.key)) return;
       this.queue.push({ key: e.key, youtubeId: e.youtubeId });
       const qi = this.queue.length - 1;
       const pos = this.order.indexOf(curQi);
@@ -319,8 +322,27 @@ export class Player {
     this.emit('queue');
   }
 
+  /** Pindahkan lagu di bagian "berikutnya" (posisi order, keduanya setelah lagu sekarang). */
+  moveInQueue(from, to) {
+    const n = this.order.length;
+    if (from === to || from <= this.pos || to <= this.pos || from >= n || to >= n) return;
+    const [qi] = this.order.splice(from, 1);
+    this.order.splice(to, 0, qi);
+    this.emit('queue');
+  }
+
+  /** Kosongkan semua lagu berikutnya (lagu sekarang tetap jalan). */
+  clearUpcoming() {
+    if (!this.dropped) this.dropped = new Set();
+    for (const qi of this.order.slice(this.pos + 1)) this.dropped.add(this.queue[qi].key);
+    this.order = this.order.slice(0, this.pos + 1);
+    this.emit('queue');
+  }
+
   removeAt(orderPos) {
     if (orderPos === this.pos || orderPos < 0 || orderPos >= this.order.length) return;
+    if (!this.dropped) this.dropped = new Set();
+    this.dropped.add(this.queue[this.order[orderPos]].key);
     this.order.splice(orderPos, 1);
     if (orderPos < this.pos) this.pos--;
     this.emit('queue');

@@ -57,7 +57,7 @@ export function extractYouTubeId(input, { allowBareId = false } = {}) {
  * kecuali terlihat seperti URL.
  */
 export function parseMany(text) {
-  const tokens = String(text || '').split(/[\s,;]+/).map((t) => t.trim()).filter(Boolean);
+  const tokens = String(text || '').replace(/(\S)(https?:\/\/)/gi, '$1 $2').split(/[\s,;]+/).map((t) => t.trim()).filter(Boolean);
   const seen = new Set();
   const valid = [];
   const invalid = [];

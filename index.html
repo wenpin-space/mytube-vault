@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="MyTube Vault">
-  <link rel="stylesheet" href="css/style.css?v=10">
+  <link rel="stylesheet" href="css/style.css?v=11">
 </head>
 <body>
   <a class="skip-link" href="#main">Lewati ke daftar video</a>
@@ -29,6 +29,7 @@
         <button type="button" class="search-clear" id="search-clear" data-action="search-clear" data-icon="x" aria-label="Hapus pencarian" hidden></button>
         <kbd class="search-kbd">/</kbd>
       </label>
+      <button type="button" class="palette-btn hide-phone" data-action="palette" title="Perintah cepat (Ctrl+K)" aria-label="Perintah cepat"><span data-icon="command"></span><kbd>Ctrl K</kbd></button>
       <button type="button" id="sync-badge" class="sync-badge" data-action="sync-badge"></button>
       <button type="button" class="icon-btn" data-action="open-settings" data-tab="general" data-icon="settings" aria-label="Pengaturan" title="Pengaturan"></button>
     </header>
@@ -75,15 +76,18 @@
           <button type="submit" class="btn btn-primary add-submit" data-icon="plus"><span>Tambah</span></button>
         </div>
         <div class="add-foot">
-          <button type="button" class="link-btn" data-action="yt-search">Cari di YouTube</button>
-          <button type="button" class="link-btn" data-action="add-from-library">Pilih dari library</button>
-          <button type="button" class="link-btn" data-action="yt-import">Import playlist YouTube</button>
-          <button type="button" class="link-btn" id="toggle-multi" data-action="toggle-multi">Tempel banyak link sekaligus</button>
+          <div class="add-chips" role="group" aria-label="Cara lain menambah lagu">
+            <button type="button" class="chip" data-action="yt-search" data-icon="search"><span>Cari di YouTube</span></button>
+            <button type="button" class="chip" data-action="add-from-library" data-icon="grid"><span>Dari library</span></button>
+            <button type="button" class="chip" data-action="yt-import" data-icon="download"><span>Import playlist</span></button>
+            <button type="button" class="chip" id="toggle-multi" data-action="toggle-multi" data-icon="clipboard"><span>Banyak link</span></button>
+          </div>
           <span id="add-feedback" class="add-feedback" aria-live="polite"></span>
         </div>
       </form>
 
       <section class="view-head" id="view-head"></section>
+      <div class="quick-filters" id="quick-filters" role="toolbar" aria-label="Filter cepat" hidden></div>
       <p class="list-hint" id="list-hint" hidden></p>
       <ol class="video-list" id="video-list"></ol>
       <div class="list-empty" id="list-empty" hidden></div>
@@ -107,7 +111,10 @@
   <aside class="queue-panel" id="queue-panel" hidden aria-label="Antrean">
     <header class="queue-head">
       <h2>Antrean</h2>
-      <button type="button" class="icon-btn" data-action="queue-toggle" data-icon="x" aria-label="Tutup antrean"></button>
+      <span class="queue-head-right">
+        <button type="button" class="btn sm" id="queue-clear" data-action="queue-clear" hidden>Kosongkan</button>
+        <button type="button" class="icon-btn" data-action="queue-toggle" data-icon="x" aria-label="Tutup antrean"></button>
+      </span>
     </header>
     <div class="queue-list" id="queue-list"></div>
   </aside>
@@ -141,6 +148,7 @@
         <div id="dock-title" class="dock-title"></div>
         <div id="dock-sub" class="dock-sub"></div>
         <span id="dock-sleep" class="dock-badge" hidden></span>
+        <button type="button" id="dock-next" class="dock-next" data-action="queue-toggle" hidden></button>
       </div>
       <button type="button" class="icon-btn" id="dock-fav" data-action="dock-fav" aria-label="Favorit"></button>
       <button type="button" class="icon-btn" data-action="dock-add" data-icon="plus" aria-label="Tambah ke playlist" title="Tambah ke playlist"></button>
@@ -158,6 +166,7 @@
       <button type="button" class="icon-btn" id="dock-stage" data-action="stage-toggle" aria-label="Ubah ukuran video"></button>
       <button type="button" class="icon-btn" data-action="queue-toggle" data-icon="queue" aria-label="Antrean" title="Antrean"></button>
     </div>
+    <section class="np-upnext only-phone" id="np-upnext" aria-label="Berikutnya"></section>
     <div class="np-extra only-phone">
       <button type="button" class="btn" data-action="play-in-yt" data-icon="external"><span>Putar di aplikasi YouTube</span></button>
       <p class="muted small">Pakai ini kalau mau tetap dengar saat layar mati atau pindah aplikasi (YouTube Premium).</p>
@@ -175,6 +184,6 @@
   </nav>
 
   <noscript><p style="padding:24px">MyTube Vault butuh JavaScript.</p></noscript>
-  <script type="module" src="js/main.js?v=10"></script>
+  <script type="module" src="js/main.js?v=11"></script>
 </body>
 </html>

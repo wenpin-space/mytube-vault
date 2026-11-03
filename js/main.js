@@ -12,7 +12,9 @@ import {
 import { openSettings } from './settings.js';
 import * as ui from './ui.js';
 import { icon } from './icons.js';
-import { sortEntries, filterEntries, copyText, downloadText, escapeHtml, slugify, formatDuration } from './utils.js';
+import { applyTint } from './tint.js';
+import { openPalette } from './palette.js';
+import { sortEntries, filterEntries, quickFilter, QUICK_FILTERS, animateOut, copyText, downloadText, escapeHtml, slugify, formatDuration } from './utils.js';
 import {
   isPhone, overlay, enableTouchReorder, setupPwa, promptInstall, isStandalone, takeLaunchParams,
 } from './mobile.js';
@@ -25,7 +27,7 @@ const PAGE = 200;
 const $ = (id) => document.getElementById(id);
 const player = new Player('yt-player');
 const local = {
-  query: '', limit: PAGE, multi: false, lastView: null,
+  query: '', qf: '', limit: PAGE, multi: false, lastView: null,
   selecting: false, selected: new Set(), // mode pilih banyak
   flash: new Set(),                      // video yang baru ditambahkan (disorot sebentar)
   sleep: { timer: null, endAt: 0, endOfTrack: false },
@@ -45,10 +47,29 @@ function currentSort() {
   return store.ui.sort[v] || (v.startsWith('pl:') || v === 'history' ? 'manual' : 'addedNewest');
 }
 function canReorder() {
-  return store.ui.view.startsWith('pl:') && currentSort() === 'manual' && !local.query.trim();
+  return store.ui.view.startsWith('pl:') && currentSort() === 'manual' && !local.query.trim() && !local.qf;
 }
 function visibleEntries() {
-  return sortEntries(filterEntries(store.viewEntries(), local.query), currentSort());
+  return sortEntries(quickFilter(filterEntries(store.viewEntries(), local.query), local.qf), currentSort());
+}
+function density() {
+  const d = store.ui.density;
+  return d === 'compact' || d === 'grid' ? d : 'comfy';
+}
+function setDensity(d) {
+  store.ui.density = d;
+  store.saveUi();
+}
+/** Tag paling sering di view ini (untuk chip filter cepat). */
+function topTagsOf(entries, n = 4) {
+  const m = new Map();
+  for (const { video: v } of entries) for (const t of v.tags || []) {
+    const k = t.toLocaleLowerCase('id');
+    const cur = m.get(k) || { key: k, name: t, n: 0 };
+    cur.n++;
+    m.set(k, cur);
+  }
+  return [...m.values()].filter((t) => t.n < entries.length).sort((a, b) => b.n - a.n).slice(0, n);
 }
 function entryByKey(key) {
   return store.viewEntries().find((e) => e.key === key) || null;
@@ -62,7 +83,13 @@ function applyTheme() {
 // ---------- render ----------
 function render() {
   applyTheme();
-  if (store.ui.view !== local.lastView) local.limit = PAGE;
+  if (store.ui.view !== local.lastView) {
+    local.limit = PAGE; local.qf = '';
+    if (local.lastView !== null) {
+      const m = $('main');
+      m.classList.remove('view-enter'); void m.offsetWidth; m.classList.add('view-enter');
+    }
+  }
   ui.renderSidebar(store);
   renderAddTarget();
   renderMain();
@@ -100,10 +127,16 @@ function renderBottomNav() {
 function renderMain() {
   const all = store.viewEntries();
   const sort = currentSort();
-  const visible = sortEntries(filterEntries(all, local.query), sort);
+  const view = store.ui.view;
+  const searched = filterEntries(all, local.query);
+  const visible = sortEntries(quickFilter(searched, local.qf), sort);
   const duration = all.reduce((s, e) => s + (e.video.duration || 0), 0);
   const pl = store.currentPlaylist();
-  ui.renderViewHead(store, { sort, total: all.length, visible: visible.length, query: local.query, duration });
+  ui.renderViewHead(store, { sort, total: all.length, visible: visible.length, query: local.query, filtered: !!(local.query.trim() || local.qf), duration, density: density() });
+  ui.renderQuickFilters(searched, {
+    active: local.qf, view, filters: QUICK_FILTERS,
+    tags: view.startsWith('tag:') ? [] : topTagsOf(searched),
+  });
 
   const hint = $('list-hint');
   if (pl && sort !== 'manual' && all.length > 1) {
@@ -123,6 +156,8 @@ function renderMain() {
     metaPending: (id) => metaQueue.has(id),
     lastIndex: pl ? pl.items.length - 1 : -1,
     query: local.query.trim(),
+    quick: local.qf,
+    density: density(),
     view: store.ui.view,
     isPlaylist: !!pl,
     selecting: local.selecting,
@@ -173,7 +208,8 @@ function setMulti(on) {
   $('add-input').hidden = on;
   $('add-multi').hidden = !on;
   $('add-form').classList.toggle('multi', on);
-  $('toggle-multi').textContent = on ? 'Tempel satu link' : 'Tempel banyak link sekaligus';
+  $('toggle-multi').querySelector('span').textContent = on ? 'Satu link' : 'Banyak link';
+  $('toggle-multi').classList.toggle('on', on);
   feedback('');
   (on ? $('add-multi') : $('add-input')).focus();
 }
@@ -181,50 +217,56 @@ function setMulti(on) {
 function handleAdd(e) {
   e.preventDefault();
   const target = $('add-target').value;
-  let ids = [];
-  let invalid = 0;
-  let dup = 0;
   if (local.multi) {
     const r = parseMany($('add-multi').value);
-    ids = r.valid;
-    invalid = r.invalid.length;
-    dup = r.duplicates;
-    if (!ids.length) {
-      feedback(invalid ? `Tidak ada link valid (${invalid} link tidak valid).` : 'Belum ada link YouTube.', 'error');
+    if (!r.valid.length) {
+      feedback(r.invalid.length ? `Tidak ada link valid (${r.invalid.length} link tidak valid).` : 'Belum ada link YouTube.', 'error');
       return;
     }
-  } else {
-    const raw = $('add-input').value.trim();
-    if (!raw) { $('add-input').focus(); return; }
-    const id = extractYouTubeId(raw, { allowBareId: true });
-    const listId = extractPlaylistId(raw);
-    if (!id && listId) {
-      // Link playlist YouTube → buka dialog import.
-      $('add-input').value = '';
-      feedback('');
-      ytPlaylistImportDialog(store, { url: raw, targetId: target });
-      return;
-    }
-    if (id && listId && !/^RD/.test(listId)) {
-      setTimeout(() => toast('Link ini juga bagian dari sebuah playlist YouTube.', 'info', 8000,
-        { label: 'Import seluruh playlist', fn: () => ytPlaylistImportDialog(store, { url: raw, targetId: target }) }), 400);
-    }
-    if (!id) {
-      feedback('Link tidak valid. Tempel link video atau playlist YouTube (bukan channel).', 'error');
-      $('add-form').classList.remove('shake');
-      void $('add-form').offsetWidth;
-      $('add-form').classList.add('shake');
-      return;
-    }
-    ids = [id];
+    if (addIds(r.valid, target, { invalid: r.invalid.length, dup: r.duplicates })) { $('add-multi').value = ''; setMulti(false); }
+    return;
   }
+  const raw = $('add-input').value.trim();
+  if (!raw) { $('add-input').focus(); return; }
+  // Beberapa link di satu kolom (diketik/ditempel berjajar) → tambahkan semuanya sekaligus.
+  const many = parseMany(raw);
+  if (many.valid.length > 1) {
+    if (addIds(many.valid, target, { invalid: many.invalid.length, dup: many.duplicates })) $('add-input').value = '';
+    return;
+  }
+  const id = extractYouTubeId(raw, { allowBareId: true });
+  const listId = extractPlaylistId(raw);
+  if (!id && listId) {
+    // Link playlist YouTube → buka dialog import.
+    $('add-input').value = '';
+    feedback('');
+    ytPlaylistImportDialog(store, { url: raw, targetId: target });
+    return;
+  }
+  if (id && listId && !/^RD/.test(listId)) {
+    setTimeout(() => toast('Link ini juga bagian dari sebuah playlist YouTube.', 'info', 8000,
+      { label: 'Import seluruh playlist', fn: () => ytPlaylistImportDialog(store, { url: raw, targetId: target }) }), 400);
+  }
+  if (!id) {
+    feedback('Link tidak valid. Tempel link video atau playlist YouTube (bukan channel).', 'error');
+    $('add-form').classList.remove('shake');
+    void $('add-form').offsetWidth;
+    $('add-form').classList.add('shake');
+    return;
+  }
+  if (addIds([id], target)) $('add-input').value = '';
+}
 
+/** Tambahkan video ke playlist + umpan balik. Banyak video sekaligus dapat tombol "Batalkan". */
+function addIds(ids, target, { invalid = 0, dup = 0 } = {}) {
   const res = store.addVideos(ids, target);
+  const pl = store.getPlaylist(target);
+  const addedItemIds = res.added && pl ? pl.items.slice(-res.added).map((it) => it.itemId) : [];
   metaQueue.add(ids.filter((id) => store.data.videos[id] && !store.data.videos[id].title));
   if (res.added) flashVideos(ids);
   renderMain();
 
-  const plName = (store.getPlaylist(target) || {}).name || '';
+  const plName = (pl || {}).name || '';
   const parts = [];
   if (res.added) parts.push(`${res.added} video ditambahkan ke “${plName}”`);
   if (res.skipped) parts.push(`${res.skipped} sudah ada`);
@@ -232,10 +274,22 @@ function handleAdd(e) {
   if (dup) parts.push(`${dup} duplikat dilewati`);
   const msg = parts.join(' · ') || 'Tidak ada yang ditambahkan.';
   feedback(msg, res.added ? 'ok' : '');
-  if (res.added) toast(msg, 'success');
+  if (res.added) {
+    const undo = res.added > 1 ? {
+      label: 'Batalkan',
+      fn: () => {
+        store.removeItems(target, addedItemIds);
+        const orphan = res.newIds.filter((v) => !store.data.playlists.some((p) => p.items.some((i) => i.youtubeId === v)));
+        if (orphan.length) store.deleteVideos(orphan);
+        feedback('');
+        render();
+        toast(`${res.added} video dibatalkan.`, 'info');
+      },
+    } : null;
+    toast(msg, 'success', undo ? 7000 : 3500, undo);
+  }
   if (res.added && overlay.isOpen('add')) overlay.close('add');
-
-  if (local.multi) { $('add-multi').value = ''; if (res.added) setMulti(false); } else $('add-input').value = '';
+  return res.added > 0 || res.skipped > 0;
 }
 
 /** Sorot video yang baru ditambahkan dan gulir ke sana (kalau tampil di view ini). */
@@ -314,7 +368,7 @@ function removeEntry(entry) {
   const pl = store.getPlaylist(entry.playlistId);
   if (!pl) return;
   const item = pl.items[entry.index];
-  store.removeItem(pl.id, entry.itemId);
+  animateOut([entry.key], () => store.removeItem(pl.id, entry.itemId));
   toast(`Dihapus dari “${pl.name}”.`, 'info', 6000, { label: 'Urungkan', fn: () => store.restoreItem(pl.id, item, entry.index) });
 }
 
@@ -686,8 +740,10 @@ async function selectionAction(act) {
     }
     case 'sel-delete': {
       if (pl) {
-        const removed = store.removeItems(pl.id, ents.map((e) => e.itemId));
-        toast(`${removed.length} video dihapus dari “${pl.name}”.`, 'info', 7000, { label: 'Urungkan', fn: () => store.restoreItems(pl.id, removed) });
+        animateOut(ents.map((e) => e.key), () => {
+          const removed = store.removeItems(pl.id, ents.map((e) => e.itemId));
+          toast(`${removed.length} video dihapus dari “${pl.name}”.`, 'info', 7000, { label: 'Urungkan', fn: () => store.restoreItems(pl.id, removed) });
+        });
       } else if (await confirmDialog(`Hapus ${ids.length} video dari library?`, 'Video dihapus dari library dan dari semua playlist. Salinan data sebelum dihapus disimpan sebagai snapshot (Setelan → Backup).', { ok: 'Hapus', danger: true })) {
         store.snapshot();
         store.deleteVideos(ids);
@@ -757,6 +813,14 @@ function openPlayerMenu(anchor) {
     'sep',
     player.current && { label: 'Tambah ke playlist…', icon: 'plus', action: () => addToOther({ youtubeId: player.current.youtubeId, playlistId: null }) },
     { label: 'Putar di aplikasi YouTube', icon: 'external', action: () => playInYouTubeApp(currentQueueIds()) },
+    {
+      label: `Warna ikut lagu: ${store.ui.tint !== false ? 'aktif' : 'mati'}`, icon: 'contrast',
+      action: () => {
+        store.ui.tint = store.ui.tint === false;
+        store.saveUi();
+        applyTint(player.current ? player.current.youtubeId : null, store.ui.tint);
+      },
+    },
     player.current && { label: 'Buka video ini di YouTube', icon: 'external', action: () => window.open(watchUrl(player.current.youtubeId), '_blank', 'noopener') },
   ]);
 }
@@ -792,6 +856,7 @@ function showShortcuts() {
       ${k(['/'], 'Cari di library')}
       ${k(['Ctrl', 'A'], 'Pilih semua (saat mode pilih)')}
       ${k(['Esc'], 'Tutup panel / batal pilih')}
+      ${k(['Ctrl', 'K'], 'Perintah cepat: lompat ke playlist, lagu, aksi')}
       ${k(['?'], 'Tampilkan daftar ini')}
     </tbody></table>`,
     actions: [{ label: 'Tutup', value: null }],
@@ -923,6 +988,13 @@ document.addEventListener('click', async (e) => {
       break;
     case 'player-menu': openPlayerMenu(el); break;
     case 'lyrics-toggle': toggleLyrics(); break;
+    case 'density': setDensity(el.dataset.d); break;
+    case 'palette': openCommandPalette(); break;
+    case 'qf':
+      local.qf = local.qf === el.dataset.qf ? '' : el.dataset.qf;
+      local.limit = PAGE;
+      renderMain();
+      break;
     case 'search-clear':
       $('search').value = ''; local.query = ''; renderMain(); $('search').focus();
       break;
@@ -990,6 +1062,12 @@ document.addEventListener('click', async (e) => {
     case 'queue-toggle': toggleQueue(); break;
     case 'queue-jump': player.jumpTo(Number(el.dataset.pos)); break;
     case 'queue-remove': player.removeAt(Number(el.dataset.pos)); break;
+    case 'queue-clear': {
+      const n = player.upcoming().length;
+      player.clearUpcoming();
+      toast(`${n} lagu dikeluarkan dari antrean.`, 'info');
+      break;
+    }
     default: break;
   }
 });
@@ -1136,17 +1214,67 @@ enableTouchReorder($('video-list'), {
   check();
 })();
 
+// ---------- geser untuk mengubah urutan antrean (mouse & sentuh) ----------
+(() => {
+  const box = $('queue-list');
+  let d = null;
+  const clear = () => box.querySelectorAll('.drop-before, .drop-after').forEach((n) => n.classList.remove('drop-before', 'drop-after'));
+  box.addEventListener('pointerdown', (e) => {
+    const grip = e.target.closest('.q-grip');
+    if (!grip || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    const row = grip.closest('.q-row');
+    e.preventDefault();
+    try { grip.setPointerCapture(e.pointerId); } catch { /* abaikan */ }
+    d = { row, from: Number(row.dataset.pos), target: null, after: false };
+    row.classList.add('dragging');
+    if (navigator.vibrate && e.pointerType !== 'mouse') navigator.vibrate(10);
+  });
+  box.addEventListener('pointermove', (e) => {
+    if (!d) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const row = el && el.closest('.q-upcoming .q-row');
+    clear();
+    if (row && row !== d.row && box.contains(row)) {
+      const r = row.getBoundingClientRect();
+      d.after = e.clientY > r.top + r.height / 2;
+      d.target = row;
+      row.classList.add(d.after ? 'drop-after' : 'drop-before');
+    } else d.target = null;
+    const b = box.getBoundingClientRect();
+    if (e.clientY < b.top + 40) box.scrollTop -= 12;
+    else if (e.clientY > b.bottom - 40) box.scrollTop += 12;
+  });
+  const end = (commit) => {
+    if (!d) return;
+    const { row, from, target, after } = d;
+    d = null;
+    row.classList.remove('dragging');
+    clear();
+    if (!commit || !target) return;
+    let to = Number(target.dataset.pos) + (after ? 1 : 0);
+    if (to > from) to--;
+    player.moveInQueue(from, to);
+  };
+  box.addEventListener('pointerup', () => end(true));
+  box.addEventListener('pointercancel', () => end(false));
+})();
+
 // ---------- form tambah & pencarian ----------
 $('add-form').addEventListener('submit', handleAdd);
 $('add-input').addEventListener('paste', (e) => {
   const text = (e.clipboardData && e.clipboardData.getData('text')) || '';
-  const links = text.match(/https?:\/\/\S+/g) || [];
-  if (links.length > 1 || /\n/.test(text.trim())) {
+  const r = parseMany(text);
+  if (r.valid.length > 1) {
+    // Banyak link sekaligus → langsung masuk ke playlist (bisa dibatalkan dari notifikasi).
+    e.preventDefault();
+    if (local.multi) setMulti(false);
+    addIds(r.valid, $('add-target').value, { invalid: r.invalid.length, dup: r.duplicates });
+    $('add-input').value = '';
+  } else if (/\n/.test(text.trim()) && r.invalid.length) {
     e.preventDefault();
     setMulti(true);
     $('add-multi').value = text;
-    const r = parseMany(text);
-    feedback(`${r.valid.length} link valid terdeteksi — klik Tambah.`, 'ok');
+    feedback(`${r.valid.length} link valid · ${r.invalid.length} tidak valid`, 'error');
   }
 });
 $('add-input').addEventListener('input', () => feedback(''));
@@ -1174,6 +1302,12 @@ $('dock-progress').addEventListener('click', (e) => {
   player.seek(((e.clientX - r.left) / r.width) * d);
 });
 
+document.addEventListener('keydown', (e) => {
+  if ((e.key === 'k' || e.key === 'K') && (e.ctrlKey || e.metaKey) && !e.altKey && !document.querySelector('dialog.palette[open]')) {
+    e.preventDefault();
+    if (!document.querySelector('dialog[open]')) openCommandPalette();
+  }
+});
 document.addEventListener('keydown', (e) => {
   if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
   const t = e.target;
@@ -1285,6 +1419,7 @@ player.on((type, data) => {
     toast('Timer tidur: musik berhenti setelah lagu selesai. 🌙', 'info', 6000);
   }
   if (type === 'track' && !data) openNowPlaying(false);
+  if (type === 'track') applyTint(player.current ? player.current.youtubeId : null, store.ui.tint !== false);
   if ((type === 'track' || type === 'playing') && !$('lyrics-panel').hidden) lyricsPanel.load();
   if (type === 'error') toast(data && data.skipping ? `${player.error} Melewati ke video berikutnya…` : player.error, 'error', 5000);
   ui.renderDock(player, store);
@@ -1338,6 +1473,52 @@ function addListenBuffered(sec) {
   if (listenBuf >= 15) { addListen(listenBuf); listenBuf = 0; } // tulis ke penyimpanan tiap ±15 detik
 }
 window.addEventListener('pagehide', () => { if (listenBuf > 0) { addListen(listenBuf); listenBuf = 0; } });
+/** Jalankan aksi data-action yang sama seperti tombol di UI (dipakai command palette). */
+function fire(action, data = {}) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.hidden = true;
+  b.dataset.action = action;
+  Object.assign(b.dataset, data);
+  document.body.appendChild(b);
+  b.click();
+  b.remove();
+}
+
+function openCommandPalette() {
+  const go = (view) => () => { closeSidebar(); store.setView(view); local.query = ''; $('search').value = ''; window.scrollTo({ top: 0 }); };
+  const views = [['all', 'Semua video', 'grid'], ['favorites', 'Favorit', 'heart'], ['unwatched', 'Belum ditonton', 'checkCircle'], ['history', 'Riwayat', 'history']];
+  const cur = store.ui.view;
+  const items = [
+    ...store.data.playlists.map((p) => ({ group: 'Playlist', label: p.name, hint: `${p.items.length} lagu${`pl:${p.id}` === cur ? ' · dibuka' : ''}`, icon: 'music', run: go(`pl:${p.id}`) })),
+    ...views.map(([v, l, ic]) => ({ group: 'Koleksi', label: l, icon: ic, hint: v === cur ? 'dibuka' : '', run: go(v) })),
+    ...store.allTags().map((t) => ({ group: 'Tag', label: `#${t.name}`, hint: `${t.count} lagu`, icon: 'tag', hideEmpty: store.allTags().length > 6, run: go(`tag:${t.key}`) })),
+    { group: 'Aksi', label: 'Tambah lagu (tempel link)', icon: 'link', keywords: 'add tambah video', run: () => openAddSheet(true) },
+    { group: 'Aksi', label: 'Cari lagu di YouTube', icon: 'search', keywords: 'search youtube', run: () => fire('yt-search') },
+    { group: 'Aksi', label: 'Import playlist YouTube', icon: 'download', keywords: 'import', run: () => fire('yt-import') },
+    { group: 'Aksi', label: 'Playlist baru', icon: 'plus', keywords: 'buat new playlist', run: () => fire('new-playlist') },
+    player.current && { group: 'Aksi', label: player.isPlaying ? 'Jeda' : 'Putar', icon: player.isPlaying ? 'pause' : 'play', keywords: 'play pause putar jeda', run: () => player.toggle() },
+    player.current && { group: 'Aksi', label: 'Lagu berikutnya', icon: 'next', keywords: 'next skip', run: () => player.next() },
+    player.current && { group: 'Aksi', label: 'Lirik', icon: 'mic', keywords: 'lyrics', run: () => toggleLyrics(true) },
+    { group: 'Aksi', label: 'Antrean', icon: 'queue', keywords: 'queue', run: () => toggleQueue(true) },
+    { group: 'Aksi', label: 'Statistik mendengarkan', icon: 'chart', keywords: 'stats', run: () => openStatsDialog(store, { onPlay: playVideoById }) },
+    ...ui.DENSITIES.map(([k, ic, l]) => ({ group: 'Tampilan', label: l, icon: ic, hint: density() === k ? 'aktif' : '', keywords: 'view mode density', hideEmpty: true, run: () => setDensity(k) })),
+    { group: 'Tampilan', label: `Tema: ${{ auto: 'otomatis', light: 'terang', dark: 'gelap' }[store.ui.theme] || 'otomatis'} → ganti`, icon: 'contrast', keywords: 'theme dark light gelap terang', hideEmpty: true,
+      run: () => { const nx = { auto: 'dark', dark: 'light', light: 'auto' }; store.ui.theme = nx[store.ui.theme] || 'dark'; store.saveUi(); } },
+    { group: 'Lainnya', label: 'Setelan', icon: 'settings', keywords: 'settings pengaturan', run: () => openSettings('general') },
+    { group: 'Lainnya', label: 'Cloud Sync', icon: 'cloud', keywords: 'gist sync', hideEmpty: true, run: () => openSettings('cloud') },
+    { group: 'Lainnya', label: 'Backup & export', icon: 'upload', keywords: 'backup export import', hideEmpty: true, run: () => openSettings('backup') },
+    { group: 'Lainnya', label: 'Pintasan keyboard', icon: 'keyboard', keywords: 'shortcut', hideEmpty: true, run: () => showShortcuts() },
+  ].filter(Boolean);
+  const all = store.viewEntries('all');
+  openPalette({
+    items,
+    songs: (q) => filterEntries(all, q).slice(0, 8).map((e) => ({
+      group: 'Lagu', label: e.video.title || e.youtubeId, hint: e.video.channel || '', thumb: e.youtubeId, run: () => playVideoById(e.youtubeId),
+    })),
+  });
+}
+
 function playVideoById(id) {
   const e = store.viewEntries('all').find((x) => x.youtubeId === id);
   if (e) { rememberQueueSource(false); player.playList([e], 0); }

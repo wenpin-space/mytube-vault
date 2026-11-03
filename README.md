@@ -63,6 +63,17 @@ Vanilla JavaScript (ES modules), tanpa build step, tanpa backend. Tinggal taruh 
 - Export/import JSON manual, import bisa **Gabungkan** atau **Ganti**
 - **Snapshot lokal** otomatis setiap data akan ditimpa (restore, import, data dari cloud)
 
+### Efisiensi & tampilan (v11)
+- **Tempel banyak link langsung**: tempel beberapa link (per baris, berspasi, atau menempel) di kolom tambah, maka semuanya langsung masuk. Notifikasinya punya tombol **Batalkan**.
+- **Chip cara tambah** (Cari di YouTube, Dari library, Import playlist, Banyak link) dalam satu baris yang bisa digeser di HP
+- **Filter cepat** di atas daftar: Belum ditonton, Favorit, Belum pernah diputar, < 5 menit, ≥ 10 menit, plus tag yang paling sering dipakai (lengkap dengan jumlah)
+- **Pencarian beberapa kata** (urutan bebas, mis. `rick you`); setiap kata yang cocok disorot
+- **Mode tampilan**: Nyaman, Ringkas (±2× lebih banyak lagu per layar), Kisi (thumbnail besar). Pilihan diingat.
+- **Antrean**: geser ⠿ untuk mengubah urutan (mouse & sentuh), **Kosongkan**, "Berikutnya: …" di player bawah (desktop), dan 3 lagu berikutnya di layar *Sedang diputar* (HP). Lagu yang kamu keluarkan dari antrean tidak dimasukkan lagi otomatis.
+- **Warna ikut lagu**: player, baris yang diputar, dan layar *Sedang diputar* mengambil warna dari thumbnail lagu. Bisa dimatikan lewat ⋮ player.
+- **Skeleton & animasi halus**: kerangka saat memuat (judul, hasil cari YouTube, lirik), animasi saat lagu ditambah/dihapus dan saat pindah halaman; mengikuti setelan *kurangi gerakan* sistem.
+- **Perintah cepat** (`Ctrl+K` / `⌘K`, atau tombol di bar atas): lompat ke playlist, koleksi, tag, lagu, atau jalankan aksi (tambah, cari, statistik, tema, mode tampilan, dll.)
+
 ---
 
 ## Menjalankan
@@ -225,6 +236,8 @@ js/mobile.js        khusus HP: tombol Back, geser-urut sentuh, PWA, share target
 js/share.js         link berbagi playlist (kompresi ke URL, validasi saat dibuka)
 js/stats.js         log putar & waktu dengar lokal, ringkasan statistik
 js/lyrics.js        lirik LRCLIB: pembersih judul, parser LRC, panel lirik
+js/tint.js          warna aksen dari thumbnail lagu yang diputar
+js/palette.js       command palette (Ctrl+K) + pencocokan fuzzy
 sw.js               service worker (kerangka aplikasi offline)
 manifest.webmanifest  metadata PWA (nama, ikon, share target, shortcut)
 icons/              ikon aplikasi (biasa + maskable untuk Android)

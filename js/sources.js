@@ -5,7 +5,7 @@
 
 import { modal, toast } from './dialogs.js';
 import { icon } from './icons.js';
-import { escapeHtml, formatDuration } from './utils.js';
+import { escapeHtml, formatDuration, skeletonRows } from './utils.js';
 import { thumbUrl } from './metadata.js';
 import { extractPlaylistId } from './parser.js';
 
@@ -165,7 +165,7 @@ export function ytSearchDialog(store, { targetId, query = '' } = {}) {
         if (!qText) { input.focus(); return; }
         if (navigator.onLine === false) { box.innerHTML = '<p class="error-text pad">Kamu sedang offline. Pencarian YouTube butuh internet.</p>'; return; }
         input.blur(); // tutup keyboard HP supaya hasil terlihat
-        box.innerHTML = '<p class="muted pad"><span class="spinner"></span> Mencari…</p>';
+        box.innerHTML = skeletonRows(5);
         try {
           render(await searchYouTube(qText, key));
         } catch (err) {

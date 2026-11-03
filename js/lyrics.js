@@ -1,6 +1,6 @@
 // Lirik dari LRCLIB (lrclib.net, gratis, tanpa API key). Lirik tersinkron (format LRC) disorot mengikuti posisi lagu.
 
-import { escapeHtml } from './utils.js';
+import { escapeHtml, skeletonRows } from './utils.js';
 import { icon } from './icons.js';
 
 const API = 'https://lrclib.net/api';
@@ -130,7 +130,7 @@ export function createLyricsPanel(host, { getTrack, seek }) {
     st.query = q;
     input.value = q;
     if (!q) return;
-    body.innerHTML = '<p class="muted pad"><span class="spinner"></span> Mencari lirik…</p>';
+    body.innerHTML = skeletonRows(7, { thumb: false });
     try {
       st.results = await searchLyrics(q);
       const now = getTrack();
@@ -156,7 +156,7 @@ export function createLyricsPanel(host, { getTrack, seek }) {
     const picked = getPick(tr.youtubeId);
     if (picked) {
       st.query = q; input.value = q;
-      body.innerHTML = '<p class="muted pad"><span class="spinner"></span> Memuat lirik…</p>';
+      body.innerHTML = skeletonRows(7, { thumb: false });
       try { const rec = await getLyricsById(picked); if (rec && st.videoId === tr.youtubeId) { renderLyrics(rec); return; } } catch { /* cari ulang */ }
     }
     search(q, { auto: true });

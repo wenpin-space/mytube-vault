@@ -57,11 +57,13 @@ function navItem(view, label, ic, count, active) {
     ${icon(ic)}<span class="nav-label">${escapeHtml(label)}</span><span class="nav-count">${count}</span></button>`;
 }
 
+export const DENSITIES = [['comfy', 'rows', 'Tampilan nyaman'], ['compact', 'list', 'Tampilan ringkas'], ['grid', 'grid', 'Tampilan kisi']];
+
 export function renderViewHead(store, info) {
   const pl = store.currentPlaylist();
   const tagView = store.ui.view.startsWith('tag:') ? store.allTags().find((t) => t.key === store.ui.view.slice(4)) : null;
   const title = pl ? pl.name : tagView ? `#${tagView.name}` : VIEW_TITLES[store.ui.view];
-  const countText = info.query ? `${info.visible} dari ${info.total} video` : `${info.total} video`;
+  const countText = info.filtered ? `${info.visible} dari ${info.total} video` : `${info.total} video`;
   const dur = formatTotal(info.duration);
   const options = SORT_MODES.map(([k, l]) => {
     const label = !pl && k === 'manual' ? (store.ui.view === 'history' ? 'Terakhir diputar' : 'Urutan ditambahkan') : l;
@@ -78,6 +80,7 @@ export function renderViewHead(store, info) {
       <button type="button" class="btn" data-action="shuffle-all" ${info.visible ? '' : 'disabled'}>${icon('shuffle')}<span>Acak</span></button>
       ${pl ? `<button type="button" class="btn add-song" data-action="open-add" title="Tambah lagu">${icon('plus')}<span>Tambah lagu</span></button>` : ''}
       <label class="select-wrap" title="Urutkan">${icon('sort')}<select data-action="sort" aria-label="Urutkan">${options}</select></label>
+      <div class="seg" role="group" aria-label="Tampilan daftar">${DENSITIES.map(([k, ic, l]) => `<button type="button" data-action="density" data-d="${k}" aria-pressed="${k === info.density}" aria-label="${l}" title="${l}">${icon(ic)}</button>`).join('')}</div>
       <button type="button" class="icon-btn" data-action="playlist-menu" aria-label="Opsi lainnya">${icon('more')}</button>
     </div>`;
 }
@@ -96,6 +99,7 @@ export function renderList(entries, opt) {
   const shown = entries.slice(0, opt.limit);
   list.classList.toggle('reorderable', opt.canReorder && !opt.selecting);
   list.classList.toggle('selecting', !!opt.selecting);
+  list.dataset.density = opt.density || 'comfy';
   list.innerHTML = shown.map((e, i) => row(e, i, opt)).join('');
   const rest = entries.length - shown.length;
   $('list-more').innerHTML = rest > 0
@@ -108,10 +112,27 @@ function highlight(text, q) {
   const safe = escapeHtml(text);
   if (!q) return safe;
   const lower = text.toLocaleLowerCase('id');
-  const ql = q.toLocaleLowerCase('id');
-  const at = lower.indexOf(ql);
-  if (at < 0) return safe;
-  return `${escapeHtml(text.slice(0, at))}<mark>${escapeHtml(text.slice(at, at + q.length))}</mark>${escapeHtml(text.slice(at + q.length))}`;
+  // Tandai setiap kata pencarian (tanpa "#"), gabungkan rentang yang tumpang tindih.
+  const words = [...new Set(q.toLocaleLowerCase('id').split(/\s+/).map((w) => w.replace(/^#/, '')).filter(Boolean))];
+  const ranges = [];
+  for (const w of words) {
+    let at = lower.indexOf(w);
+    while (at >= 0) { ranges.push([at, at + w.length]); at = lower.indexOf(w, at + w.length); }
+  }
+  if (!ranges.length || lower.length !== text.length) return safe;
+  ranges.sort((a, b) => a[0] - b[0]);
+  const merged = [];
+  for (const r of ranges) {
+    const last = merged[merged.length - 1];
+    if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]); else merged.push([...r]);
+  }
+  let out = '';
+  let i = 0;
+  for (const [a, b] of merged) {
+    out += `${escapeHtml(text.slice(i, a))}<mark>${escapeHtml(text.slice(a, b))}</mark>`;
+    i = b;
+  }
+  return out + escapeHtml(text.slice(i));
 }
 
 function row(e, i, opt) {
@@ -134,8 +155,8 @@ function row(e, i, opt) {
       <span class="thumb-overlay">${icon(playing && opt.isPlaying ? 'pause' : 'play', 'fill')}</span>
     </button>
     <div class="meta" data-action="play">
-      <div class="title${v.title ? '' : ' untitled'}" title="${escapeHtml(v.title || '')}">${highlight(title, opt.query)}</div>
-      <div class="sub">${v.channel ? `<span>${highlight(v.channel, opt.query)}</span>` : ''}<span>${sub}</span>${v.watched ? '<span class="tag">ditonton</span>' : ''}${(v.tags || []).slice(0, 4).map((t) => `<button type="button" class="tag tag-user" data-action="tag-open" data-tag="${escapeHtml(t)}">#${escapeHtml(t)}</button>`).join('')}</div>
+      ${loading ? '<div class="title"><span class="sk sk-line" style="width:70%"></span></div>' : `<div class="title${v.title ? '' : ' untitled'}" title="${escapeHtml(v.title || '')}">${highlight(title, opt.query)}</div>`}
+      <div class="sub">${v.channel ? `<span>${highlight(v.channel, opt.query)}</span>` : ''}<span class="when">${sub}</span>${v.duration ? `<span class="c-dur">${formatDuration(v.duration)}</span>` : ''}${v.watched ? '<span class="tag">ditonton</span>' : ''}${(v.tags || []).slice(0, 4).map((t) => `<button type="button" class="tag tag-user" data-action="tag-open" data-tag="${escapeHtml(t)}">#${escapeHtml(t)}</button>`).join('')}</div>
     </div>
     <div class="row-actions">
       <button type="button" class="icon-btn fav${v.favorite ? ' on' : ''}" data-action="fav" aria-label="Favorit" aria-pressed="${v.favorite}" title="Favorit">${icon('heart', v.favorite ? 'fill' : '')}</button>
@@ -148,6 +169,10 @@ function row(e, i, opt) {
 }
 
 function emptyState(opt) {
+  if (opt.quick && !opt.query) {
+    return `<div class="empty-icon">${icon('sort')}</div><h3>Tidak ada lagu untuk filter ini</h3><p>Coba filter lain atau tampilkan semua lagu.</p>
+      <p><button type="button" class="btn" data-action="qf" data-qf="">${icon('x')}<span>Hapus filter</span></button></p>`;
+  }
   if (opt.query) {
     return `<div class="empty-icon">${icon('search')}</div><h3>Tidak ada hasil</h3><p>Tidak ada video di library yang cocok dengan “${escapeHtml(opt.query)}”.</p>
       <p><button type="button" class="btn btn-primary" data-action="yt-search" data-q="${escapeHtml(opt.query)}">${icon('search')}<span>Cari “${escapeHtml(opt.query)}” di YouTube</span></button></p>`;
@@ -270,29 +295,84 @@ export function renderProgress(time, duration) {
 }
 
 export function renderQueue(player, store) {
+  renderUpNext(player, store);
   const panel = $('queue-panel');
   if (panel.hidden) return;
   const box = $('queue-list');
   const cur = player.current;
+  const upcoming = cur ? player.upcoming() : [];
+  $('queue-clear').hidden = upcoming.length < 2;
   if (!cur) {
     box.innerHTML = '<p class="muted pad">Antrean kosong. Putar video atau playlist untuk mengisinya.</p>';
     return;
   }
   const qrow = (item, pos, now) => {
     const v = store.data.videos[item.youtubeId];
-    return `<div class="q-row${now ? ' now' : ''}">
+    return `<div class="q-row${now ? ' now' : ''}" data-pos="${pos}">
+      ${now ? '' : `<span class="q-grip" title="Geser untuk mengubah urutan" aria-hidden="true">${icon('grip')}</span>`}
       <button type="button" class="q-main" data-action="queue-jump" data-pos="${pos}">
         <img src="${thumbUrl(item.youtubeId, 'default')}" alt="" loading="lazy">
-        <span class="q-title">${escapeHtml((v && v.title) || 'Judul belum tersedia')}</span>
+        <span class="q-text"><span class="q-title">${escapeHtml((v && v.title) || 'Judul belum tersedia')}</span>${v && v.channel ? `<span class="q-sub">${escapeHtml(v.channel)}</span>` : ''}</span>
       </button>
       ${now ? '' : `<button type="button" class="icon-btn sm" data-action="queue-remove" data-pos="${pos}" aria-label="Hapus dari antrean">${icon('x')}</button>`}
     </div>`;
   };
-  const upcoming = player.upcoming();
+  // Pertahankan posisi gulir saat antrean di-render ulang.
+  const scroll = box.scrollTop;
   box.innerHTML = `
     <p class="q-label">Sedang diputar</p>${qrow(cur, player.pos, true)}
     <p class="q-label">Berikutnya${upcoming.length ? ` · ${upcoming.length}` : ''}</p>
-    ${upcoming.length
+    <div class="q-upcoming">${upcoming.length
       ? upcoming.slice(0, 300).map((u) => qrow(u.item, u.pos, false)).join('')
-      : `<p class="muted pad">${player.repeat === 'all' ? 'Antrean akan diulang dari awal.' : 'Tidak ada video berikutnya.'}</p>`}`;
+      : `<p class="muted pad">${player.repeat === 'all' ? 'Antrean akan diulang dari awal.' : 'Tidak ada video berikutnya.'}</p>`}</div>`;
+  box.scrollTop = scroll;
+}
+
+/** "Berikutnya: …" di dock (desktop) + 3 lagu berikutnya di layar Sedang diputar (HP). */
+export function renderUpNext(player, store) {
+  const cur = player.current;
+  const up = cur ? player.upcoming() : [];
+  const title = (id) => { const v = store.data.videos[id]; return (v && v.title) || 'Judul belum tersedia'; };
+  const nx = $('dock-next');
+  if (nx) {
+    nx.hidden = !up.length;
+    if (up.length) {
+      const t = title(up[0].item.youtubeId);
+      nx.innerHTML = `<span class="muted">Berikutnya:</span> ${escapeHtml(t)}`;
+      nx.title = `Berikutnya: ${t} — klik untuk melihat antrean`;
+    }
+  }
+  const box = $('np-upnext');
+  if (!box) return;
+  if (!up.length) { box.innerHTML = ''; box.hidden = true; return; }
+  box.hidden = false;
+  box.innerHTML = `<div class="np-upnext-head"><b>Berikutnya</b><button type="button" class="link-btn small" data-action="queue-toggle">Lihat semua (${up.length})</button></div>
+    ${up.slice(0, 3).map((u) => {
+      const v = store.data.videos[u.item.youtubeId];
+      return `<div class="q-row" data-pos="${u.pos}">
+        <button type="button" class="q-main" data-action="queue-jump" data-pos="${u.pos}">
+          <img src="${thumbUrl(u.item.youtubeId, 'default')}" alt="" loading="lazy">
+          <span class="q-text"><span class="q-title">${escapeHtml(title(u.item.youtubeId))}</span>${v && v.channel ? `<span class="q-sub">${escapeHtml(v.channel)}</span>` : ''}</span>
+        </button>
+        <button type="button" class="icon-btn sm" data-action="queue-remove" data-pos="${u.pos}" aria-label="Hapus dari antrean">${icon('x')}</button>
+      </div>`;
+    }).join('')}`;
+}
+
+/** Baris chip filter cepat di atas daftar. */
+export function renderQuickFilters(all, { active, view, filters, tags }) {
+  const box = $('quick-filters');
+  if (!box) return;
+  if (all.length < 3) { box.hidden = true; box.innerHTML = ''; return; }
+  const count = (test) => all.reduce((n, e) => n + (test(e.video) ? 1 : 0), 0);
+  const chips = filters
+    .filter((f) => !(f.hideOn || []).includes(view))
+    .map((f) => ({ id: f.id, label: f.label, n: count(f.test) }))
+    .filter((c) => c.n > 0 && c.n < all.length || c.id === active);
+  const tagChips = tags.map((t) => ({ id: `tag:${t.key}`, label: `#${t.name}`, n: t.n }));
+  if (!chips.length && !tagChips.length) { box.hidden = true; box.innerHTML = ''; return; }
+  box.hidden = false;
+  const chip = (c) => `<button type="button" class="chip" data-action="qf" data-qf="${escapeHtml(c.id)}" aria-pressed="${c.id === active}">${escapeHtml(c.label)} <span class="count">${c.n}</span></button>`;
+  box.innerHTML = `<button type="button" class="chip" data-action="qf" data-qf="" aria-pressed="${!active}">Semua <span class="count">${all.length}</span></button>
+    ${chips.map(chip).join('')}${tagChips.map(chip).join('')}`;
 }

@@ -137,14 +137,49 @@ export function filterEntries(entries, query) {
   const q = String(query || '').trim().toLocaleLowerCase('id');
   if (!q) return entries;
   const tags = (v) => (v.tags || []).map((t) => t.toLocaleLowerCase('id'));
-  if (q.startsWith('#')) {
-    // "#lofi" → hanya video bertag yang diawali "lofi"
-    const t = q.slice(1);
-    return entries.filter(({ video: v }) => tags(v).some((x) => x.startsWith(t)));
+  // Beberapa kata: semuanya harus cocok (urutan bebas). "#lofi" → hanya tag yang diawali "lofi".
+  const words = q.split(/\s+/).filter(Boolean);
+  return entries.filter(({ video: v }) => {
+    const title = (v.title || '').toLocaleLowerCase('id');
+    const channel = (v.channel || '').toLocaleLowerCase('id');
+    const tg = tags(v);
+    return words.every((w) => {
+      if (w.startsWith('#') && w.length > 1) return tg.some((x) => x.startsWith(w.slice(1)));
+      return title.includes(w) || channel.includes(w) || tg.some((x) => x.includes(w)) || v.youtubeId.toLowerCase().includes(w);
+    });
+  });
+}
+
+/** Filter cepat di atas daftar. */
+export const QUICK_FILTERS = [
+  { id: 'unwatched', label: 'Belum ditonton', test: (v) => !v.watched, hideOn: ['unwatched'] },
+  { id: 'fav', label: 'Favorit', test: (v) => v.favorite, hideOn: ['favorites'] },
+  { id: 'never', label: 'Belum pernah diputar', test: (v) => !v.playCount, hideOn: ['history'] },
+  { id: 'short', label: '< 5 menit', test: (v) => v.duration > 0 && v.duration < 300 },
+  { id: 'long', label: '≥ 10 menit', test: (v) => v.duration >= 600 },
+];
+export function quickFilter(entries, id) {
+  if (!id) return entries;
+  if (id.startsWith('tag:')) {
+    const t = id.slice(4);
+    return entries.filter(({ video: v }) => (v.tags || []).some((x) => x.toLocaleLowerCase('id') === t));
   }
-  return entries.filter(({ video: v }) =>
-    (v.title || '').toLocaleLowerCase('id').includes(q) ||
-    (v.channel || '').toLocaleLowerCase('id').includes(q) ||
-    tags(v).some((x) => x.includes(q)) ||
-    v.youtubeId.toLowerCase().includes(q));
+  const f = QUICK_FILTERS.find((x) => x.id === id);
+  return f ? entries.filter(({ video: v }) => f.test(v)) : entries;
+}
+
+/** Kerangka (skeleton) baris saat memuat. */
+export function skeletonRows(n = 4, { thumb = true } = {}) {
+  return `<div class="sk-list" aria-busy="true" aria-label="Memuat">${Array.from({ length: n }, (_, i) => `
+    <div class="sk-row">${thumb ? '<span class="sk sk-thumb"></span>' : ''}<span class="sk-col"><span class="sk sk-line" style="width:${[82, 64, 74, 58][i % 4]}%"></span><span class="sk sk-line sm" style="width:${[38, 46, 30, 42][i % 4]}%"></span></span></div>`).join('')}</div>`;
+}
+
+const reduceMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+/** Animasikan baris keluar dari daftar, lalu jalankan perubahan data. */
+export function animateOut(keys, fn) {
+  const set = new Set(keys);
+  const rows = [...document.querySelectorAll('#video-list .vrow')].filter((r) => set.has(r.dataset.key));
+  if (!rows.length || reduceMotion() || rows.length > 60) { fn(); return; }
+  rows.forEach((r) => { r.style.height = `${r.offsetHeight}px`; r.classList.add('leaving'); });
+  setTimeout(fn, 200);
 }
