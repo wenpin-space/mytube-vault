@@ -43,7 +43,14 @@ Vanilla JavaScript (ES modules), tanpa build step, tanpa backend. Tinggal taruh 
 - Video baru disorot & digulir ke posisinya; duplikat playlist; naik/turunkan playlist di daftar
 - Banner **offline**, pesan jelas kalau player YouTube gagal/timeout (dengan tombol *Buka di YouTube*), notifikasi kesalahan tak terduga, peringatan saat penyimpanan browser hampir penuh
 - Aksesibilitas: tautan *Lewati ke daftar video*, judul iframe player, toast bisa ditutup & berhenti saat disentuh/di-hover, error diumumkan ke pembaca layar
-- Pintasan: `?` daftar pintasan · `←/→` seek 5 dtk · `↑/↓` volume · `M` bisu · `S` acak · `R` ulangi · `Ctrl+A` pilih semua
+- Pintasan: `?` daftar pintasan · `←/→` seek 5 dtk · `↑/↓` volume · `M` bisu · `S` acak · `R` ulangi · `L` ulangi lagu ini · `Y` lirik · `Ctrl+A` pilih semua
+
+**Organisasi, berbagi & statistik**
+- **Import playlist YouTube**: tempel link `youtube.com/playlist?list=…` (atau menu ⋮ → *Import playlist YouTube*) → semua video (maks. 1000) masuk lengkap dengan judul, ke playlist baru atau yang sudah ada. Pakai API key yang sama dengan *Cari di YouTube*. Mix/Radio otomatis (`list=RD…`) tidak bisa diambil lewat API.
+- **Tag**: ⋮ pada lagu → *Atur tag* (atau pilih banyak → *Tag*). Tag tampil di daftar dan di sidebar sebagai filter; di kolom cari ketik `#namatag`.
+- **Bagikan playlist lewat link**: ⋮ playlist → *Bagikan playlist*. Isi playlist (maks. 300 lagu) dikompres ke dalam link itu sendiri — tanpa server. Penerima membuka link → pratinjau → *Simpan* / *Simpan & putar*.
+- **Statistik** (link di bawah sidebar): menit mendengarkan 14 hari, jam favorit, lagu & channel paling sering diputar, tag. Jumlah putar tersinkron; grafik menit/jam dihitung di perangkat ini.
+- **Lirik** (⋮ player → *Lirik*, atau tombol `Y`): dicari otomatis di [LRCLIB](https://lrclib.net) dari judul lagu; lirik tersinkron disorot mengikuti lagu dan bisa diketuk untuk melompat. Kalau hasilnya salah, ubah kata kunci atau pilih hasil lain — pilihanmu diingat per lagu.
 
 **Penyimpanan & backup**
 - LocalStorage sebagai penyimpanan utama (local-first, jalan offline)
@@ -215,6 +222,9 @@ js/dialogs.js       modal, toast, menu, dialog passphrase/konflik
 js/settings.js      dialog Pengaturan (Cloud Sync, Backup & Riwayat, Umum)
 js/utils.js         helper (format waktu, sort/filter, download, clipboard)
 js/mobile.js        khusus HP: tombol Back, geser-urut sentuh, PWA, share target
+js/share.js         link berbagi playlist (kompresi ke URL, validasi saat dibuka)
+js/stats.js         log putar & waktu dengar lokal, ringkasan statistik
+js/lyrics.js        lirik LRCLIB: pembersih judul, parser LRC, panel lirik
 sw.js               service worker (kerangka aplikasi offline)
 manifest.webmanifest  metadata PWA (nama, ikon, share target, shortcut)
 icons/              ikon aplikasi (biasa + maskable untuk Android)
@@ -260,7 +270,9 @@ Mencakup parser link, migrasi format lama, operasi store, envelope + enkripsi, d
 - *Library React (react-window, zod, p-queue), Sentry/analitik, CDN, A/B test, kolaborasi & follow pengguna*: aplikasi ini sengaja tanpa build step dan tanpa server; GitHub Pages sudah memakai CDN + kompresi.
 - *Virtualisasi penuh*: diganti muat-bertahap 200 item saat digulir — cukup untuk ribuan video tanpa menambah kerumitan.
 
-**Berikutnya (P2):** tag/label + smart playlist berbasis aturan, statistik putar, import dari URL playlist YouTube (pakai API key yang sama dengan pencarian), gesture swipe, tata letak landscape.
+**Ide lanjutan yang sudah dikerjakan:** import playlist YouTube, tag, link berbagi, statistik, lirik, shortcut `L`/`Y`, kolom tambah yang tetap terlihat saat menggulir.
+
+**Ide yang sengaja tidak diambil:** *Dexie/IndexedDB* (localStorage ±5 MB cukup untuk ±20 ribu lagu, ada peringatan saat hampir penuh, dan data juga tersimpan di Gist), *Firebase/Supabase + login + playlist kolaboratif* (butuh server & akun; sinkron lintas perangkat sudah lewat Gist milikmu), *mode audio saja / PiP* (dibatasi aturan & teknis player YouTube), *framework React/Tailwind/Vite* (aplikasi ini sengaja tanpa build step).
 
 ## Ide pengembangan berikutnya
 

@@ -71,6 +71,22 @@ export function isDataEmpty(d) {
 }
 
 const str = (v, max = 300) => (typeof v === 'string' ? v.slice(0, max) : '');
+export const tagKey = (t) => String(t).trim().replace(/^#+/, '').toLocaleLowerCase('id');
+/** Rapikan daftar tag: buang #, spasi berlebih, kosong, duplikat (tanpa beda huruf besar/kecil). */
+export function cleanTags(list) {
+  const seen = new Set();
+  const out = [];
+  for (const raw of list || []) {
+    if (typeof raw !== 'string') continue;
+    const name = raw.trim().replace(/^#+/, '').replace(/\s+/g, ' ').slice(0, 30);
+    const k = name.toLocaleLowerCase('id');
+    if (!name || seen.has(k)) continue;
+    seen.add(k);
+    out.push(name);
+    if (out.length >= 30) break;
+  }
+  return out;
+}
 const iso = (v, fallback) => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? v : fallback);
 
 function normVideo(id, v = {}, t = nowISO()) {
@@ -81,7 +97,7 @@ function normVideo(id, v = {}, t = nowISO()) {
     duration: Number.isFinite(v.duration) && v.duration > 0 ? Math.round(v.duration) : null,
     favorite: !!v.favorite,
     watched: !!v.watched,
-    tags: Array.isArray(v.tags) ? v.tags.filter((x) => typeof x === 'string').slice(0, 30) : [],
+    tags: cleanTags(Array.isArray(v.tags) ? v.tags : []),
     playCount: Number.isFinite(v.playCount) && v.playCount > 0 ? Math.floor(v.playCount) : 0,
     lastPlayedAt: typeof v.lastPlayedAt === 'string' && !Number.isNaN(Date.parse(v.lastPlayedAt)) ? v.lastPlayedAt : null,
     firstAddedAt: iso(v.firstAddedAt ?? v.addedAt, t),
@@ -254,6 +270,7 @@ export const store = {
       cur.favorite = cur.favorite || v.favorite;
       cur.watched = cur.watched || v.watched;
       cur.playCount = Math.max(cur.playCount || 0, v.playCount || 0);
+      cur.tags = cleanTags([...cur.tags, ...v.tags]);
       if (v.lastPlayedAt && (!cur.lastPlayedAt || v.lastPlayedAt > cur.lastPlayedAt)) cur.lastPlayedAt = v.lastPlayedAt;
     }
     for (const p of inc.playlists) {
@@ -281,7 +298,9 @@ export const store = {
   },
   ensureViewValid() {
     const v = (this.ui && this.ui.view) || '';
-    const valid = v.startsWith('pl:') ? !!this.getPlaylist(v.slice(3)) : SMART_VIEWS.includes(v);
+    const valid = v.startsWith('pl:') ? !!this.getPlaylist(v.slice(3))
+      : v.startsWith('tag:') ? this.allTags().some((t) => t.key === v.slice(4))
+        : SMART_VIEWS.includes(v);
     if (!valid) this.ui.view = `pl:${this.data.playlists[0].id}`;
   },
   setView(view) { this.ui.view = view; this.ensureViewValid(); this.saveUi(); },
@@ -301,6 +320,7 @@ export const store = {
     let vids = Object.values(this.data.videos);
     if (view === 'favorites') vids = vids.filter((v) => v.favorite);
     if (view === 'unwatched') vids = vids.filter((v) => !v.watched);
+    if (view.startsWith('tag:')) { const k = view.slice(4); vids = vids.filter((v) => v.tags.some((t) => tagKey(t) === k)); }
     if (view === 'history') {
       // Urutan "manual" untuk riwayat = terakhir diputar paling atas.
       vids = vids.filter((v) => v.lastPlayedAt).sort((a, b) => b.lastPlayedAt.localeCompare(a.lastPlayedAt));
@@ -401,6 +421,53 @@ export const store = {
     p.updatedAt = nowISO();
     this.commit('restore-item');
   },
+  // ---------- tag ----------
+  /** Semua tag beserta jumlah video, urut abjad. key = bentuk huruf kecil (untuk view & pencocokan). */
+  allTags() {
+    const m = new Map();
+    for (const v of Object.values(this.data.videos)) {
+      for (const t of v.tags) {
+        const k = tagKey(t);
+        const cur = m.get(k);
+        if (cur) cur.count++; else m.set(k, { key: k, name: t, count: 1 });
+      }
+    }
+    return [...m.values()].sort((a, b) => a.name.localeCompare(b.name, 'id'));
+  },
+  setTags(id, tags) {
+    const v = this.data.videos[id];
+    if (!v) return;
+    v.tags = cleanTags(tags);
+    v.updatedAt = nowISO();
+    this.ensureViewValid();
+    this.commit('tags');
+  },
+  addTagMany(ids, tag) {
+    const name = cleanTags([tag])[0];
+    if (!name) return 0;
+    const k = tagKey(name);
+    let n = 0;
+    for (const id of ids) {
+      const v = this.data.videos[id];
+      if (v && !v.tags.some((t) => tagKey(t) === k)) { v.tags = cleanTags([...v.tags, name]); v.updatedAt = nowISO(); n++; }
+    }
+    if (n) this.commit('tags-many');
+    return n;
+  },
+  removeTagMany(ids, tag) {
+    const k = tagKey(tag);
+    let n = 0;
+    for (const id of ids) {
+      const v = this.data.videos[id];
+      if (v && v.tags.some((t) => tagKey(t) === k)) { v.tags = v.tags.filter((t) => tagKey(t) !== k); v.updatedAt = nowISO(); n++; }
+    }
+    if (n) { this.ensureViewValid(); this.commit('tags-many'); }
+    return n;
+  },
+  deleteTag(tag) {
+    return this.removeTagMany(Object.keys(this.data.videos), tag);
+  },
+
   /** Catat pemutaran (untuk Riwayat). */
   recordPlay(id) {
     const v = this.data.videos[id];
@@ -575,7 +642,7 @@ export const store = {
     try { return new Blob([localStorage.getItem(STATE_KEY) || '']).size; } catch { return 0; }
   },
   clearAll() {
-    for (const k of [STATE_KEY, SNAPSHOT_KEY, TOKEN_KEY, PASS_KEY, POS_KEY]) {
+    for (const k of [STATE_KEY, SNAPSHOT_KEY, TOKEN_KEY, PASS_KEY, POS_KEY, 'mytube_vault_stats_v1', 'mytube_vault_lyrics_v1', 'mytube_vault_yt_key']) {
       try { localStorage.removeItem(k); } catch { /* abaikan */ }
     }
   },

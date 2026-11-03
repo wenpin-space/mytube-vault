@@ -3,7 +3,7 @@
 import { store, normalizeData } from './store.js';
 import { sync } from './sync.js';
 import { Player } from './player.js';
-import { extractYouTubeId, parseMany } from './parser.js';
+import { extractYouTubeId, parseMany, extractPlaylistId } from './parser.js';
 import { createMetaQueue, watchUrl } from './metadata.js';
 import { openEnvelope, summarize } from './envelope.js';
 import {
@@ -16,7 +16,10 @@ import { sortEntries, filterEntries, copyText, downloadText, escapeHtml, slugify
 import {
   isPhone, overlay, enableTouchReorder, setupPwa, promptInstall, isStandalone, takeLaunchParams,
 } from './mobile.js';
-import { libraryPicker, ytSearchDialog, youtubeAppUrl } from './sources.js';
+import { libraryPicker, ytSearchDialog, youtubeAppUrl, ytPlaylistImportDialog } from './sources.js';
+import { buildSharePayload, encodeShare, decodeShare, shareUrl, takeShareFromUrl } from './share.js';
+import { logPlay, addListen, openStatsDialog } from './stats.js';
+import { createLyricsPanel } from './lyrics.js';
 
 const PAGE = 200;
 const $ = (id) => document.getElementById(id);
@@ -194,8 +197,20 @@ function handleAdd(e) {
     const raw = $('add-input').value.trim();
     if (!raw) { $('add-input').focus(); return; }
     const id = extractYouTubeId(raw, { allowBareId: true });
+    const listId = extractPlaylistId(raw);
+    if (!id && listId) {
+      // Link playlist YouTube → buka dialog import.
+      $('add-input').value = '';
+      feedback('');
+      ytPlaylistImportDialog(store, { url: raw, targetId: target });
+      return;
+    }
+    if (id && listId && !/^RD/.test(listId)) {
+      setTimeout(() => toast('Link ini juga bagian dari sebuah playlist YouTube.', 'info', 8000,
+        { label: 'Import seluruh playlist', fn: () => ytPlaylistImportDialog(store, { url: raw, targetId: target }) }), 400);
+    }
     if (!id) {
-      feedback('Link tidak valid. Pastikan itu link video YouTube (bukan playlist/channel).', 'error');
+      feedback('Link tidak valid. Tempel link video atau playlist YouTube (bukan channel).', 'error');
       $('add-form').classList.remove('shake');
       void $('add-form').offsetWidth;
       $('add-form').classList.add('shake');
@@ -311,6 +326,7 @@ function openItemMenu(anchor, entry) {
   openMenu(anchor, [
     { label: 'Putar', icon: 'play', action: () => playFromEntry(entry) },
     { label: 'Pilih beberapa…', icon: 'checks', action: () => startSelect(entry.key) },
+    { label: v.tags.length ? `Atur tag (${v.tags.length})…` : 'Atur tag…', icon: 'tag', action: () => tagsDialog([v.youtubeId]) },
     { label: 'Putar berikutnya', icon: 'next', action: () => { player.playNext(entry); toast('Akan diputar berikutnya.'); } },
     { label: 'Tambah ke antrean', icon: 'queue', action: () => { player.addToQueue(entry); toast('Ditambahkan ke antrean.'); } },
     'sep',
@@ -375,6 +391,14 @@ function openPlaylistMenu(anchor) {
     openMenu(anchor, [
       { label: 'Putar di aplikasi YouTube', icon: 'external', disabled: !viewIds().length, action: () => playInYouTubeApp(viewIds()) },
       { label: 'Pilih beberapa…', icon: 'checks', disabled: !viewIds().length, action: () => startSelect() },
+      store.ui.view.startsWith('tag:') && {
+        label: 'Hapus tag ini dari semua video', icon: 'trash', danger: true,
+        action: async () => {
+          const t = store.allTags().find((x) => x.key === store.ui.view.slice(4));
+          if (t && await confirmDialog(`Hapus #${t.name}?`, `Tag dilepas dari ${t.count} video. Videonya sendiri tidak terhapus.`, { ok: 'Hapus tag', danger: true })) store.deleteTag(t.name);
+        },
+      },
+      store.ui.view === 'history' && { label: 'Statistik mendengarkan', icon: 'chart', action: () => openStatsDialog(store, { onPlay: playVideoById }) },
       store.ui.view === 'history' && {
         label: 'Hapus riwayat', icon: 'trash', danger: true, disabled: !viewIds().length,
         action: async () => {
@@ -393,6 +417,8 @@ function openPlaylistMenu(anchor) {
     { label: 'Tambah lagu (link)', icon: 'link', action: () => openAddSheet(true) },
     { label: 'Cari lagu di YouTube', icon: 'search', action: () => ytSearchDialog(store, { targetId: pl.id }) },
     { label: 'Tambah dari library', icon: 'grid', action: () => libraryPicker(store, pl.id) },
+    { label: 'Import playlist YouTube…', icon: 'download', action: () => ytPlaylistImportDialog(store, { targetId: pl.id }) },
+    { label: 'Bagikan playlist (link)…', icon: 'share', disabled: !pl.items.length, action: () => sharePlaylist(pl) },
     'sep',
     { label: 'Putar di aplikasi YouTube', icon: 'external', disabled: !pl.items.length, action: () => playInYouTubeApp(viewIds()) },
     { label: 'Pilih beberapa…', icon: 'checks', disabled: !pl.items.length, action: () => startSelect() },
@@ -438,6 +464,135 @@ function openPlaylistMenu(anchor) {
       },
     },
   ]);
+}
+
+// ---------- bagikan playlist lewat link ----------
+async function sharePlaylist(pl) {
+  if (!pl.items.length) { toast('Playlist masih kosong.'); return; }
+  let url;
+  try { url = shareUrl(await encodeShare(buildSharePayload(pl, store.data.videos))); } catch (e) { toast(`Gagal membuat link: ${e.message}`, 'error'); return; }
+  const over = pl.items.length > 300;
+  modal({
+    title: `Bagikan “${pl.name}”`,
+    body: `<p>Siapa pun yang membuka link ini bisa melihat dan menyimpan <b>${Math.min(pl.items.length, 300)} lagu</b> di playlist ini ke MyTube Vault mereka sendiri.${over ? ' (Hanya 300 lagu pertama yang ikut.)' : ''}</p>
+      <label class="field"><span>Link</span><textarea class="share-link" rows="3" readonly>${escapeHtml(url)}</textarea></label>
+      <p class="hint">Isi playlist tersimpan di dalam link itu sendiri, tidak dikirim ke server mana pun. Perubahan playlist setelah ini tidak ikut; buat link baru kalau perlu. Panjang link: ${url.length.toLocaleString('id')} karakter.</p>`,
+    actions: [
+      { label: 'Tutup', value: null },
+      ...(navigator.share ? [{ label: 'Bagikan…', value: 'share' }] : []),
+      { label: 'Salin link', variant: 'primary', value: 'copy' },
+    ],
+    onOpen: (b) => { const t = b.querySelector('.share-link'); t.addEventListener('focus', () => t.select()); },
+  }).then(async (act) => {
+    if (act === 'copy') toast((await copyText(url)) ? 'Link disalin.' : 'Gagal menyalin, salin manual dari kotak link.', 'success');
+    if (act === 'share') navigator.share({ title: `Playlist ${pl.name} · MyTube Vault`, url }).catch(() => {});
+  });
+}
+
+async function receiveShare(code) {
+  let data;
+  try { data = await decodeShare(code); } catch (e) { toast(`Link playlist tidak bisa dibuka: ${e.message}`, 'error', 7000); return; }
+  const preview = data.videos.slice(0, 8).map((v) => `<li>${escapeHtml(v.title || v.id)}${v.channel ? ` <span class="muted small">· ${escapeHtml(v.channel)}</span>` : ''}</li>`).join('');
+  const choice = await modal({
+    title: 'Playlist dibagikan untukmu',
+    body: `<h3 class="share-name">${icon('music')}${escapeHtml(data.name)}</h3>
+      <p class="muted">${data.videos.length} lagu${data.truncated ? ` (dari ${data.truncated}; pengirim membagikan 300 pertama)` : ''}</p>
+      <ol class="share-preview">${preview}${data.videos.length > 8 ? `<li class="muted">…dan ${data.videos.length - 8} lagu lainnya</li>` : ''}</ol>
+      <p class="hint">Disimpan sebagai playlist baru di perangkat ini; playlist-mu yang lain tidak berubah.</p>`,
+    actions: [{ label: 'Batal', value: null }, { label: 'Simpan', value: 'save' }, { label: 'Simpan & putar', variant: 'primary', value: 'play' }],
+  });
+  if (!choice) return;
+  let name = data.name;
+  if (store.data.playlists.some((p) => p.name.toLowerCase() === name.toLowerCase())) name = `${name} (dibagikan)`;
+  const pl = store.createPlaylist(name);
+  store.addVideos(data.videos.map((v) => v.id), pl.id);
+  for (const v of data.videos) {
+    const cur = store.data.videos[v.id];
+    if (cur && !cur.title && v.title) { cur.title = v.title; if (!cur.channel) cur.channel = v.channel; }
+  }
+  store.commit('share-import');
+  metaQueue.add(data.videos.filter((v) => !v.title).map((v) => v.id));
+  toast(`Playlist “${name}” disimpan.`, 'success');
+  if (choice === 'play') { rememberQueueSource(); player.playList(visibleEntries(), 0); }
+}
+window.addEventListener('hashchange', () => { const c = takeShareFromUrl(); if (c) receiveShare(c); });
+
+// ---------- tag ----------
+/** Atur tag untuk satu video (ids.length === 1) atau tambah/hapus satu tag di banyak video. */
+function tagsDialog(ids) {
+  const single = ids.length === 1;
+  const v = single ? store.data.videos[ids[0]] : null;
+  let tags = single ? [...v.tags] : [];
+  const all = store.allTags();
+  const chip = (t, act, extra = '') => `<button type="button" class="tag-chip ${extra}" data-t-act="${act}" data-t="${escapeHtml(t)}">#${escapeHtml(t)}${act === 'remove' ? ` ${icon('x')}` : ''}</button>`;
+  const counts = () => {
+    const m = new Map();
+    for (const id of ids) {
+      for (const t of store.data.videos[id].tags) {
+        const k = t.toLocaleLowerCase('id');
+        if (!m.has(k)) m.set(k, { name: t, n: 0 });
+        m.get(k).n++;
+      }
+    }
+    return [...m.values()];
+  };
+  const draw = (b) => {
+    const lower = new Set(tags.map((t) => t.toLocaleLowerCase('id')));
+    const sugg = all.filter((t) => !lower.has(t.key)).slice(0, 24);
+    b.querySelector('.tag-current').innerHTML = single
+      ? (tags.length ? tags.map((t) => chip(t, 'remove', 'on')).join('') : '<span class="muted small">Belum ada tag.</span>')
+      : (counts().length ? counts().map((c) => `${chip(c.name, 'remove-all', 'on')}<span class="muted small">${c.n}/${ids.length}</span>`).join(' ') : '<span class="muted small">Video terpilih belum punya tag.</span>');
+    b.querySelector('.tag-sugg').innerHTML = sugg.length ? sugg.map((t) => chip(t.name, 'add')).join('') : '';
+    b.querySelector('.tag-sugg-wrap').hidden = !sugg.length;
+  };
+  return modal({
+    title: single ? 'Atur tag' : `Tag untuk ${ids.length} video`,
+    body: `
+      ${single ? `<p class="muted small">${escapeHtml(v.title || v.youtubeId)}</p>` : ''}
+      <div class="tag-current tag-row"></div>
+      <form class="row tag-form" autocomplete="off"><input type="text" class="tag-input" placeholder="Tag baru, mis. lofi, kerja, galau" maxlength="30" aria-label="Tag baru">
+        <button type="submit" class="btn">${icon('plus')}Tambah</button></form>
+      <div class="tag-sugg-wrap"><p class="hint">Tag yang sudah ada:</p><div class="tag-sugg tag-row"></div></div>
+      <p class="hint">Tag muncul di sidebar sebagai filter. Di kolom cari, ketik <code>#namatag</code>.</p>`,
+    actions: single ? [{ label: 'Batal', value: null }, {
+      label: 'Simpan', variant: 'primary',
+      value: (bodyEl) => {
+        const pending = bodyEl.querySelector('.tag-input').value.split(',').map((t) => t.trim().replace(/^#+/, '')).filter(Boolean);
+        return [...tags, ...pending];
+      },
+    }] : [{ label: 'Selesai', value: null }],
+    onOpen: (b) => {
+      draw(b);
+      const input = b.querySelector('.tag-input');
+      const add = (t) => {
+        const clean = t.trim().replace(/^#+/, '');
+        if (!clean) return;
+        if (single) { if (!tags.some((x) => x.toLocaleLowerCase('id') === clean.toLocaleLowerCase('id'))) tags.push(clean); } else {
+          const n = store.addTagMany(ids, clean);
+          toast(`#${clean} ditambahkan ke ${n} video.`, 'success');
+        }
+        draw(b);
+      };
+      const commitInput = () => { input.value.split(',').forEach(add); input.value = ''; input.focus(); };
+      b.querySelector('.tag-form').addEventListener('submit', (e) => { e.preventDefault(); e.stopPropagation(); commitInput(); });
+      // Enter di kolom tag = tambah tag (jangan sampai memicu tombol Simpan dialog sebelum tag masuk).
+      input.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault(); e.stopPropagation();
+        if (input.value.trim()) commitInput();
+        else if (single) b.closest('dialog').querySelector('.modal-actions .btn-primary').click();
+      });
+      b.addEventListener('click', (e) => {
+        const c = e.target.closest('[data-t-act]');
+        if (!c) return;
+        const t = c.dataset.t;
+        if (c.dataset.tAct === 'add') add(t);
+        else if (c.dataset.tAct === 'remove') { tags = tags.filter((x) => x !== t); draw(b); }
+        else if (c.dataset.tAct === 'remove-all') { const n = store.removeTagMany(ids, t); toast(`#${t} dihapus dari ${n} video.`); draw(b); }
+      });
+      input.focus();
+    },
+  }).then((res) => { if (single && res) store.setTags(ids[0], res); });
 }
 
 // ---------- pilih banyak video ----------
@@ -488,6 +643,7 @@ function renderSelectBar() {
       ${b('sel-add', 'plus', 'Playlist')}
       ${inPl ? b('sel-move', 'arrowRight', 'Pindah') : ''}
       ${b('sel-fav', 'heart', allFav ? 'Batal favorit' : 'Favorit')}
+      ${b('sel-tag', 'tag', 'Tag')}
       ${b('sel-delete', 'trash', inPl ? 'Hapus' : 'Hapus', 'data-danger')}
     </div>`;
 }
@@ -521,6 +677,7 @@ async function selectionAction(act) {
       toast(`${n} video dipindahkan ke “${store.getPlaylist(target).name}”.`, 'success');
       break;
     }
+    case 'sel-tag': await tagsDialog(ids); break;
     case 'sel-fav': {
       const value = !ents.every((e) => e.video.favorite);
       store.setFavoriteMany(ids, value);
@@ -594,6 +751,7 @@ function openPlayerMenu(anchor) {
   const s = local.sleep;
   const sleepOn = s.endAt || s.endOfTrack;
   openMenu(anchor, [
+    { label: 'Lirik', icon: 'mic', action: () => toggleLyrics(true) },
     { label: `Kecepatan: ${player.rate}×`, icon: 'gauge', action: () => setTimeout(() => openRateMenu(anchor), 0) },
     { label: sleepOn ? `Timer tidur: ${dockOpts().sleepLabel.replace('⏾ ', '')}` : 'Timer tidur…', icon: 'moon', action: () => setTimeout(() => openSleepMenu(anchor), 0) },
     'sep',
@@ -629,7 +787,8 @@ function showShortcuts() {
       ${k(['←', '→'], 'Mundur / maju 5 detik')}
       ${k(['↑', '↓'], 'Volume naik / turun')}
       ${k(['M'], 'Bisukan / bunyikan')}
-      ${k(['S'], 'Acak aktif / mati')}${k(['R'], 'Ganti mode ulangi')}
+      ${k(['S'], 'Acak aktif / mati')}${k(['R'], 'Ganti mode ulangi')}${k(['L'], 'Ulangi lagu ini (loop)')}
+      ${k(['Y'], 'Tampilkan / tutup lirik')}
       ${k(['/'], 'Cari di library')}
       ${k(['Ctrl', 'A'], 'Pilih semua (saat mode pilih)')}
       ${k(['Esc'], 'Tutup panel / batal pilih')}
@@ -664,10 +823,23 @@ function toggleQueue(force) {
   const panel = $('queue-panel');
   const open = force !== undefined ? force : panel.hidden;
   if (open === !panel.hidden) return;
+  if (open && !$('lyrics-panel').hidden) toggleLyrics(false);
   setPanel('queue', open, (on) => {
     panel.hidden = !on;
     document.body.classList.toggle('queue-open', on);
     ui.renderQueue(player, store);
+  });
+}
+
+function toggleLyrics(force) {
+  const panel = $('lyrics-panel');
+  const open = force !== undefined ? force : panel.hidden;
+  if (open === !panel.hidden) return;
+  if (open && !$('queue-panel').hidden) toggleQueue(false);
+  setPanel('lyrics', open, (on) => {
+    panel.hidden = !on;
+    document.body.classList.toggle('lyrics-open', on);
+    if (on) lyricsPanel.load();
   });
 }
 
@@ -744,7 +916,13 @@ document.addEventListener('click', async (e) => {
     case 'close-add': openAddSheet(false); break;
     case 'paste-link': pasteLink(); break;
     case 'select-toggle': if (rowEl) toggleSelected(rowEl.dataset.key); break;
+    case 'tag-open':
+      store.setView(`tag:${el.dataset.tag.toLocaleLowerCase('id')}`);
+      local.query = ''; $('search').value = '';
+      window.scrollTo({ top: 0 });
+      break;
     case 'player-menu': openPlayerMenu(el); break;
+    case 'lyrics-toggle': toggleLyrics(); break;
     case 'search-clear':
       $('search').value = ''; local.query = ''; renderMain(); $('search').focus();
       break;
@@ -754,6 +932,8 @@ document.addEventListener('click', async (e) => {
       break;
     }
     case 'add-from-library': libraryPicker(store, $('add-target').value); break;
+    case 'yt-import': ytPlaylistImportDialog(store, { targetId: $('add-target').value }); break;
+    case 'open-stats': closeSidebar(); openStatsDialog(store, { onPlay: playVideoById }); break;
     case 'play-in-yt': playInYouTubeApp(currentQueueIds()); break;
     case 'np-open': openNowPlaying(true); break;
     case 'np-close': openNowPlaying(false); break;
@@ -913,15 +1093,47 @@ enableTouchReorder($('video-list'), {
   bar.addEventListener('pointercancel', end);
 })();
 
-// Bayangan pada kolom tambah saat sudah menempel di atas (sticky).
+// Kolom tambah tetap terlihat saat menggulir (desktop/tablet).
+// Pakai position:fixed + pengganti ruang, bukan CSS sticky, supaya sama di semua browser (termasuk Firefox/Zen).
 (() => {
   const panel = $('add-form');
-  const sentinel = document.createElement('div');
-  sentinel.style.height = '1px';
-  panel.before(sentinel);
-  if ('IntersectionObserver' in window) {
-    new IntersectionObserver(([e]) => panel.classList.toggle('stuck', !e.isIntersecting && e.boundingClientRect.top < 100), { rootMargin: '-80px 0px 0px 0px' }).observe(sentinel);
-  }
+  const main = $('main');
+  const spacer = document.createElement('div');
+  spacer.className = 'add-spacer';
+  panel.before(spacer);
+  let floating = false;
+
+  const place = () => {
+    const cs = getComputedStyle(main);
+    const r = main.getBoundingClientRect();
+    panel.style.left = `${r.left + parseFloat(cs.paddingLeft)}px`;
+    panel.style.width = `${main.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)}px`;
+  };
+  const setFloating = (on) => {
+    if (on === floating) { if (on) place(); return; }
+    floating = on;
+    if (on) {
+      spacer.style.height = `${panel.offsetHeight + parseFloat(getComputedStyle(panel).marginBottom)}px`;
+      panel.classList.add('floating');
+      place();
+    } else {
+      panel.classList.remove('floating');
+      panel.style.left = ''; panel.style.width = '';
+      spacer.style.height = '0px';
+    }
+  };
+  const check = () => {
+    if (window.innerWidth <= 640) { setFloating(false); return; } // HP memakai sheet Tambah
+    const topbar = document.querySelector('.topbar').getBoundingClientRect().bottom;
+    const anchor = (floating ? spacer : panel).getBoundingClientRect().top;
+    setFloating(anchor < topbar + 10);
+  };
+  let raf = 0;
+  const schedule = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; check(); }); };
+  window.addEventListener('scroll', schedule, { passive: true });
+  window.addEventListener('resize', schedule);
+  if ('ResizeObserver' in window) new ResizeObserver(schedule).observe(main);
+  check();
 })();
 
 // ---------- form tambah & pencarian ----------
@@ -979,6 +1191,13 @@ document.addEventListener('keydown', (e) => {
     case 'ArrowUp': if (player.current) { e.preventDefault(); const v = Math.min(100, player.volume() + 10); player.setVolume(v); toast(`Volume ${v}%`); } return;
     case 'ArrowDown': if (player.current) { e.preventDefault(); const v = Math.max(0, player.volume() - 10); player.setVolume(v); toast(`Volume ${v}%`); } return;
     case 'm': case 'M': if (player.current) toast(player.toggleMute() ? 'Suara aktif' : 'Dibisukan'); return;
+    case 'l': case 'L': {
+      const next = store.data.settings.player.repeat === 'one' ? 'all' : 'one';
+      store.setPlayerSetting('repeat', next);
+      toast(next === 'one' ? 'Ulangi lagu ini' : 'Ulangi: semua');
+      return;
+    }
+    case 'y': case 'Y': toggleLyrics(); return;
     case 's': case 'S': store.setPlayerSetting('shuffle', !store.data.settings.player.shuffle); toast(store.data.settings.player.shuffle ? 'Acak aktif' : 'Acak mati'); return;
     case 'r': case 'R': {
       const order = { off: 'all', all: 'one', one: 'off' };
@@ -1000,6 +1219,7 @@ document.addEventListener('keydown', (e) => {
       if (local.selecting) { endSelect(); break; }
       closeSidebar();
       if (!$('queue-panel').hidden) toggleQueue(false);
+      if (!$('lyrics-panel').hidden) toggleLyrics(false);
       openAddSheet(false);
       openNowPlaying(false);
       break;
@@ -1051,6 +1271,7 @@ player.on((type, data) => {
   if (type === 'playing' && data && local.playedTrack !== data.youtubeId) {
     local.playedTrack = data.youtubeId;
     store.recordPlay(data.youtubeId);
+    logPlay(data.youtubeId);
     if (player.startAt > 0) {
       const from = player.startAt;
       toast(`Melanjutkan dari ${formatDuration(from)}.`, 'info', 6000, { label: 'Dari awal', fn: () => player.seek(0) });
@@ -1064,6 +1285,7 @@ player.on((type, data) => {
     toast('Timer tidur: musik berhenti setelah lagu selesai. 🌙', 'info', 6000);
   }
   if (type === 'track' && !data) openNowPlaying(false);
+  if ((type === 'track' || type === 'playing') && !$('lyrics-panel').hidden) lyricsPanel.load();
   if (type === 'error') toast(data && data.skipping ? `${player.error} Melewati ke video berikutnya…` : player.error, 'error', 5000);
   ui.renderDock(player, store);
   ui.renderQueue(player, store);
@@ -1094,13 +1316,41 @@ window.addEventListener('storage', (e) => {
 
 // Notifikasi & layar kunci memakai kontrol bawaan player YouTube (paling andal saat aplikasi ditinggal).
 let tick = 0;
+let lastListenAt = Date.now();
 setInterval(() => {
+  // Waktu dengar: selisih waktu nyata (tetap akurat walau timer diperlambat browser saat tab di belakang).
+  const nowMs = Date.now();
+  if (player.isPlaying) addListenBuffered(Math.min(30, (nowMs - lastListenAt) / 1000));
+  lastListenAt = nowMs;
   if (!player.current) return;
-  if (document.visibilityState === 'visible') ui.renderProgress(player.time(), player.duration());
+  if (document.visibilityState === 'visible') {
+    ui.renderProgress(player.time(), player.duration());
+    if (!$('lyrics-panel').hidden) lyricsPanel.tick(player.time());
+  }
   tick++;
   if (tick % 20 === 0 && player.isPlaying) savePosition(player.current.youtubeId); // tiap ±10 detik
   if (tick % 60 === 0 && local.sleep.endAt) ui.renderDock(player, store, dockOpts()); // hitung mundur timer
 }, 500);
+
+let listenBuf = 0;
+function addListenBuffered(sec) {
+  listenBuf += sec;
+  if (listenBuf >= 15) { addListen(listenBuf); listenBuf = 0; } // tulis ke penyimpanan tiap ±15 detik
+}
+window.addEventListener('pagehide', () => { if (listenBuf > 0) { addListen(listenBuf); listenBuf = 0; } });
+function playVideoById(id) {
+  const e = store.viewEntries('all').find((x) => x.youtubeId === id);
+  if (e) { rememberQueueSource(false); player.playList([e], 0); }
+}
+
+const lyricsPanel = createLyricsPanel($('lyrics-panel'), {
+  getTrack: () => {
+    if (!player.current) return null;
+    const v = store.data.videos[player.current.youtubeId] || {};
+    return { youtubeId: player.current.youtubeId, title: v.title || '', channel: v.channel || '', duration: v.duration || player.duration() };
+  },
+  seek: (t) => player.seek(t),
+});
 
 // ---------- lanjut dari posisi terakhir (video panjang saja, seperti YouTube) ----------
 const RESUME_MIN_DURATION = 8 * 60;
@@ -1189,5 +1439,7 @@ setupPwa((available) => {
   document.querySelectorAll('[data-action=install-app]').forEach((b) => { b.hidden = !available || isStandalone(); });
 }, () => toast('Versi baru MyTube Vault tersedia.', 'info', 15000, { label: 'Muat ulang', fn: () => location.reload() }));
 document.body.classList.toggle('standalone', isStandalone());
-const launched = handleLaunch();
+const shareCode = takeShareFromUrl();
+const launched = handleLaunch() || !!shareCode;
+if (shareCode) receiveShare(shareCode);
 if (store.isFresh && !launched) onboarding();

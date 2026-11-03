@@ -136,8 +136,15 @@ export function sortEntries(entries, mode) {
 export function filterEntries(entries, query) {
   const q = String(query || '').trim().toLocaleLowerCase('id');
   if (!q) return entries;
+  const tags = (v) => (v.tags || []).map((t) => t.toLocaleLowerCase('id'));
+  if (q.startsWith('#')) {
+    // "#lofi" → hanya video bertag yang diawali "lofi"
+    const t = q.slice(1);
+    return entries.filter(({ video: v }) => tags(v).some((x) => x.startsWith(t)));
+  }
   return entries.filter(({ video: v }) =>
     (v.title || '').toLocaleLowerCase('id').includes(q) ||
     (v.channel || '').toLocaleLowerCase('id').includes(q) ||
+    tags(v).some((x) => x.includes(q)) ||
     v.youtubeId.toLowerCase().includes(q));
 }

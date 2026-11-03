@@ -763,7 +763,75 @@ body.selecting .main { padding-bottom: 160px; }
 
 /* ===================== Kolom tambah link tetap terlihat saat menggulir ===================== */
 @media (min-width: 641px) {
-  .add-panel { position: sticky; top: calc(var(--top-h) + 10px); z-index: 25; transition: box-shadow 0.2s, padding 0.2s; }
-  .add-panel.stuck { box-shadow: 0 -11px 0 0 var(--bg), var(--shadow); padding: 8px 10px; }
-  .add-panel.stuck .add-foot { margin-top: 4px; }
+  .add-panel.floating { position: fixed; top: calc(var(--top-h) + 10px); z-index: 25; margin: 0; padding: 8px 10px; box-shadow: 0 -11px 0 0 var(--bg), var(--shadow); }
+  .add-panel.floating .add-foot { margin-top: 4px; }
 }
+.add-spacer { height: 0; }
+
+/* ===================== Tag ===================== */
+.tag-user { border: 0; cursor: pointer; color: var(--accent); background: var(--accent-soft); font-family: inherit; }
+.tag-user:hover { text-decoration: underline; }
+.tag-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; }
+.tag-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer; }
+.tag-chip:hover { border-color: var(--accent); }
+.tag-chip.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.tag-chip .i { width: 12px; height: 12px; }
+.tag-form input { flex: 1; min-width: 0; height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel-2); font-size: 15px; }
+.tag-nav .nav-label { color: var(--muted); }
+.tag-nav .nav-item.active .nav-label { color: var(--accent); }
+.share-link { width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; word-break: break-all; }
+.share-name { display: flex; align-items: center; gap: 8px; margin: 4px 0 2px; font-size: 18px; }
+.share-name .i { color: var(--accent); }
+.share-preview { margin: 10px 0; padding-left: 22px; font-size: 14px; display: flex; flex-direction: column; gap: 4px; }
+
+/* ===================== Statistik ===================== */
+.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 6px 0 14px; }
+.stat-tile { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--border); }
+.stat-tile b { font-size: 20px; letter-spacing: -0.01em; }
+.stat-sec { margin: 14px 0; }
+.stat-sec h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 14.5px; }
+.stat-sec h3 .i { color: var(--muted); width: 16px; height: 16px; }
+.stat-sec h3.mt { margin-top: 16px; }
+.bars { display: flex; align-items: flex-end; gap: 3px; height: 120px; padding: 6px 0 0; border-bottom: 1px solid var(--border); }
+.bar-col { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; position: relative; padding-bottom: 18px; }
+.bar { width: 100%; max-width: 26px; min-height: 2px; border-radius: 4px 4px 0 0; background: color-mix(in srgb, var(--accent) 45%, var(--panel-3)); }
+.bar-col.hl .bar { background: var(--accent); }
+.bar-label { position: absolute; bottom: 0; font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stat-two { display: grid; grid-template-columns: 1.3fr 1fr; gap: 18px; }
+.stat-top { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; counter-reset: top; }
+.stat-song { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 8px; border: 0; border-radius: 10px; background: none; cursor: pointer; text-align: left; color: var(--text); }
+.stat-song:hover { background: var(--panel-2); }
+.stat-song img { width: 48px; height: 36px; object-fit: cover; border-radius: 6px; flex: none; background: var(--panel-3); }
+.stat-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.stat-list li { display: flex; justify-content: space-between; gap: 8px; }
+.stat-list li span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 640px) {
+  .stat-grid { grid-template-columns: 1fr 1fr; }
+  .stat-two { grid-template-columns: 1fr; }
+  .bars { height: 96px; }
+}
+
+/* ===================== Lirik ===================== */
+.lyrics-panel { display: flex; flex-direction: column; }
+.lyrics-form { margin: 0 12px 6px 18px; gap: 4px; }
+.lyrics-form input { flex: 1; min-width: 0; height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel-2); font-size: 14.5px; }
+.lyrics-body { position: relative; flex: 1; overflow-y: auto; padding: 4px 18px 40px; scroll-behavior: smooth; }
+.lyrics-meta { display: flex; flex-direction: column; gap: 2px; margin: 6px 0 12px; }
+.lyrics-meta .link-btn { align-self: flex-start; margin-top: 4px; font-size: 12.5px; }
+.lyrics-lines p { margin: 0; padding: 5px 0; font-size: 17px; line-height: 1.45; font-weight: 600; color: var(--muted); transition: color 0.2s, transform 0.2s; transform-origin: left center; }
+.lyrics-lines.synced p { cursor: pointer; }
+.lyrics-lines.synced p:hover { color: var(--text); }
+.lyrics-lines.synced p.now { color: var(--accent); transform: scale(1.04); }
+.lyrics-lines.plain p { color: var(--text); font-weight: 500; font-size: 15.5px; padding: 2px 0; }
+.lyrics-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 30px 8px; text-align: center; }
+.lyrics-empty > .i { width: 28px; height: 28px; color: var(--muted); }
+.lyrics-empty p { margin: 0; }
+.lyrics-credit { margin: 0; padding: 8px 18px 12px; border-top: 1px solid var(--border); }
+body.lyrics-open .stage { right: 392px; }
+@media (max-width: 1100px) { body.lyrics-open .stage { right: 16px; } }
+@media (max-width: 640px) {
+  .lyrics-panel { z-index: 80; }
+  .lyrics-lines p { font-size: 19px; }
+}
+.sidebar-foot { flex-wrap: wrap; row-gap: 4px; }
+.sidebar-foot .link-btn { white-space: nowrap; }

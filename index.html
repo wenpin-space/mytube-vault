@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="MyTube Vault">
-  <link rel="stylesheet" href="css/style.css?v=9">
+  <link rel="stylesheet" href="css/style.css?v=10">
 </head>
 <body>
   <a class="skip-link" href="#main">Lewati ke daftar video</a>
@@ -42,10 +42,14 @@
       </div>
       <div class="nav-group" id="playlist-nav"></div>
       <button type="button" class="nav-new" data-action="new-playlist">+ Playlist baru</button>
+      <div class="nav-title" id="tag-title" hidden><span>Tag</span></div>
+      <div class="nav-group tag-nav" id="tag-nav"></div>
       <div class="sidebar-foot">
         <button type="button" class="link-btn" data-action="open-settings" data-tab="cloud">Cloud Sync</button>
         <span aria-hidden="true">·</span>
         <button type="button" class="link-btn" data-action="open-settings" data-tab="backup">Backup</button>
+        <span aria-hidden="true">·</span>
+        <button type="button" class="link-btn" data-action="open-stats">Statistik</button>
         <button type="button" class="link-btn install-btn" data-action="install-app" hidden>Pasang aplikasi</button>
       </div>
     </nav>
@@ -73,6 +77,7 @@
         <div class="add-foot">
           <button type="button" class="link-btn" data-action="yt-search">Cari di YouTube</button>
           <button type="button" class="link-btn" data-action="add-from-library">Pilih dari library</button>
+          <button type="button" class="link-btn" data-action="yt-import">Import playlist YouTube</button>
           <button type="button" class="link-btn" id="toggle-multi" data-action="toggle-multi">Tempel banyak link sekaligus</button>
           <span id="add-feedback" class="add-feedback" aria-live="polite"></span>
         </div>
@@ -105,6 +110,19 @@
       <button type="button" class="icon-btn" data-action="queue-toggle" data-icon="x" aria-label="Tutup antrean"></button>
     </header>
     <div class="queue-list" id="queue-list"></div>
+  </aside>
+
+  <aside class="queue-panel lyrics-panel" id="lyrics-panel" hidden aria-label="Lirik">
+    <header class="queue-head">
+      <h2>Lirik</h2>
+      <button type="button" class="icon-btn" data-action="lyrics-toggle" data-icon="x" aria-label="Tutup lirik"></button>
+    </header>
+    <form class="lyrics-form row" autocomplete="off">
+      <input type="search" placeholder="Artis + judul lagu" aria-label="Kata kunci lirik" enterkeyhint="search">
+      <button type="submit" class="icon-btn" data-icon="search" aria-label="Cari lirik"></button>
+    </form>
+    <div class="lyrics-body"></div>
+    <p class="lyrics-credit muted small">Lirik dari <a href="https://lrclib.net" target="_blank" rel="noopener">LRCLIB</a></p>
   </aside>
 
   <footer class="dock" id="dock" hidden>
@@ -157,6 +175,6 @@
   </nav>
 
   <noscript><p style="padding:24px">MyTube Vault butuh JavaScript.</p></noscript>
-  <script type="module" src="js/main.js?v=9"></script>
+  <script type="module" src="js/main.js?v=10"></script>
 </body>
 </html>

@@ -74,3 +74,23 @@ export function parseMany(text) {
   }
   return { valid, invalid, duplicates };
 }
+
+/**
+ * ID playlist dari link YouTube (parameter list=), mis. youtube.com/playlist?list=PL…,
+ * watch?v=…&list=…, music.youtube.com/playlist?list=OLAK5uy_…  → 'PL…' | null
+ */
+export function extractPlaylistId(input) {
+  if (input == null) return null;
+  let text = String(input).trim();
+  if (!text) return null;
+  if (/^(PL|OLAK5uy_|UU|FL|LL)[A-Za-z0-9_-]{10,}$/.test(text)) return text;
+  if (!/^https?:\/\//i.test(text)) {
+    if (!/^(?:[\w-]+\.)*(?:youtube\.com|youtu\.be)\//i.test(text)) return null;
+    text = `https://${text}`;
+  }
+  let url;
+  try { url = new URL(text); } catch { return null; }
+  if (!isYouTubeHost(url.hostname.toLowerCase())) return null;
+  const list = url.searchParams.get('list');
+  return list && /^[A-Za-z0-9_-]{10,}$/.test(list) ? list : null;
+}

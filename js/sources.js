@@ -7,6 +7,7 @@ import { modal, toast } from './dialogs.js';
 import { icon } from './icons.js';
 import { escapeHtml, formatDuration } from './utils.js';
 import { thumbUrl } from './metadata.js';
+import { extractPlaylistId } from './parser.js';
 
 const KEY_STORE = 'mytube_vault_yt_key';
 export const getApiKey = () => { try { return localStorage.getItem(KEY_STORE) || ''; } catch { return ''; } };
@@ -189,4 +190,126 @@ export function youtubeAppUrl(ids) {
     return `intent://www.youtube.com/watch_videos?video_ids=${list}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(https)};end`;
   }
   return https;
+}
+
+
+// ---------- import playlist YouTube ----------
+async function ytApi(path, params, key) {
+  const u = new URL(`https://www.googleapis.com/youtube/v3/${path}`);
+  u.search = new URLSearchParams({ ...params, key });
+  const res = await fetch(u);
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const reason = json.error && json.error.errors && json.error.errors[0] && json.error.errors[0].reason;
+    if (reason === 'quotaExceeded' || reason === 'dailyLimitExceeded') throw new Error('Kuota YouTube API hari ini habis. Coba lagi besok.');
+    if (reason === 'playlistNotFound' || res.status === 404) throw new Error('Playlist tidak ditemukan atau privat. Mix/Radio otomatis YouTube (list=RD…) juga tidak bisa di-import.');
+    if (res.status === 400 || reason === 'keyInvalid') throw new Error('API key tidak valid. Periksa lagi di Setelan → Umum.');
+    if (res.status === 403) throw new Error('Akses ditolak. Pastikan YouTube Data API v3 aktif untuk API key ini.');
+    throw new Error(`Permintaan ke YouTube gagal (${res.status}).`);
+  }
+  return json;
+}
+
+/** Ambil judul playlist + semua video (maks. 1000). onProgress(n) dipanggil tiap halaman. */
+export async function fetchYouTubePlaylist(listId, key, onProgress = () => {}) {
+  const meta = await ytApi('playlists', { part: 'snippet,contentDetails', id: listId }, key);
+  const info = meta.items && meta.items[0];
+  if (!info) throw new Error('Playlist tidak ditemukan atau privat. Mix/Radio otomatis YouTube (list=RD…) juga tidak bisa di-import.');
+  const out = [];
+  let pageToken = '';
+  do {
+    const page = await ytApi('playlistItems', { part: 'snippet,contentDetails', playlistId: listId, maxResults: '50', ...(pageToken ? { pageToken } : {}) }, key);
+    for (const it of page.items || []) {
+      const id = it.contentDetails && it.contentDetails.videoId;
+      const title = decode(it.snippet && it.snippet.title);
+      if (!id || title === 'Deleted video' || title === 'Private video') continue;
+      out.push({ id, title, channel: decode((it.snippet && (it.snippet.videoOwnerChannelTitle || '')) || '').replace(/ - Topic$/, ' - Topic') });
+    }
+    onProgress(out.length, (info.contentDetails && info.contentDetails.itemCount) || 0);
+    pageToken = page.nextPageToken || '';
+  } while (pageToken && out.length < 1000);
+  return { title: decode(info.snippet.title), channel: decode(info.snippet.channelTitle), count: (info.contentDetails && info.contentDetails.itemCount) || out.length, videos: out };
+}
+
+/** Dialog import: tempel link playlist → pilih tujuan → tarik semua video. */
+export function ytPlaylistImportDialog(store, { url = '', targetId = null } = {}) {
+  const cur = store.getPlaylist(targetId);
+  return modal({
+    title: 'Import playlist YouTube',
+    body: `
+      <form class="yt-form row" autocomplete="off">
+        <input type="url" name="u" placeholder="https://www.youtube.com/playlist?list=PL…" value="${escapeHtml(url)}" aria-label="Link playlist YouTube">
+        <button type="submit" class="btn btn-primary">${icon('download')}<span>Ambil</span></button>
+      </form>
+      <p class="hint">Semua video di playlist publik/unlisted ikut di-import (maks. 1000), lengkap dengan judulnya. Mix/Radio otomatis YouTube tidak didukung.</p>
+      <div class="yt-results"></div>`,
+    actions: [{ label: 'Tutup', value: null }],
+    onOpen: (b, finish) => {
+      const form = b.querySelector('.yt-form');
+      const input = form.querySelector('input');
+      const box = b.querySelector('.yt-results');
+      let fetched = null;
+
+      const needKey = () => {
+        box.innerHTML = `<div class="card"><h3>${icon('lock')}Butuh YouTube API key (sekali saja)</h3>
+          <p class="muted">Import playlist memakai YouTube Data API dengan key milikmu sendiri (sama dengan untuk Cari di YouTube).</p>${KEY_HELP}
+          <div class="row"><input type="text" class="key-input" placeholder="AIza…" aria-label="YouTube API key"><button type="button" class="btn btn-primary" data-k="save">Simpan</button></div></div>`;
+        box.querySelector('[data-k=save]').addEventListener('click', () => {
+          const k = box.querySelector('.key-input').value.trim();
+          if (!/^[\w-]{20,}$/.test(k)) { toast('Format API key tidak dikenali.', 'error'); return; }
+          setApiKey(k);
+          toast('API key disimpan di perangkat ini.', 'success');
+          form.requestSubmit();
+        });
+      };
+
+      const showResult = () => {
+        const f = fetched;
+        const existing = store.data.playlists.find((p) => p.name.toLowerCase() === f.title.toLowerCase());
+        box.innerHTML = `<div class="card">
+          <h3>${icon('music')}${escapeHtml(f.title)}</h3>
+          <p class="muted">${escapeHtml(f.channel)} · ${f.videos.length} video bisa di-import${f.count > f.videos.length ? ` (dari ${f.count}; sisanya dihapus/privat atau melebihi batas)` : ''}</p>
+          <label class="field"><span>Masukkan ke</span>
+            <select class="imp-target">
+              <option value="__new__">Playlist baru: “${escapeHtml(f.title)}”</option>
+              ${store.data.playlists.map((p) => `<option value="${escapeHtml(p.id)}"${(existing ? existing.id : (cur && cur.id)) === p.id && existing ? ' selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
+            </select></label>
+          <div class="row"><button type="button" class="btn btn-primary" data-k="import">${icon('plus')}Import ${f.videos.length} video</button></div></div>`;
+        box.querySelector('[data-k=import]').addEventListener('click', () => {
+          let target = box.querySelector('.imp-target').value;
+          if (target === '__new__') target = store.createPlaylist(f.title).id;
+          const ids = f.videos.map((v) => v.id);
+          const r = store.addVideos(ids, target);
+          for (const v of f.videos) {
+            const cur2 = store.data.videos[v.id];
+            if (cur2 && !cur2.title) { cur2.title = v.title; if (!cur2.channel && v.channel) cur2.channel = v.channel; }
+          }
+          store.commit('import-yt-playlist');
+          toast(`${r.added} video di-import ke “${store.getPlaylist(target).name}”${r.skipped ? ` · ${r.skipped} sudah ada` : ''}.`, 'success', 6000);
+          finish({ target, added: r.added });
+        });
+      };
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const listId = extractPlaylistId(input.value);
+        if (!listId) { box.innerHTML = '<p class="error-text pad">Bukan link playlist YouTube. Contoh: https://www.youtube.com/playlist?list=PL…</p>'; return; }
+        if (/^RD/.test(listId)) { box.innerHTML = '<p class="error-text pad">Ini Mix/Radio otomatis YouTube (list=RD…). YouTube tidak mengizinkan Mix diambil lewat API. Simpan dulu sebagai playlist di YouTube, lalu import link playlist-nya.</p>'; return; }
+        const key = getApiKey();
+        if (!key) { needKey(); return; }
+        if (navigator.onLine === false) { box.innerHTML = '<p class="error-text pad">Kamu sedang offline.</p>'; return; }
+        box.innerHTML = '<p class="muted pad"><span class="spinner"></span> Mengambil playlist…</p>';
+        try {
+          fetched = await fetchYouTubePlaylist(listId, key, (n, total) => {
+            box.innerHTML = `<p class="muted pad"><span class="spinner"></span> Mengambil video ${n}${total ? ` dari ${total}` : ''}…</p>`;
+          });
+          if (!fetched.videos.length) { box.innerHTML = '<p class="muted pad">Playlist ini kosong atau semua videonya privat/dihapus.</p>'; return; }
+          showResult();
+        } catch (err) {
+          box.innerHTML = `<p class="error-text pad">${escapeHtml(err.message || String(err))}</p>`;
+        }
+      });
+      if (url && extractPlaylistId(url)) form.requestSubmit(); else input.focus();
+    },
+  });
 }

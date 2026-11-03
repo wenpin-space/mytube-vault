@@ -47,6 +47,9 @@ export function renderSidebar(store) {
   $('playlist-nav').innerHTML = store.data.playlists
     .map((p) => navItem(`pl:${p.id}`, p.name, 'music', p.items.length, v === `pl:${p.id}`))
     .join('');
+  const tags = store.allTags();
+  $('tag-title').hidden = !tags.length;
+  $('tag-nav').innerHTML = tags.map((t) => navItem(`tag:${t.key}`, `#${t.name}`, 'tag', t.count, v === `tag:${t.key}`)).join('');
 }
 
 function navItem(view, label, ic, count, active) {
@@ -56,7 +59,8 @@ function navItem(view, label, ic, count, active) {
 
 export function renderViewHead(store, info) {
   const pl = store.currentPlaylist();
-  const title = pl ? pl.name : VIEW_TITLES[store.ui.view];
+  const tagView = store.ui.view.startsWith('tag:') ? store.allTags().find((t) => t.key === store.ui.view.slice(4)) : null;
+  const title = pl ? pl.name : tagView ? `#${tagView.name}` : VIEW_TITLES[store.ui.view];
   const countText = info.query ? `${info.visible} dari ${info.total} video` : `${info.total} video`;
   const dur = formatTotal(info.duration);
   const options = SORT_MODES.map(([k, l]) => {
@@ -65,7 +69,7 @@ export function renderViewHead(store, info) {
   }).join('');
   $('view-head').innerHTML = `
     <div class="vh-text">
-      <p class="eyebrow">${pl ? 'Playlist' : 'Koleksi otomatis'}</p>
+      <p class="eyebrow">${pl ? 'Playlist' : tagView ? 'Tag' : 'Koleksi otomatis'}</p>
       <h1>${escapeHtml(title)}</h1>
       <p class="muted">${countText}${dur ? ` · ±${dur}` : ''}</p>
     </div>
@@ -131,7 +135,7 @@ function row(e, i, opt) {
     </button>
     <div class="meta" data-action="play">
       <div class="title${v.title ? '' : ' untitled'}" title="${escapeHtml(v.title || '')}">${highlight(title, opt.query)}</div>
-      <div class="sub">${v.channel ? `<span>${highlight(v.channel, opt.query)}</span>` : ''}<span>${sub}</span>${v.watched ? '<span class="tag">ditonton</span>' : ''}</div>
+      <div class="sub">${v.channel ? `<span>${highlight(v.channel, opt.query)}</span>` : ''}<span>${sub}</span>${v.watched ? '<span class="tag">ditonton</span>' : ''}${(v.tags || []).slice(0, 4).map((t) => `<button type="button" class="tag tag-user" data-action="tag-open" data-tag="${escapeHtml(t)}">#${escapeHtml(t)}</button>`).join('')}</div>
     </div>
     <div class="row-actions">
       <button type="button" class="icon-btn fav${v.favorite ? ' on' : ''}" data-action="fav" aria-label="Favorit" aria-pressed="${v.favorite}" title="Favorit">${icon('heart', v.favorite ? 'fill' : '')}</button>

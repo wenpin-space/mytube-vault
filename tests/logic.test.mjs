@@ -326,3 +326,94 @@ test('antrean ikut berubah saat playlist sumber ditambah/dikurangi', async () =>
   assert.equal(ks.length, 4);
   assert.ok(ks.indexOf('n') > ks.indexOf(cur), 'lagu baru setelah lagu sekarang');
 });
+
+test('tag: rapikan, hitung, tambah/hapus massal, cari #tag', async () => {
+  const { cleanTags } = await import('../js/store.js');
+  const { filterEntries } = await import('../js/utils.js');
+  assert.deepEqual(cleanTags(['#Lofi', ' lofi ', 'Kerja  malam', '', 5, '##chill']), ['Lofi', 'Kerja malam', 'chill']);
+  mem.clear();
+  store.load();
+  const pl = store.data.playlists[0];
+  store.addVideos(['tttttttttt1', 'tttttttttt2', 'tttttttttt3'], pl.id);
+  store.setTags('tttttttttt1', ['Lofi', 'kerja']);
+  assert.equal(store.addTagMany(['tttttttttt2', 'tttttttttt3'], '#lofi'), 2);
+  const tags = store.allTags();
+  assert.deepEqual(tags.map((t) => [t.key, t.count]), [['kerja', 1], ['lofi', 3]]);
+  store.setView('tag:lofi');
+  assert.equal(store.viewEntries().length, 3);
+  assert.equal(filterEntries(store.viewEntries('all'), '#ker').length, 1);
+  assert.equal(filterEntries(store.viewEntries('all'), 'lofi').length, 3, 'tag ikut dicari tanpa #');
+  store.deleteTag('LOFI');
+  assert.deepEqual(store.allTags().map((t) => t.key), ['kerja']);
+  assert.ok(!store.ui.view.startsWith('tag:lofi'), 'view tag yang hilang kembali ke playlist');
+  // tag ikut normalisasi & merge
+  const n = normalizeData(JSON.parse(JSON.stringify(store.data)));
+  assert.deepEqual(n.videos.tttttttttt1.tags, ['kerja']);
+});
+
+test('parser: ID playlist YouTube', async () => {
+  const { extractPlaylistId } = await import('../js/parser.js');
+  assert.equal(extractPlaylistId('https://www.youtube.com/playlist?list=PLabcdefghij123'), 'PLabcdefghij123');
+  assert.equal(extractPlaylistId(`https://youtube.com/watch?v=${ID}&list=PLxyzxyzxyz99`), 'PLxyzxyzxyz99');
+  assert.equal(extractPlaylistId('music.youtube.com/playlist?list=OLAK5uy_abcdefghijk'), 'OLAK5uy_abcdefghijk');
+  assert.equal(extractPlaylistId(`https://youtu.be/${ID}`), null);
+  assert.equal(extractPlaylistId('https://evil.com/playlist?list=PLabcdefghij123'), null);
+});
+
+test('link berbagi: encode → decode utuh, input jahat ditolak', async () => {
+  const { buildSharePayload, encodeShare, decodeShare } = await import('../js/share.js');
+  const pl = { name: 'Lagu Fokus', items: [{ youtubeId: ID }, { youtubeId: 'aaaaaaaaaa1' }] };
+  const videos = { [ID]: { title: 'Never Gonna', channel: 'Rick' }, aaaaaaaaaa1: { title: '心太软', channel: 'X' } };
+  const code = await encodeShare(buildSharePayload(pl, videos));
+  assert.equal(code[0], 'z', 'terkompresi');
+  const back = await decodeShare(code);
+  assert.equal(back.name, 'Lagu Fokus');
+  assert.deepEqual(back.videos.map((v) => [v.id, v.title]), [[ID, 'Never Gonna'], ['aaaaaaaaaa1', '心太软']]);
+  const evil = 'j' + Buffer.from(JSON.stringify({ v: 1, n: '<b>x</b>', i: ['bad', ID, ID, '"><img>'], t: [{}, 'ok'] })).toString('base64url');
+  const d = await decodeShare(evil);
+  assert.deepEqual(d.videos.map((v) => v.id), [ID], 'ID tidak valid & duplikat dibuang');
+  await assert.rejects(decodeShare('jAAAA'));
+  await assert.rejects(decodeShare('x' + code.slice(1)));
+});
+
+test('statistik: ringkasan dari data & log', async () => {
+  const { computeStats } = await import('../js/stats.js');
+  const data = {
+    playlists: [{}, {}],
+    videos: {
+      a: { youtubeId: 'a', title: 'A', channel: 'Ch1', playCount: 5, duration: 200, favorite: true, tags: ['lofi'] },
+      b: { youtubeId: 'b', title: 'B', channel: 'Ch1', playCount: 2, duration: 100, tags: [] },
+      c: { youtubeId: 'c', title: 'C', channel: 'Ch2', playCount: 0, duration: 0, tags: ['lofi'] },
+    },
+  };
+  const now = new Date(2026, 10, 3, 21, 0, 0);
+  const k = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+  const raw = { plays: [{ id: 'a', at: new Date(2026, 10, 3, 21, 5).getTime() }, { id: 'a', at: new Date(2026, 10, 2, 21, 30).getTime() }, { id: 'b', at: new Date(2026, 10, 2, 8, 0).getTime() }],
+    daily: { [k(now)]: 600, [k(yesterday)]: 1200, '2026-01-01': 9999 } };
+  const s = computeStats(data, raw, now);
+  assert.equal(s.totalPlays, 7);
+  assert.equal(s.week, 1800);
+  assert.equal(s.days.length, 14);
+  assert.equal(s.days[13].seconds, 600);
+  assert.equal(s.peakHour, 21);
+  assert.deepEqual(s.top.map((v) => v.youtubeId), ['a', 'b']);
+  assert.deepEqual(s.channels, [{ name: 'Ch1', plays: 7 }]);
+  assert.equal(s.tags[0].name, 'lofi');
+});
+
+test('lirik: bersihkan judul, parse LRC, baris aktif, pilih hasil terbaik', async () => {
+  const { cleanTitle, guessArtistTrack, parseLrc, lineAt, bestMatch } = await import('../js/lyrics.js');
+  assert.equal(cleanTitle('丫蛋蛋 - 大田後生仔【動態歌詞/Lyrics Video】'), '丫蛋蛋 - 大田後生仔');
+  assert.equal(cleanTitle('Rick Astley - Never Gonna Give You Up (Official Music Video)'), 'Rick Astley - Never Gonna Give You Up');
+  assert.deepEqual(guessArtistTrack('Mayday五月天 "乾杯Cheers" - Jason Chen x KHS'), { artist: 'Mayday五月天 "乾杯Cheers"', track: 'Jason Chen x KHS' });
+  assert.deepEqual(guessArtistTrack('家後 (Cover)', '卡布卡布'), { artist: '卡布卡布', track: '家後' });
+  const lines = parseLrc('[ar:x]\n[00:01.50]satu\n[00:05.00][00:20.00]reff\n[00:10.123]dua\n');
+  assert.deepEqual(lines.map((l) => [l.t, l.text]), [[1.5, 'satu'], [5, 'reff'], [10.123, 'dua'], [20, 'reff']]);
+  assert.equal(lineAt(lines, 0.5), -1);
+  assert.equal(lineAt(lines, 6), 1);
+  assert.equal(lineAt(lines, 25), 3);
+  const best = bestMatch([{ id: 1, plainLyrics: 'x', duration: 182 }, { id: 2, syncedLyrics: '[00:01]a', duration: 240 }, { id: 3, syncedLyrics: '[00:01]a', duration: 181 }, { id: 4 }], 182);
+  assert.equal(best.id, 3);
+  assert.equal(bestMatch([{ id: 9 }]), null);
+});
