@@ -18,7 +18,8 @@ export function toast(message, type = 'info', ms = 3500, action = null) {
   const el = document.createElement('div');
   el.className = `toast toast-${type}`;
   if (type === 'error') el.setAttribute('role', 'alert');
-  el.innerHTML = `<span>${escapeHtml(message)}</span>`;
+  const ic = { success: 'checkCircle', error: 'alert', warn: 'alert' }[type];
+  el.innerHTML = `${ic ? `<span class="toast-icon">${icon(ic)}</span>` : ''}<span class="toast-msg">${escapeHtml(message)}</span>`;
   if (action) {
     const b = document.createElement('button');
     b.type = 'button';

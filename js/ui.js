@@ -144,16 +144,25 @@ function row(e, i, opt) {
   const reorder = opt.canReorder && !sel;
   const picked = sel && opt.selected.has(e.key);
   const fresh = opt.flashKeys && opt.flashKeys.has(e.youtubeId);
+  const part = opt.progress ? opt.progress(v.youtubeId, v.duration) : 0;
+  const prog = v.watched ? 1 : part > 0.02 ? part : 0;
   const sub = opt.view === 'history' && v.lastPlayedAt ? `diputar ${timeAgo(v.lastPlayedAt)}${v.playCount > 1 ? ` · ${v.playCount}×` : ''}` : timeAgo(e.addedAt);
   return `<li class="vrow${playing ? ' playing' : ''}${v.watched ? ' watched' : ''}${picked ? ' selected' : ''}${fresh ? ' flash' : ''}" data-key="${escapeHtml(e.key)}"${reorder ? ' draggable="true"' : ''}${sel ? ` aria-selected="${picked}"` : ''}>
     ${sel ? `<span class="pick" data-action="select-toggle" role="checkbox" aria-checked="${picked}" aria-label="Pilih">${icon(picked ? 'checkCircle' : 'circle')}</span>` : ''}
     ${reorder ? `<span class="grip" title="Geser untuk mengubah urutan">${icon('grip')}</span>` : ''}
     <span class="idx">${playing ? icon('volume') : i + 1}</span>
-    <button type="button" class="thumb" data-action="play" aria-label="Putar ${escapeHtml(v.title || '')}">
+    <div class="thumb" data-action="play">
       <img src="${thumbUrl(v.youtubeId)}" alt="" loading="lazy" decoding="async" draggable="false">
       ${v.duration ? `<span class="dur">${formatDuration(v.duration)}</span>` : ''}
-      <span class="thumb-overlay">${icon(playing && opt.isPlaying ? 'pause' : 'play', 'fill')}</span>
-    </button>
+      ${prog ? `<span class="thumb-progress${v.watched ? ' done' : ''}" title="${v.watched ? 'Sudah ditonton' : `Ditonton ${Math.round(prog * 100)}%`}"><i style="width:${Math.max(4, Math.round(prog * 100))}%"></i></span>` : ''}
+      <span class="thumb-overlay">
+        <button type="button" class="thumb-play" data-action="play" aria-label="${playing && opt.isPlaying ? 'Jeda' : 'Putar'} ${escapeHtml(v.title || '')}">${icon(playing && opt.isPlaying ? 'pause' : 'play', 'fill')}</button>
+        <span class="thumb-actions">
+          <button type="button" class="thumb-act" data-action="thumb-queue" aria-label="Tambah ke antrean" title="Tambah ke antrean">${icon('queue')}</button>
+          <button type="button" class="thumb-act danger" data-action="thumb-remove" aria-label="${opt.isPlaylist ? 'Hapus dari playlist' : 'Hapus dari library'}" title="${opt.isPlaylist ? 'Hapus dari playlist' : 'Hapus dari library'}">${icon('trash')}</button>
+        </span>
+      </span>
+    </div>
     <div class="meta" data-action="play">
       ${loading ? '<div class="title"><span class="sk sk-line" style="width:70%"></span></div>' : `<div class="title${v.title ? '' : ' untitled'}" title="${escapeHtml(v.title || '')}">${highlight(title, opt.query)}</div>`}
       <div class="sub">${v.channel ? `<span>${highlight(v.channel, opt.query)}</span>` : ''}<span class="when">${sub}</span>${v.duration ? `<span class="c-dur">${formatDuration(v.duration)}</span>` : ''}${v.watched ? '<span class="tag">ditonton</span>' : ''}${(v.tags || []).slice(0, 4).map((t) => `<button type="button" class="tag tag-user" data-action="tag-open" data-tag="${escapeHtml(t)}">#${escapeHtml(t)}</button>`).join('')}</div>
@@ -167,6 +176,26 @@ function row(e, i, opt) {
     </div>
   </li>`;
 }
+
+// Ilustrasi sendiri (SVG inline) — mengikuti warna tema & aksen.
+const EMPTY_ART = `<svg viewBox="0 0 240 170" width="240" height="170">
+  <defs>
+    <linearGradient id="ea-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--accent)"/><stop offset="1" style="stop-color:color-mix(in srgb, var(--accent) 55%, #7c5cff)"/></linearGradient>
+  </defs>
+  <ellipse cx="120" cy="156" rx="78" ry="8" style="fill:var(--panel-3)" class="ea-shadow"/>
+  <g class="ea-float">
+    <rect x="58" y="44" width="124" height="92" rx="16" style="fill:var(--panel-2);stroke:var(--border)" stroke-width="2"/>
+    <rect x="70" y="56" width="100" height="56" rx="10" fill="url(#ea-g)"/>
+    <path d="M113 72v24l19-12z" fill="#fff"/>
+    <rect x="70" y="120" width="62" height="6" rx="3" style="fill:var(--panel-3)"/>
+    <rect x="138" y="120" width="32" height="6" rx="3" style="fill:var(--panel-3)"/>
+  </g>
+  <g class="ea-note ea-n1"><circle cx="40" cy="62" r="7" style="fill:var(--accent)"/><path d="M46 62V36l14-4v10" style="stroke:var(--accent)" stroke-width="4" fill="none" stroke-linecap="round"/></g>
+  <g class="ea-note ea-n2"><circle cx="196" cy="40" r="6" style="fill:color-mix(in srgb, var(--accent) 60%, #7c5cff)"/><path d="M201 40V20" style="stroke:color-mix(in srgb, var(--accent) 60%, #7c5cff)" stroke-width="3.5" stroke-linecap="round"/></g>
+  <g class="ea-note ea-n3"><rect x="186" y="96" width="34" height="22" rx="6" style="fill:var(--panel-2);stroke:var(--border)" stroke-width="2"/><path d="M199 102v10l8-5z" style="fill:var(--muted)"/></g>
+  <circle cx="30" cy="118" r="4" style="fill:var(--panel-3)" class="ea-note ea-n2"/>
+  <circle cx="214" cy="70" r="3" style="fill:var(--panel-3)" class="ea-note ea-n1"/>
+</svg>`;
 
 function emptyState(opt) {
   if (opt.quick && !opt.query) {
@@ -186,10 +215,15 @@ function emptyState(opt) {
   if (opt.view === 'history') {
     return `<div class="empty-icon">${icon('history')}</div><h3>Belum ada riwayat</h3><p>Lagu yang kamu putar akan muncul di sini, terbaru di atas.</p>`;
   }
-  return `<div class="empty-icon">${icon('link')}</div><h3>${opt.isPlaylist ? 'Playlist ini masih kosong' : 'Belum ada video'}</h3>
-    <p>Tempel link YouTube, cari lagu di YouTube, atau pilih dari library lewat tombol <b>Tambah</b>.</p>
-    ${opt.isPlaylist ? `<p><button type="button" class="btn btn-primary" data-action="open-add">${icon('plus')}<span>Tambah lagu</span></button></p>` : ''}
-    <p class="muted small">Contoh: https://youtu.be/… · youtube.com/watch?v=… · /shorts/… · music.youtube.com/…</p>`;
+  return `<div class="empty-art" aria-hidden="true">${EMPTY_ART}</div>
+    <h3>${opt.isPlaylist ? 'Playlist ini masih kosong' : 'Library-mu masih kosong'}</h3>
+    <p>Mulai dengan menempelkan link YouTube, atau cari lagu langsung dari sini.</p>
+    <div class="empty-ctas">
+      <button type="button" class="btn btn-primary btn-lg" data-action="open-add">${icon('plus')}<span>Tambahkan lagu pertama</span></button>
+      <button type="button" class="btn btn-lg" data-action="yt-search">${icon('search')}<span>Jelajahi YouTube</span></button>
+      <button type="button" class="btn btn-lg" data-action="yt-import">${icon('download')}<span>Impor playlist dari URL</span></button>
+    </div>
+    <p class="muted small">Link yang dikenali: youtu.be/… · youtube.com/watch?v=… · /shorts/… · music.youtube.com/… · playlist?list=…</p>`;
 }
 
 export function renderBanner(store, sync) {

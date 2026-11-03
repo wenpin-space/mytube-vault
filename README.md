@@ -72,6 +72,11 @@ Vanilla JavaScript (ES modules), tanpa build step, tanpa backend. Tinggal taruh 
 - **Antrean**: geser ⠿ untuk mengubah urutan (mouse & sentuh), **Kosongkan**, "Berikutnya: …" di player bawah (desktop), dan 3 lagu berikutnya di layar *Sedang diputar* (HP). Lagu yang kamu keluarkan dari antrean tidak dimasukkan lagi otomatis.
 - **Warna ikut lagu**: player, baris yang diputar, dan layar *Sedang diputar* mengambil warna dari thumbnail lagu. Bisa dimatikan lewat ⋮ player.
 - **Skeleton & animasi halus**: kerangka saat memuat (judul, hasil cari YouTube, lirik), animasi saat lagu ditambah/dihapus dan saat pindah halaman; mengikuti setelan *kurangi gerakan* sistem.
+- **Kartu video lebih bersih (v12)**: saat kursor di atas thumbnail muncul tombol ▶ Putar, Tambah ke antrean, dan Hapus. Garis tipis di bawah thumbnail menunjukkan sejauh mana lagu sudah diputar (abu-abu = sudah ditonton).
+- **Drag & drop** baris atau kartu (mode kisi: geser ke kiri/kanan) saat urutan manual
+- **Kaca buram** pada player bawah, menu, dialog, antrean, dan navigasi HP; **latar & sidebar ikut warna lagu**; font **Inter** (otomatis kembali ke font sistem saat offline)
+- **Empty state berilustrasi** (animasi melayang) dengan tombol besar: Tambahkan lagu pertama, Jelajahi YouTube, Impor playlist dari URL
+- **Toast berikon** di pojok kanan bawah (desktop), hijau untuk sukses dan merah untuk error; lagu baru meluncur masuk, lagu yang dihapus mengecil lalu hilang
 - **Perintah cepat** (`Ctrl+K` / `⌘K`, atau tombol di bar atas): lompat ke playlist, koleksi, tag, lagu, atau jalankan aksi (tambah, cari, statistik, tema, mode tampilan, dll.)
 
 ---

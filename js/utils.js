@@ -181,5 +181,5 @@ export function animateOut(keys, fn) {
   const rows = [...document.querySelectorAll('#video-list .vrow')].filter((r) => set.has(r.dataset.key));
   if (!rows.length || reduceMotion() || rows.length > 60) { fn(); return; }
   rows.forEach((r) => { r.style.height = `${r.offsetHeight}px`; r.classList.add('leaving'); });
-  setTimeout(fn, 200);
+  setTimeout(fn, 230);
 }

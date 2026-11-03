@@ -163,6 +163,10 @@ function renderMain() {
     selecting: local.selecting,
     selected: local.selected,
     flashKeys: local.flash,
+    progress: (id, duration) => {
+      const t = store.getPosition(id);
+      return t > 0 && duration > 0 ? Math.min(1, t / duration) : 0;
+    },
   });
   $('search-clear').hidden = !local.query;
   observeMore();
@@ -406,15 +410,15 @@ function openItemMenu(anchor, entry) {
     'sep',
     inPl
       ? { label: 'Hapus dari playlist', icon: 'trash', danger: true, action: () => removeEntry(entry) }
-      : {
-        label: 'Hapus dari library', icon: 'trash', danger: true,
-        action: async () => {
-          if (await confirmDialog('Hapus dari library?', `“${v.title || v.youtubeId}” akan dihapus dari library dan dari semua playlist.`, { ok: 'Hapus', danger: true })) {
-            store.deleteVideo(v.youtubeId);
-          }
-        },
-      },
+      : { label: 'Hapus dari library', icon: 'trash', danger: true, action: () => deleteFromLibrary(entry) },
   ]);
+}
+
+async function deleteFromLibrary(entry) {
+  const v = entry.video;
+  if (await confirmDialog('Hapus dari library?', `“${v.title || v.youtubeId}” akan dihapus dari library dan dari semua playlist.`, { ok: 'Hapus', danger: true })) {
+    animateOut([entry.key], () => store.deleteVideo(v.youtubeId));
+  }
 }
 
 /** Serahkan daftar putar ke aplikasi YouTube (Premium: tetap jalan di latar belakang). */
@@ -1061,6 +1065,12 @@ document.addEventListener('click', async (e) => {
     case 'stage-min': store.ui.stageMin = !store.ui.stageMin; store.saveUi(); break;
     case 'queue-toggle': toggleQueue(); break;
     case 'queue-jump': player.jumpTo(Number(el.dataset.pos)); break;
+    case 'thumb-queue':
+      if (entry) { player.addToQueue(entry); toast(`“${entry.video.title || 'Video'}” ditambahkan ke antrean.`, 'success'); }
+      break;
+    case 'thumb-remove':
+      if (entry) { if (entry.playlistId) removeEntry(entry); else deleteFromLibrary(entry); }
+      break;
     case 'queue-remove': player.removeAt(Number(el.dataset.pos)); break;
     case 'queue-clear': {
       const n = player.upcoming().length;
@@ -1084,7 +1094,11 @@ document.addEventListener('change', (e) => {
   const list = $('video-list');
   let fromIndex = null;
   const clearMarks = () => list.querySelectorAll('.drop-before, .drop-after').forEach((n) => n.classList.remove('drop-before', 'drop-after'));
-  const isAfter = (row, y) => { const r = row.getBoundingClientRect(); return y > r.top + r.height / 2; };
+  const isGrid = () => list.dataset.density === 'grid';
+  const isAfter = (row, y, x) => {
+    const r = row.getBoundingClientRect();
+    return isGrid() && x != null ? x > r.left + r.width / 2 : y > r.top + r.height / 2;
+  };
 
   list.addEventListener('dragstart', (e) => {
     const row = e.target.closest('.vrow');
@@ -1101,7 +1115,7 @@ document.addEventListener('change', (e) => {
     e.preventDefault();
     const row = e.target.closest('.vrow');
     clearMarks();
-    if (row) row.classList.add(isAfter(row, e.clientY) ? 'drop-after' : 'drop-before');
+    if (row) row.classList.add(isAfter(row, e.clientY, e.clientX) ? 'drop-after' : 'drop-before');
   });
   list.addEventListener('drop', (e) => {
     if (fromIndex == null) return;
@@ -1109,7 +1123,7 @@ document.addEventListener('change', (e) => {
     const row = e.target.closest('.vrow');
     const target = row ? entryByKey(row.dataset.key) : null;
     if (target) {
-      let to = target.index + (isAfter(row, e.clientY) ? 1 : 0);
+      let to = target.index + (isAfter(row, e.clientY, e.clientX) ? 1 : 0);
       if (to > fromIndex) to--;
       store.moveItem(target.playlistId, fromIndex, to);
     }
@@ -1212,6 +1226,18 @@ enableTouchReorder($('video-list'), {
   window.addEventListener('resize', schedule);
   if ('ResizeObserver' in window) new ResizeObserver(schedule).observe(main);
   check();
+})();
+
+// ---------- toast di pojok kanan bawah, tepat di atas video melayang ----------
+(() => {
+  const stage = $('stage');
+  const update = () => {
+    const visible = !stage.hidden && getComputedStyle(stage).position === 'fixed' && !document.body.classList.contains('np-open');
+    document.body.style.setProperty('--stage-space', visible ? `${stage.offsetHeight + 12}px` : '0px');
+  };
+  if ('ResizeObserver' in window) new ResizeObserver(update).observe(stage);
+  new MutationObserver(update).observe(stage, { attributes: true, attributeFilter: ['hidden', 'class'] });
+  update();
 })();
 
 // ---------- geser untuk mengubah urutan antrean (mouse & sentuh) ----------
