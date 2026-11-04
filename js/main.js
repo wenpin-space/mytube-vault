@@ -18,10 +18,10 @@ import { sortEntries, filterEntries, quickFilter, QUICK_FILTERS, animateOut, cop
 import {
   isPhone, overlay, enableTouchReorder, setupPwa, promptInstall, isStandalone, takeLaunchParams,
 } from './mobile.js';
-import { libraryPicker, ytSearchDialog, youtubeAppUrl, ytPlaylistImportDialog } from './sources.js';
+import { libraryPicker, ytSearchDialog, youtubeAppUrl, ytPlaylistImportDialog, audioVersionDialog } from './sources.js';
 import { buildSharePayload, encodeShare, decodeShare, shareUrl, takeShareFromUrl } from './share.js';
 import { logPlay, addListen, openStatsDialog } from './stats.js';
-import { createLyricsPanel } from './lyrics.js';
+import { createLyricsPanel, guessArtistTrack, rememberLyrics } from './lyrics.js';
 
 const PAGE = 200;
 const $ = (id) => document.getElementById(id);
@@ -825,6 +825,7 @@ function openPlayerMenu(anchor) {
         applyTint(player.current ? player.current.youtubeId : null, store.ui.tint);
       },
     },
+    player.current && { label: 'Ganti ke versi audio (lirik pas)…', icon: 'music', action: () => findAudioVersion() },
     player.current && { label: 'Buka video ini di YouTube', icon: 'external', action: () => window.open(watchUrl(player.current.youtubeId), '_blank', 'noopener') },
   ]);
 }
@@ -1564,7 +1565,29 @@ const lyricsPanel = createLyricsPanel($('lyrics-panel'), {
   },
   seek: (t) => player.seek(Math.max(0, t)),
   getTime: () => player.time(),
+  onFindAudio: (info) => findAudioVersion(info),
 });
+
+/** Ganti lagu yang sedang diputar (biasanya MV) dengan versi audionya supaya lirik pas. */
+async function findAudioVersion(info = {}) {
+  if (!player.current) return;
+  const oldId = player.current.youtubeId;
+  const v = store.data.videos[oldId] || {};
+  const current = { youtubeId: oldId, title: v.title || '', channel: v.channel || '', duration: v.duration || Math.round(player.duration()) };
+  if (!info.track) {
+    const g = guessArtistTrack(current.title, current.channel);
+    info = { ...g, lyricDuration: 0, ...info, track: info.track || g.track, artist: info.artist || g.artist };
+  }
+  const res = await audioVersionDialog(store, { current, info });
+  if (!res) return;
+  if (info.lyricId) rememberLyrics(res.id, info.lyricId);
+  let n = store.replaceInPlaylists(oldId, res.id, res.meta, res.mode);
+  if (!n) { store.addVideos([res.id], addTarget()); store.updateVideo(res.id, res.meta); n = 1; }
+  // Putar versi audio dari posisi yang sama di daftar (antrean ikut playlist).
+  const entry = visibleEntries().find((e) => e.youtubeId === res.id);
+  if (entry) playFromEntry(entry); else playVideoById(res.id);
+  toast(res.mode === 'after' ? 'Versi audio ditambahkan setelah MV dan sedang diputar.' : 'Diganti ke versi audio. MV tetap ada di Semua video.', 'success', 6000);
+}
 // Sorot lirik lebih rapat (±0,2 dtk) selama panel lirik terbuka dan lagu berjalan.
 setInterval(() => {
   if (player.isPlaying && !$('lyrics-panel').hidden && document.visibilityState === 'visible') lyricsPanel.tick(player.time());

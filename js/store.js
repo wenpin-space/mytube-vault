@@ -389,6 +389,38 @@ export const store = {
     }
     return { added, skipped, newIds };
   },
+  /**
+   * Tukar satu video dengan video lain di semua playlist yang memuatnya (posisi & catatan tetap).
+   * mode 'replace' = ganti; 'after' = sisipkan video baru tepat setelahnya. Video lama tetap di library.
+   */
+  replaceInPlaylists(oldId, newId, meta = {}, mode = 'replace') {
+    if (!isValidId(newId) || oldId === newId) return 0;
+    const t = nowISO();
+    if (!this.data.videos[newId]) this.data.videos[newId] = normVideo(newId, { firstAddedAt: t, ...meta }, t);
+    else {
+      const v = this.data.videos[newId];
+      if (!v.title && meta.title) v.title = meta.title;
+      if (!v.channel && meta.channel) v.channel = meta.channel;
+      if (!v.duration && meta.duration) v.duration = meta.duration;
+    }
+    let n = 0;
+    for (const p of this.data.playlists) {
+      const i = p.items.findIndex((it) => it.youtubeId === oldId);
+      if (i < 0) continue;
+      const has = p.items.some((it) => it.youtubeId === newId);
+      if (mode === 'after') {
+        if (!has) p.items.splice(i + 1, 0, { itemId: uid('it'), youtubeId: newId, addedAt: t, note: '' });
+      } else if (has) {
+        p.items.splice(i, 1); // versi audio sudah ada di playlist ini → cukup buang MV-nya
+      } else {
+        p.items[i] = { ...p.items[i], itemId: uid('it'), youtubeId: newId, addedAt: t };
+      }
+      p.updatedAt = t;
+      n++;
+    }
+    this.commit('replace-video');
+    return n;
+  },
   updateVideo(id, patch) {
     const v = this.data.videos[id];
     if (!v) return;

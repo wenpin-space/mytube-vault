@@ -495,3 +495,35 @@ test('lirik: geser waktu (offset) dari ketukan baris', async () => {
   assert.equal(lineAt(lines, 12 - off), -1, 'sebelum baris pertama selama intro');
   assert.equal(offsetFromTap(3, 5), -2);
 });
+
+test('versi audio: durasi ISO, ranking Topic/Official Audio, tukar di playlist', async () => {
+  const { parseIsoDuration, rankAudioCandidates } = await import('../js/sources.js');
+  assert.equal(parseIsoDuration('PT3M5S'), 185);
+  assert.equal(parseIsoDuration('PT1H2M'), 3720);
+  assert.equal(parseIsoDuration('xx'), 0);
+  const items = [
+    { id: 'MVvideo0001', title: 'JENNIE - Less than a Lover (Official Video)', channel: 'JennieRubyJaneVEVO', duration: 218 },
+    { id: 'TOPIC000001', title: 'Less than a Lover', channel: 'JENNIE - Topic', duration: 181 },
+    { id: 'AUDIO000001', title: 'JENNIE - Less than a Lover (Official Audio)', channel: 'JENNIE', duration: 182 },
+    { id: 'SPED0000001', title: 'Less than a Lover (sped up)', channel: 'fan', duration: 150 },
+    { id: 'OTHER000001', title: 'Mantra', channel: 'JENNIE - Topic', duration: 136 },
+  ];
+  const r = rankAudioCandidates(items, { lyricDuration: 181, track: 'Less than a Lover', excludeId: 'MVvideo0001' });
+  assert.deepEqual(r.slice(0, 2).map((x) => x.id), ['TOPIC000001', 'AUDIO000001']);
+  assert.ok(!r.some((x) => x.id === 'MVvideo0001'), 'video sekarang tidak ikut');
+  assert.ok(r.find((x) => x.id === 'SPED0000001').score < 0);
+  assert.ok(r.find((x) => x.id === 'OTHER000001').score < r[1].score);
+
+  store.replaceData(normalizeData({ playlists: [
+    { id: 'p1', name: 'A', items: [{ youtubeId: 'dQw4w9WgXcQ' }, { youtubeId: '9bZkkPVEQC0' }, { youtubeId: 'kJQP7kiw5Fk' }] },
+    { id: 'p2', name: 'B', items: [{ youtubeId: '9bZkkPVEQC0' }, { youtubeId: 'TOPIC000001' }] },
+  ], videos: {} }));
+  const n = store.replaceInPlaylists('9bZkkPVEQC0', 'TOPIC000001', { title: 'Less than a Lover', channel: 'JENNIE - Topic', duration: 181 });
+  assert.equal(n, 2);
+  assert.deepEqual(store.getPlaylist('p1').items.map((i) => i.youtubeId), ['dQw4w9WgXcQ', 'TOPIC000001', 'kJQP7kiw5Fk']);
+  assert.deepEqual(store.getPlaylist('p2').items.map((i) => i.youtubeId), ['TOPIC000001'], 'tidak dobel');
+  assert.ok(store.data.videos['9bZkkPVEQC0'], 'MV tetap di library');
+  assert.equal(store.data.videos.TOPIC000001.duration, 181);
+  store.replaceInPlaylists('dQw4w9WgXcQ', 'AUDIO000001', {}, 'after');
+  assert.deepEqual(store.getPlaylist('p1').items.map((i) => i.youtubeId).slice(0, 2), ['dQw4w9WgXcQ', 'AUDIO000001']);
+});

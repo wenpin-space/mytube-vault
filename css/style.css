@@ -1177,3 +1177,18 @@ body.lyrics-open .add-panel.floating { visibility: hidden; }
   .lv-art img, .lv-art-ph { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { .lyrics-view, .lv-art { animation: none; } .lyrics-view .lyrics-body { scroll-behavior: auto; } }
+
+/* ===================== Ganti ke versi audio ===================== */
+.ls-audio { display: inline-flex; align-items: center; gap: 6px; }
+.ls-audio .i { width: 14px; height: 14px; }
+.lyrics-view .ls-audio { background: rgba(255, 255, 255, .92); color: #111; border-color: transparent; }
+.lyrics-view .ls-audio:hover { background: #fff; }
+.av-item { flex-wrap: wrap; }
+.av-item.best { background: color-mix(in srgb, var(--ok) 10%, transparent); border-radius: 10px; }
+.av-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.av-badge { padding: 0 7px; border-radius: 999px; background: var(--panel-3); font-size: 11px; font-weight: 650; line-height: 18px; }
+.av-badge.ok { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+.av-badge.warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.av-badge.best { background: var(--accent); color: #fff; }
+.av-actions { display: flex; gap: 6px; flex: none; margin-left: auto; }
+@media (max-width: 640px) { .av-actions { width: 100%; justify-content: flex-end; } }

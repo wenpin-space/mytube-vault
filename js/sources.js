@@ -313,3 +313,113 @@ export function ytPlaylistImportDialog(store, { url = '', targetId = null } = {}
     },
   });
 }
+
+// ---------- versi audio (untuk lirik yang pas) ----------
+/** "PT3M5S" → 185 */
+export function parseIsoDuration(iso = '') {
+  const m = /^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/.exec(String(iso));
+  if (!m) return 0;
+  return (Number(m[1] || 0) * 86400) + (Number(m[2] || 0) * 3600) + (Number(m[3] || 0) * 60) + Number(m[4] || 0);
+}
+
+const norm = (x) => String(x || '').toLocaleLowerCase('id').normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
+const BAD = /\b(m\/?v|music video|official video|video oficial|performance|dance practice|live|concert|cover|remix|sped ?up|slowed|nightcore|karaoke|instrumental|8d|reverb|reaction|teaser|lyrics? ?(?:español|terjemahan|sub)|fancam|1 ?hour|loop)\b/i;
+
+/**
+ * Urutkan kandidat versi audio: durasi paling dekat dengan lirik, channel "- Topic", "Official Audio".
+ * items: [{id, title, channel, duration}] → [{...item, score, diff, topic}] (terbaik dulu). Murni, mudah diuji.
+ */
+export function rankAudioCandidates(items, { lyricDuration = 0, track = '', excludeId = '' } = {}) {
+  const words = norm(track).split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 1);
+  return items
+    .filter((it) => it && it.id && it.id !== excludeId && it.duration > 30)
+    .map((it) => {
+      const title = norm(it.title);
+      const topic = /\s-\s*topic$/i.test(it.channel || '');
+      const diff = lyricDuration ? Math.abs(it.duration - lyricDuration) : null;
+      let score = 0;
+      if (diff != null) score += diff <= 2 ? 60 : diff <= 4 ? 45 : diff <= 8 ? 20 : -Math.min(60, diff);
+      if (topic) score += 35;
+      if (/official audio|audio oficial|\(audio\)|\[audio\]/i.test(it.title)) score += 25;
+      else if (/lyric/i.test(it.title)) score += 12;
+      if (BAD.test(it.title)) score -= 45;
+      if (words.length) {
+        const hit = words.filter((w) => title.includes(w)).length / words.length;
+        score += hit >= 0.6 ? 10 : -35;
+      }
+      return { ...it, score, diff, topic };
+    })
+    .sort((a, b) => b.score - a.score);
+}
+
+/** Cari versi audio lewat YouTube Data API (1 pencarian + 1 permintaan durasi). */
+export async function findAudioVersions({ artist = '', track = '', lyricDuration = 0, excludeId = '' }, key) {
+  const q = `${artist} ${track} audio`.trim();
+  const found = await ytApi('search', { part: 'snippet', type: 'video', maxResults: '15', q, videoEmbeddable: 'true' }, key);
+  const ids = (found.items || []).map((it) => it.id && it.id.videoId).filter(Boolean);
+  if (!ids.length) return [];
+  const det = await ytApi('videos', { part: 'contentDetails,snippet', id: ids.join(',') }, key);
+  const items = (det.items || []).map((v) => ({
+    id: v.id,
+    title: decode(v.snippet.title),
+    channel: decode(v.snippet.channelTitle),
+    duration: parseIsoDuration(v.contentDetails && v.contentDetails.duration),
+  }));
+  return rankAudioCandidates(items, { lyricDuration, track, excludeId });
+}
+
+/**
+ * Dialog "Ganti ke versi audio". current = {youtubeId, title, channel, duration}; info = {artist, track, lyricDuration}.
+ * Hasil: { id, mode: 'replace' | 'after' } atau null.
+ */
+export function audioVersionDialog(store, { current, info }) {
+  const inPls = store.data.playlists.filter((p) => p.items.some((it) => it.youtubeId === current.youtubeId));
+  const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  return modal({
+    title: 'Ganti ke versi audio',
+    wide: true,
+    body: `
+      <p class="muted">Versi audio (channel <b>“Artis - Topic”</b> atau <i>Official Audio</i>) memakai rekaman yang sama dengan lirik, jadi lirik langsung pas tanpa diatur.
+        ${info.lyricDuration ? `Durasi lirik: <b>${fmt(Math.round(info.lyricDuration))}</b> · video sekarang: ${fmt(Math.round(current.duration || 0))}.` : ''}</p>
+      <div class="yt-results av-results">${skeletonRows(4)}</div>
+      <p class="hint">${inPls.length
+        ? `<b>Ganti</b> menukar video ini di ${inPls.length === 1 ? `playlist “${escapeHtml(inPls[0].name)}”` : `${inPls.length} playlist`} (posisinya tetap). MV-nya tetap ada di <i>Semua video</i>.`
+        : 'Video ini belum ada di playlist mana pun; versi audio akan ditambahkan ke playlist yang sedang dibuka.'}</p>`,
+    actions: [{ label: 'Tutup', value: null }],
+    onOpen: async (b, finish) => {
+      const box = b.querySelector('.av-results');
+      const key = getApiKey();
+      if (!key) {
+        box.innerHTML = `<div class="card"><h3>${icon('lock')}Butuh YouTube API key</h3>
+          <p class="muted">Sama dengan yang dipakai <b>Cari di YouTube</b>. Atur di Setelan → Umum, atau cari manual:</p>
+          <a class="btn" href="https://www.youtube.com/results?search_query=${encodeURIComponent(`${info.artist} ${info.track} topic audio`)}" target="_blank" rel="noopener">${icon('external')}Cari “${escapeHtml(info.track)}” di YouTube</a></div>`;
+        return;
+      }
+      try {
+        const list = await findAudioVersions({ ...info, excludeId: current.youtubeId }, key);
+        const good = list.filter((x) => x.score > 0).slice(0, 6);
+        const show = good.length ? good : list.slice(0, 4);
+        if (!show.length) { box.innerHTML = '<p class="muted pad">Tidak ada versi audio yang ditemukan.</p>'; return; }
+        box.innerHTML = `${good.length ? '' : '<p class="muted small pad">Tidak ada yang benar-benar cocok. Ini hasil terdekat:</p>'}<div class="list-box">${show.map((it, i) => `
+          <div class="yt-item av-item${i === 0 && good.length ? ' best' : ''}">
+            <img src="${thumbUrl(it.id, 'mqdefault')}" alt="" loading="lazy">
+            <span class="lib-text"><b>${escapeHtml(it.title)}</b>
+              <small class="muted">${escapeHtml(it.channel)} · ${fmt(it.duration)}</small>
+              <span class="av-badges">${i === 0 && good.length ? '<span class="av-badge best">Paling cocok</span>' : ''}${it.topic ? '<span class="av-badge">Topic</span>' : ''}${it.diff != null ? `<span class="av-badge ${it.diff <= 4 ? 'ok' : 'warn'}">${it.diff <= 4 ? 'durasi pas' : `selisih ${Math.round(it.diff)} dtk`}</span>` : ''}</span></span>
+            <span class="av-actions">
+              <button type="button" class="btn btn-primary sm" data-av="replace" data-id="${escapeHtml(it.id)}">Ganti &amp; putar</button>
+              ${inPls.length ? `<button type="button" class="btn sm" data-av="after" data-id="${escapeHtml(it.id)}" title="MV tetap ada, versi audio ditaruh tepat setelahnya">Tambah di sebelahnya</button>` : ''}
+            </span>
+          </div>`).join('')}</div>`;
+        box.addEventListener('click', (e) => {
+          const btn = e.target.closest('[data-av]');
+          if (!btn) return;
+          const it = show.find((x) => x.id === btn.dataset.id);
+          finish({ id: it.id, mode: btn.dataset.av, meta: { title: it.title, channel: it.channel, duration: it.duration } });
+        });
+      } catch (err) {
+        box.innerHTML = `<p class="error-text pad">${escapeHtml(err.message || String(err))}</p>`;
+      }
+    },
+  });
+}

@@ -72,6 +72,8 @@ export const searchLyrics = (q) => getJson(`${API}/search?${new URLSearchParams(
 export const getLyricsById = (id) => getJson(`${API}/get/${encodeURIComponent(id)}`);
 
 function getPick(videoId) { try { return JSON.parse(localStorage.getItem(PICK_KEY) || '{}')[videoId]; } catch { return undefined; } }
+/** Pakai lirik yang sama untuk video lain (mis. setelah MV diganti versi audionya). */
+export function rememberLyrics(videoId, lyricId) { if (videoId && lyricId) setPick(videoId, lyricId); }
 function setPick(videoId, id) {
   try {
     const m = JSON.parse(localStorage.getItem(PICK_KEY) || '{}');
@@ -118,7 +120,7 @@ export function bestMatch(results, duration = 0) {
 /**
  * Panel lirik. host = elemen panel; getTrack() → {youtubeId, title, channel, duration} lagu sekarang.
  */
-export function createLyricsPanel(host, { getTrack, seek, getTime = () => 0 }) {
+export function createLyricsPanel(host, { getTrack, seek, getTime = () => 0, onFindAudio = null }) {
   const st = { videoId: null, lines: null, active: -1, results: [], loading: false, query: '', offset: 0, syncMode: false, rec: null };
   const body = host.querySelector('.lyrics-body');
   const form = host.querySelector('.lyrics-form');
@@ -164,6 +166,10 @@ export function createLyricsPanel(host, { getTrack, seek, getTime = () => 0 }) {
     const ld = st.rec && st.rec.duration;
     return { vd, ld, diff: vd && ld ? vd - ld : 0 };
   }
+  function looksLikeMv() {
+    const tr = getTrack();
+    return !!tr && /\b(m\/?v|music video|official video|performance)\b/i.test(tr.title || '');
+  }
   function needsSync() {
     return !!st.videoId && !hasOffset(st.videoId) && Math.abs(durDiff().diff) >= 4;
   }
@@ -183,6 +189,7 @@ export function createLyricsPanel(host, { getTrack, seek, getTime = () => 0 }) {
         <button type="button" class="ls-btn ls-tap${st.syncMode ? ' on' : ''}" data-l-act="tapmode" aria-pressed="${st.syncMode}">${st.syncMode ? 'Ketuk baris yang sedang dinyanyikan…' : 'Sinkronkan'}</button>
         ${auto && durDiff().diff > 0 ? `<button type="button" class="ls-btn" data-l-act="guess" data-d="${Math.round(durDiff().diff * 10) / 10}" title="Anggap selisih durasi adalah intro video">Perkiraan: intro ${fmtOffset(Math.round(durDiff().diff * 10) / 10)}</button>` : ''}
         ${auto ? '<button type="button" class="ls-btn" data-l-act="ok">Sudah pas</button>' : ''}
+        ${onFindAudio && (Math.abs(durDiff().diff) >= 4 || looksLikeMv()) ? `<button type="button" class="ls-btn ls-audio" data-l-act="audio" title="Cari versi audio yang liriknya pas">${icon('music')}Ganti ke versi audio</button>` : ''}
         ${st.offset ? '<button type="button" class="ls-btn" data-l-act="reset" title="Kembalikan ke 0">Reset</button>' : ''}
       </div>`;
     const lines = body.querySelector('.lyrics-lines.synced');
@@ -268,6 +275,12 @@ export function createLyricsPanel(host, { getTrack, seek, getTime = () => 0 }) {
     const act = e.target.closest('[data-l-act]');
     if (act && act.dataset.lAct === 'nudge') { applyOffset(st.offset + Number(act.dataset.d)); return; }
     if (act && (act.dataset.lAct === 'reset' || act.dataset.lAct === 'ok')) { applyOffset(0); return; }
+    if (act && act.dataset.lAct === 'audio') {
+      const tr = getTrack();
+      const { artist, track } = guessArtistTrack(tr ? tr.title : '', tr ? tr.channel : '');
+      onFindAudio({ artist: (st.rec && st.rec.artistName) || artist, track: (st.rec && st.rec.trackName) || track, lyricDuration: (st.rec && st.rec.duration) || 0, lyricId: st.rec && st.rec.id });
+      return;
+    }
     if (act && act.dataset.lAct === 'guess') { applyOffset(Number(act.dataset.d)); return; }
     if (act && act.dataset.lAct === 'tapmode') { st.syncMode = !st.syncMode; renderSyncBar(); return; }
     if (e.target.closest('[data-l-act=others]')) { renderResults(); return; }
