@@ -308,9 +308,16 @@ export function renderDock(player, store, opts = {}) {
   minBtn.setAttribute('aria-label', minBtn.title);
   minBtn.setAttribute('aria-expanded', String(!min));
   const sizeIcon = icon(large ? 'shrink' : 'expand');
-  $('dock-stage').innerHTML = sizeIcon;
   $('stage-size').innerHTML = sizeIcon;
-  $('dock-stage').title = large ? 'Perkecil video' : 'Perbesar video';
+  $('stage-size').title = large ? 'Perkecil video' : 'Perbesar video';
+  const lyricsOpen = !$('lyrics-panel').hidden;
+  $('dock-lyrics').classList.toggle('on', lyricsOpen);
+  $('dock-lyrics').setAttribute('aria-pressed', String(lyricsOpen));
+  $('lv-title').textContent = title;
+  $('lv-sub').textContent = (v && v.channel) || '';
+  const lvThumb = $('lv-thumb');
+  const lvSrc = thumbUrl(cur.youtubeId, 'mqdefault');
+  if (lvThumb.getAttribute('src') !== lvSrc) lvThumb.src = lvSrc;
 
   const err = $('stage-error');
   if (player.error) {

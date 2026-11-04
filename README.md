@@ -77,7 +77,8 @@ Vanilla JavaScript (ES modules), tanpa build step, tanpa backend. Tinggal taruh 
 - **Kaca buram** pada player bawah, menu, dialog, antrean, dan navigasi HP; **latar & sidebar ikut warna lagu**; font **Inter** (otomatis kembali ke font sistem saat offline)
 - **Empty state berilustrasi** (animasi melayang) dengan tombol besar: Tambahkan lagu pertama, Jelajahi YouTube, Impor playlist dari URL
 - **Toast berikon** di pojok kanan bawah (desktop), hijau untuk sukses dan merah untuk error; lagu baru meluncur masuk, lagu yang dihapus mengecil lalu hilang
-- **Sinkron lirik (v13)**: kalau lirik meleset (biasanya karena MV punya intro/adegan tambahan), tekan **Sinkronkan** di panel lirik lalu ketuk baris yang sedang dinyanyikan, atau geser ±0,5 detik (tombol `[` / `]`). Pengaturannya diingat per video.
+- **Layar lirik ala Spotify (v14)**: tombol 🎤 di player bawah (atau `Y`) membuka lirik besar di area utama dengan latar warna lagu; baris yang sudah lewat lebih terang, baris sekarang putih. Kalau lirik tidak ada, yang tampil artwork + judul lagu. Video tetap melayang di pojok.
+- **Sinkron lirik (v13–v14)**: kalau durasi video beda dari versi audio (MV dengan intro), panel langsung meminta satu ketukan pada baris yang sedang terdengar; ada juga tombol *Perkiraan: intro +X dtk* dan *Sudah pas*. kalau lirik meleset (biasanya karena MV punya intro/adegan tambahan), tekan **Sinkronkan** di panel lirik lalu ketuk baris yang sedang dinyanyikan, atau geser ±0,5 detik (tombol `[` / `]`). Pengaturannya diingat per video.
 - **Perintah cepat** (`Ctrl+K` / `⌘K`, atau tombol di bar atas): lompat ke playlist, koleksi, tag, lagu, atau jalankan aksi (tambah, cari, statistik, tema, mode tampilan, dll.)
 
 ---

@@ -909,7 +909,8 @@ function toggleLyrics(force) {
   setPanel('lyrics', open, (on) => {
     panel.hidden = !on;
     document.body.classList.toggle('lyrics-open', on);
-    if (on) lyricsPanel.load();
+    if (on) { lyricsPanel.load(); setTimeout(() => lyricsPanel.tick(player.time()), 60); }
+    ui.renderDock(player, store, dockOpts());
   });
 }
 
@@ -1060,7 +1061,9 @@ document.addEventListener('click', async (e) => {
       break;
     case 'stage-toggle':
       if (isPhone()) { openNowPlaying(!document.body.classList.contains('np-open')); break; }
-      store.ui.stageLarge = !store.ui.stageLarge; store.saveUi();
+      // Saat video sedang diminimalkan, tombol perbesar langsung menampilkan video dalam ukuran besar.
+      if (store.ui.stageMin) { store.ui.stageMin = false; store.ui.stageLarge = true; } else store.ui.stageLarge = !store.ui.stageLarge;
+      store.saveUi();
       break;
     case 'stage-close': openNowPlaying(false); player.stop(); toggleQueue(false); break;
     case 'stage-min': store.ui.stageMin = !store.ui.stageMin; store.saveUi(); break;

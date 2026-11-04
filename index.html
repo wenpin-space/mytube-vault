@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..800&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=13">
+  <link rel="stylesheet" href="css/style.css?v=14">
 </head>
 <body>
   <a class="skip-link" href="#main">Lewati ke daftar video</a>
@@ -122,24 +122,26 @@
     <div class="queue-list" id="queue-list"></div>
   </aside>
 
-  <aside class="queue-panel lyrics-panel" id="lyrics-panel" hidden aria-label="Lirik">
-    <header class="queue-head">
-      <h2>Lirik</h2>
-      <button type="button" class="icon-btn" data-action="lyrics-toggle" data-icon="x" aria-label="Tutup lirik"></button>
+  <section class="lyrics-view" id="lyrics-panel" hidden aria-label="Lirik">
+    <header class="lv-head">
+      <img class="lv-thumb" id="lv-thumb" alt="">
+      <div class="lv-meta"><b id="lv-title"></b><span id="lv-sub"></span></div>
+      <form class="lyrics-form" autocomplete="off" role="search">
+        <input type="search" placeholder="Cari lirik: artis + judul" aria-label="Kata kunci lirik" enterkeyhint="search">
+        <button type="submit" class="icon-btn" data-icon="search" aria-label="Cari lirik"></button>
+      </form>
+      <button type="button" class="icon-btn lv-close" data-action="lyrics-toggle" data-icon="chevronDown" aria-label="Tutup lirik" title="Tutup lirik (Y)"></button>
     </header>
-    <form class="lyrics-form row" autocomplete="off">
-      <input type="search" placeholder="Artis + judul lagu" aria-label="Kata kunci lirik" enterkeyhint="search">
-      <button type="submit" class="icon-btn" data-icon="search" aria-label="Cari lirik"></button>
-    </form>
     <div class="lyrics-body"></div>
-    <p class="lyrics-credit muted small">Lirik dari <a href="https://lrclib.net" target="_blank" rel="noopener">LRCLIB</a></p>
-  </aside>
+    <p class="lyrics-credit">Lirik dari <a href="https://lrclib.net" target="_blank" rel="noopener">LRCLIB</a></p>
+  </section>
 
   <footer class="dock" id="dock" hidden>
     <div class="np-head only-phone">
       <button type="button" class="icon-btn" data-action="np-close" data-icon="chevronDown" aria-label="Kecilkan player"></button>
       <span>Sedang diputar</span>
       <span class="np-head-right">
+        <button type="button" class="icon-btn" data-action="lyrics-toggle" data-icon="mic" aria-label="Lirik"></button>
         <button type="button" class="icon-btn" data-action="player-menu" data-icon="more" aria-label="Opsi player"></button>
         <button type="button" class="icon-btn" data-action="queue-toggle" data-icon="queue" aria-label="Antrean"></button>
       </span>
@@ -166,7 +168,7 @@
     <div class="dock-extra">
       <span class="dock-time" id="dock-time"></span>
       <button type="button" class="icon-btn" data-action="player-menu" data-icon="more" aria-label="Opsi player" title="Kecepatan, timer tidur, dll."></button>
-      <button type="button" class="icon-btn" id="dock-stage" data-action="stage-toggle" aria-label="Ubah ukuran video"></button>
+      <button type="button" class="icon-btn" id="dock-lyrics" data-action="lyrics-toggle" data-icon="mic" aria-label="Lirik layar penuh" title="Lirik (Y)" aria-pressed="false"></button>
       <button type="button" class="icon-btn" data-action="queue-toggle" data-icon="queue" aria-label="Antrean" title="Antrean"></button>
     </div>
     <section class="np-upnext only-phone" id="np-upnext" aria-label="Berikutnya"></section>
@@ -187,6 +189,6 @@
   </nav>
 
   <noscript><p style="padding:24px">MyTube Vault butuh JavaScript.</p></noscript>
-  <script type="module" src="js/main.js?v=13"></script>
+  <script type="module" src="js/main.js?v=14"></script>
 </body>
 </html>
