@@ -77,6 +77,7 @@ Vanilla JavaScript (ES modules), tanpa build step, tanpa backend. Tinggal taruh 
 - **Kaca buram** pada player bawah, menu, dialog, antrean, dan navigasi HP; **latar & sidebar ikut warna lagu**; font **Inter** (otomatis kembali ke font sistem saat offline)
 - **Empty state berilustrasi** (animasi melayang) dengan tombol besar: Tambahkan lagu pertama, Jelajahi YouTube, Impor playlist dari URL
 - **Toast berikon** di pojok kanan bawah (desktop), hijau untuk sukses dan merah untuk error; lagu baru meluncur masuk, lagu yang dihapus mengecil lalu hilang
+- **Sinkron lirik (v13)**: kalau lirik meleset (biasanya karena MV punya intro/adegan tambahan), tekan **Sinkronkan** di panel lirik lalu ketuk baris yang sedang dinyanyikan, atau geser ±0,5 detik (tombol `[` / `]`). Pengaturannya diingat per video.
 - **Perintah cepat** (`Ctrl+K` / `⌘K`, atau tombol di bar atas): lompat ke playlist, koleksi, tag, lagu, atau jalankan aksi (tambah, cari, statistik, tema, mode tampilan, dll.)
 
 ---

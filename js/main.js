@@ -857,6 +857,7 @@ function showShortcuts() {
       ${k(['M'], 'Bisukan / bunyikan')}
       ${k(['S'], 'Acak aktif / mati')}${k(['R'], 'Ganti mode ulangi')}${k(['L'], 'Ulangi lagu ini (loop)')}
       ${k(['Y'], 'Tampilkan / tutup lirik')}
+      ${k(['[', ']'], 'Geser waktu lirik −/+ 0,5 detik')}
       ${k(['/'], 'Cari di library')}
       ${k(['Ctrl', 'A'], 'Pilih semua (saat mode pilih)')}
       ${k(['Esc'], 'Tutup panel / batal pilih')}
@@ -1358,6 +1359,8 @@ document.addEventListener('keydown', (e) => {
       return;
     }
     case 'y': case 'Y': toggleLyrics(); return;
+    case '[': if (!$('lyrics-panel').hidden) { lyricsPanel.nudge(-0.5); } return;
+    case ']': if (!$('lyrics-panel').hidden) { lyricsPanel.nudge(0.5); } return;
     case 's': case 'S': store.setPlayerSetting('shuffle', !store.data.settings.player.shuffle); toast(store.data.settings.player.shuffle ? 'Acak aktif' : 'Acak mati'); return;
     case 'r': case 'R': {
       const order = { off: 'all', all: 'one', one: 'off' };
@@ -1556,8 +1559,13 @@ const lyricsPanel = createLyricsPanel($('lyrics-panel'), {
     const v = store.data.videos[player.current.youtubeId] || {};
     return { youtubeId: player.current.youtubeId, title: v.title || '', channel: v.channel || '', duration: v.duration || player.duration() };
   },
-  seek: (t) => player.seek(t),
+  seek: (t) => player.seek(Math.max(0, t)),
+  getTime: () => player.time(),
 });
+// Sorot lirik lebih rapat (±0,2 dtk) selama panel lirik terbuka dan lagu berjalan.
+setInterval(() => {
+  if (player.isPlaying && !$('lyrics-panel').hidden && document.visibilityState === 'visible') lyricsPanel.tick(player.time());
+}, 200);
 
 // ---------- lanjut dari posisi terakhir (video panjang saja, seperti YouTube) ----------
 const RESUME_MIN_DURATION = 8 * 60;

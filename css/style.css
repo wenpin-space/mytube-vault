@@ -1087,3 +1087,16 @@ body.tinted .sidebar { background: linear-gradient(180deg, color-mix(in srgb, va
   .empty-ctas .btn { justify-content: center; }
 }
 @media (prefers-reduced-motion: reduce) { .ea-float, .ea-shadow, .ea-note { animation: none; } }
+
+/* ===================== Sinkron lirik (geser waktu) ===================== */
+.lyrics-sync { position: sticky; top: -4px; z-index: 2; margin: 0 -18px 10px; padding: 8px 18px; background: color-mix(in srgb, var(--panel) 88%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); }
+.ls-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.ls-btn { height: 28px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); font-size: 12.5px; font-weight: 600; cursor: pointer; font-variant-numeric: tabular-nums; }
+.ls-btn:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.ls-btn.on { background: var(--accent); border-color: var(--accent); color: #fff; animation: ls-pulse 1.4s ease-in-out infinite; }
+@keyframes ls-pulse { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent); } }
+.ls-off { min-width: 62px; text-align: center; font-size: 12.5px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ls-off.on { color: var(--accent); }
+.ls-note { margin: 6px 0 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
+.lyrics-lines.tapping p { cursor: crosshair; }
+.lyrics-lines.tapping p:hover { color: var(--accent); background: var(--accent-soft); border-radius: 6px; }

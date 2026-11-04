@@ -5,6 +5,7 @@ import { icon } from './icons.js';
 
 const API = 'https://lrclib.net/api';
 const PICK_KEY = 'mytube_vault_lyrics_v1'; // videoId → id lirik LRCLIB yang dipilih (atau 0 = tidak ada)
+const OFFSET_KEY = 'mytube_vault_lyrics_offset_v1'; // videoId → geser waktu lirik (detik)
 
 /** Bersihkan judul video YouTube jadi kata kunci lagu: buang [..], (..), 【..】, "Official Video", "Lyrics", dsb. */
 export function cleanTitle(title = '') {
@@ -80,6 +81,27 @@ function setPick(videoId, id) {
   } catch { /* abaikan */ }
 }
 
+// Geser waktu: video MV sering punya intro/adegan tambahan, sedangkan LRC disinkronkan ke versi audio.
+// offset > 0 → lirik muncul lebih lambat (video punya intro lebih panjang).
+function getOffset(videoId) { try { return Number(JSON.parse(localStorage.getItem(OFFSET_KEY) || '{}')[videoId]) || 0; } catch { return 0; } }
+function setOffset(videoId, sec) {
+  try {
+    const m = JSON.parse(localStorage.getItem(OFFSET_KEY) || '{}');
+    if (Math.abs(sec) < 0.05) delete m[videoId]; else m[videoId] = Math.round(sec * 10) / 10;
+    const keys = Object.keys(m);
+    if (keys.length > 500) delete m[keys[0]];
+    localStorage.setItem(OFFSET_KEY, JSON.stringify(m));
+  } catch { /* abaikan */ }
+}
+
+/** Offset supaya baris `line` tepat sedang dinyanyikan pada detik video `videoTime`. */
+export function offsetFromTap(videoTime, lineTime) {
+  return Math.round((videoTime - lineTime) * 10) / 10;
+}
+
+const fmtOffset = (o) => `${o > 0 ? '+' : o < 0 ? '−' : '±'}${Math.abs(o).toFixed(1)} dtk`;
+const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+
 /** Pilih hasil terbaik: utamakan lirik tersinkron dan durasi yang paling dekat. */
 export function bestMatch(results, duration = 0) {
   const usable = results.filter((r) => r && (r.syncedLyrics || r.plainLyrics || r.instrumental));
@@ -91,8 +113,8 @@ export function bestMatch(results, duration = 0) {
 /**
  * Panel lirik. host = elemen panel; getTrack() → {youtubeId, title, channel, duration} lagu sekarang.
  */
-export function createLyricsPanel(host, { getTrack, seek }) {
-  const st = { videoId: null, lines: null, active: -1, results: [], loading: false, query: '' };
+export function createLyricsPanel(host, { getTrack, seek, getTime = () => 0 }) {
+  const st = { videoId: null, lines: null, active: -1, results: [], loading: false, query: '', offset: 0, syncMode: false, rec: null };
   const body = host.querySelector('.lyrics-body');
   const form = host.querySelector('.lyrics-form');
   const input = form.querySelector('input');
@@ -111,13 +133,43 @@ export function createLyricsPanel(host, { getTrack, seek }) {
     if (rec.instrumental && !rec.syncedLyrics && !rec.plainLyrics) { body.innerHTML = `${head}<p class="muted pad">♪ Instrumental — tidak ada lirik.</p>`; return; }
     if (rec.syncedLyrics) {
       st.lines = parseLrc(rec.syncedLyrics);
-      body.innerHTML = `${head}<div class="lyrics-lines synced">${st.lines.map((l, i) => `<p data-i="${i}" data-t="${l.t}">${escapeHtml(l.text) || '♪'}</p>`).join('')}</div>
+      st.rec = rec;
+      st.syncMode = false;
+      body.innerHTML = `${head}<div class="lyrics-sync" role="group" aria-label="Sinkronkan lirik"></div>
+        <div class="lyrics-lines synced">${st.lines.map((l, i) => `<p data-i="${i}" data-t="${l.t}">${escapeHtml(l.text) || '♪'}</p>`).join('')}</div>
         <p class="hint">Ketuk baris lirik untuk melompat ke bagian itu.</p>`;
+      renderSyncBar();
     } else {
       body.innerHTML = `${head}<div class="lyrics-lines plain">${String(rec.plainLyrics).split(/\r?\n/).map((l) => `<p>${escapeHtml(l) || '&nbsp;'}</p>`).join('')}</div>
         <p class="hint">Lirik ini tidak tersinkron dengan waktu lagu.</p>`;
     }
   };
+
+  function renderSyncBar() {
+    const bar = body.querySelector('.lyrics-sync');
+    if (!bar) return;
+    const tr = getTrack();
+    const vd = tr && tr.duration;
+    const ld = st.rec && st.rec.duration;
+    const diff = vd && ld ? vd - ld : 0;
+    bar.innerHTML = `
+      <div class="ls-row">
+        <button type="button" class="ls-btn" data-l-act="nudge" data-d="-0.5" aria-label="Lirik lebih awal 0,5 detik" title="Lirik lebih awal ( [ )">−0.5</button>
+        <span class="ls-off${st.offset ? ' on' : ''}" title="Geser waktu lirik untuk video ini">${fmtOffset(st.offset)}</span>
+        <button type="button" class="ls-btn" data-l-act="nudge" data-d="0.5" aria-label="Lirik lebih lambat 0,5 detik" title="Lirik lebih lambat ( ] )">+0.5</button>
+        <button type="button" class="ls-btn ls-tap${st.syncMode ? ' on' : ''}" data-l-act="tapmode" aria-pressed="${st.syncMode}">${st.syncMode ? 'Ketuk baris yang sedang dinyanyikan…' : 'Sinkronkan'}</button>
+        ${st.offset ? '<button type="button" class="ls-btn" data-l-act="reset" title="Kembalikan ke 0">Reset</button>' : ''}
+      </div>
+      ${!st.offset && Math.abs(diff) >= 4 ? `<p class="ls-note">Durasi video ${fmtTime(vd)}, lirik ${fmtTime(ld)}. Kalau lirik meleset, tekan <b>Sinkronkan</b> lalu ketuk baris yang sedang dinyanyikan.</p>` : ''}`;
+    body.querySelector('.lyrics-lines.synced').classList.toggle('tapping', st.syncMode);
+  }
+
+  function applyOffset(o) {
+    st.offset = Math.max(-600, Math.min(600, Math.round(o * 10) / 10));
+    if (st.videoId) setOffset(st.videoId, st.offset);
+    st.active = -2; // paksa sorot ulang
+    renderSyncBar();
+  }
 
   const renderResults = () => {
     body.innerHTML = `<p class="muted small pad">Pilih lirik yang cocok:</p><div class="list-box">${st.results.slice(0, 15).map((r, i) => `
@@ -150,6 +202,7 @@ export function createLyricsPanel(host, { getTrack, seek }) {
     if (!tr) { body.innerHTML = '<p class="muted pad">Putar lagu untuk melihat liriknya.</p>'; st.videoId = null; return; }
     if (!force && st.videoId === tr.youtubeId) return;
     st.videoId = tr.youtubeId;
+    st.offset = getOffset(tr.youtubeId);
     st.results = [];
     const { artist, track } = guessArtistTrack(tr.title || '', tr.channel || '');
     const q = `${artist ? `${artist} ` : ''}${track}`.trim();
@@ -165,7 +218,17 @@ export function createLyricsPanel(host, { getTrack, seek }) {
   form.addEventListener('submit', (e) => { e.preventDefault(); search(input.value.trim()); });
   body.addEventListener('click', (e) => {
     const line = e.target.closest('.lyrics-lines.synced p');
-    if (line) { seek(Number(line.dataset.t)); return; }
+    if (line) {
+      if (st.syncMode) {
+        st.syncMode = false;
+        applyOffset(offsetFromTap(getTime(), Number(line.dataset.t)));
+      } else seek(Number(line.dataset.t) + st.offset);
+      return;
+    }
+    const act = e.target.closest('[data-l-act]');
+    if (act && act.dataset.lAct === 'nudge') { applyOffset(st.offset + Number(act.dataset.d)); return; }
+    if (act && act.dataset.lAct === 'reset') { applyOffset(0); return; }
+    if (act && act.dataset.lAct === 'tapmode') { st.syncMode = !st.syncMode; renderSyncBar(); return; }
     if (e.target.closest('[data-l-act=others]')) { renderResults(); return; }
     const pick = e.target.closest('[data-l-pick]');
     if (pick) {
@@ -179,9 +242,11 @@ export function createLyricsPanel(host, { getTrack, seek }) {
   return {
     load: loadForCurrent,
     /** Dipanggil berkala dengan posisi lagu → sorot & gulir ke baris aktif. */
+    /** Geser waktu lirik (dipakai tombol keyboard [ dan ]). */
+    nudge(d) { if (st.lines) applyOffset(st.offset + d); },
     tick(time) {
       if (!st.lines || !st.lines.length) return;
-      const i = lineAt(st.lines, time);
+      const i = lineAt(st.lines, time - st.offset);
       if (i === st.active) return;
       const box = body.querySelector('.lyrics-lines');
       if (!box) return;

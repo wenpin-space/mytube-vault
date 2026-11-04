@@ -484,3 +484,14 @@ test('warna lagu: ambil warna hidup, abaikan hitam/putih', async () => {
   assert.ok(lum > 110, 'cukup terang untuk tema gelap');
   assert.deepEqual(pickColor([0, 0, 0, 255]), [0, 0, 0]);
 });
+
+test('lirik: geser waktu (offset) dari ketukan baris', async () => {
+  const { parseLrc, lineAt, offsetFromTap } = await import('../js/lyrics.js');
+  const lines = parseLrc('[00:05.00]satu\n[00:10.00]dua\n[00:15.00]tiga');
+  // MV punya intro 8 detik: baris "dua" (10 dtk di audio) terdengar di detik 18 video
+  const off = offsetFromTap(18.04, 10);
+  assert.equal(off, 8);
+  assert.equal(lines[lineAt(lines, 18 - off)].text, 'dua');
+  assert.equal(lineAt(lines, 12 - off), -1, 'sebelum baris pertama selama intro');
+  assert.equal(offsetFromTap(3, 5), -2);
+});
