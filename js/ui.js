@@ -297,24 +297,23 @@ export function renderDock(player, store, opts = {}) {
   fav.classList.toggle('on', !!(v && v.favorite));
 
   const large = !!store.ui.stageLarge;
-  const min = !!store.ui.stageMin;
+  const min = store.ui.stageMin !== false; // bawaan: video disembunyikan
   stage.classList.toggle('large', large && !min);
   stage.classList.toggle('min', min);
   const corner = ['br', 'bl', 'tr', 'tl'].includes(store.ui.stageCorner) ? store.ui.stageCorner : 'br';
   stage.dataset.corner = corner;
   const minBtn = $('stage-min');
   minBtn.innerHTML = icon(min ? 'chevronUp' : 'minimize');
-  minBtn.title = min ? 'Tampilkan video' : 'Minimize video (musik tetap jalan)';
+  minBtn.title = min ? 'Tampilkan video' : 'Sembunyikan video (musik tetap jalan)';
   minBtn.setAttribute('aria-label', minBtn.title);
   minBtn.setAttribute('aria-expanded', String(!min));
-  const vBtn = $('dock-video');
-  if (vBtn) {
+  document.querySelectorAll('[data-video-toggle]').forEach((vBtn) => {
     vBtn.innerHTML = icon('video');
     vBtn.classList.toggle('on', !min);
-    vBtn.title = min ? 'Tampilkan video' : 'Sembunyikan video (musik tetap jalan)';
-    vBtn.setAttribute('aria-label', vBtn.title);
+    vBtn.title = min ? 'Tampilkan video (V)' : 'Sembunyikan video (V) — musik tetap jalan';
+    vBtn.setAttribute('aria-label', min ? 'Tampilkan video' : 'Sembunyikan video');
     vBtn.setAttribute('aria-pressed', String(!min));
-  }
+  });
   const sizeIcon = icon(large ? 'shrink' : 'expand');
   $('stage-size').innerHTML = sizeIcon;
   $('stage-size').title = large ? 'Perkecil video' : 'Perbesar video';

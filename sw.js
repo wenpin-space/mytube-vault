@@ -1,13 +1,13 @@
 // Service worker: menyimpan "kerangka" aplikasi supaya bisa dibuka offline dan dipasang di Android.
 // Data playlist TIDAK lewat sini (ada di LocalStorage); YouTube & GitHub selalu langsung ke jaringan.
 
-const VERSION = 'v16';
+const VERSION = 'v17';
 const CACHE = `mytube-vault-${VERSION}`;
 const SHELL = [
   './',
   'index.html',
   'manifest.webmanifest',
-  'css/style.css', 'css/style.css?v=16', 'js/main.js?v=16',
+  'css/style.css', 'css/style.css?v=17', 'js/main.js?v=17',
   'js/main.js', 'js/store.js', 'js/sync.js', 'js/gist.js', 'js/envelope.js', 'js/crypto.js',
   'js/player.js', 'js/parser.js', 'js/metadata.js', 'js/ui.js', 'js/dialogs.js',
   'js/settings.js', 'js/utils.js', 'js/icons.js', 'js/mobile.js', 'js/sources.js', 'js/share.js', 'js/stats.js', 'js/lyrics.js', 'js/tint.js', 'js/palette.js',

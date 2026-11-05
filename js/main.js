@@ -858,6 +858,7 @@ function showShortcuts() {
       ${k(['M'], 'Bisukan / bunyikan')}
       ${k(['S'], 'Acak aktif / mati')}${k(['R'], 'Ganti mode ulangi')}${k(['L'], 'Ulangi lagu ini (loop)')}
       ${k(['Y'], 'Tampilkan / tutup lirik')}
+      ${k(['V'], 'Tampilkan / sembunyikan video')}
       ${k(['[', ']'], 'Geser waktu lirik −/+ 0,5 detik')}
       ${k(['/'], 'Cari di library')}
       ${k(['Ctrl', 'A'], 'Pilih semua (saat mode pilih)')}
@@ -900,6 +901,14 @@ function toggleQueue(force) {
     document.body.classList.toggle('queue-open', on);
     ui.renderQueue(player, store);
   });
+}
+
+/** Tampilkan / sembunyikan video. Bawaan: tersembunyi — cukup player di bawah, musik tetap jalan. */
+function toggleVideo(force) {
+  const hidden = store.ui.stageMin !== false;
+  const show = force !== undefined ? force : hidden;
+  store.ui.stageMin = !show;
+  store.saveUi();
 }
 
 function toggleLyrics(force) {
@@ -1063,11 +1072,11 @@ document.addEventListener('click', async (e) => {
     case 'stage-toggle':
       if (isPhone()) { openNowPlaying(!document.body.classList.contains('np-open')); break; }
       // Saat video sedang diminimalkan, tombol perbesar langsung menampilkan video dalam ukuran besar.
-      if (store.ui.stageMin) { store.ui.stageMin = false; store.ui.stageLarge = true; } else store.ui.stageLarge = !store.ui.stageLarge;
+      if (store.ui.stageMin !== false) { store.ui.stageMin = false; store.ui.stageLarge = true; } else store.ui.stageLarge = !store.ui.stageLarge;
       store.saveUi();
       break;
     case 'stage-close': openNowPlaying(false); player.stop(); toggleQueue(false); break;
-    case 'stage-min': store.ui.stageMin = !store.ui.stageMin; store.saveUi(); break;
+    case 'stage-min': toggleVideo(); break;
     case 'queue-toggle': toggleQueue(); break;
     case 'queue-jump': player.jumpTo(Number(el.dataset.pos)); break;
     case 'thumb-queue':
@@ -1177,7 +1186,7 @@ enableTouchReorder($('video-list'), {
     stage.classList.remove('dragging');
     stage.style.left = ''; stage.style.top = ''; stage.style.right = ''; stage.style.bottom = '';
     if (!d.moved) {
-      if (store.ui.stageMin) { store.ui.stageMin = false; store.saveUi(); } // ketuk bilah saat diminimize = tampilkan lagi
+      if (store.ui.stageMin !== false) { store.ui.stageMin = false; store.saveUi(); } // ketuk bilah saat diminimize = tampilkan lagi
       return;
     }
     // Tempel ke pojok terdekat.
@@ -1364,6 +1373,7 @@ document.addEventListener('keydown', (e) => {
       return;
     }
     case 'y': case 'Y': toggleLyrics(); return;
+    case 'v': case 'V': if (player.current) toggleVideo(); return;
     case '[': if (!$('lyrics-panel').hidden) { lyricsPanel.nudge(-0.5); } return;
     case ']': if (!$('lyrics-panel').hidden) { lyricsPanel.nudge(0.5); } return;
     case 's': case 'S': store.setPlayerSetting('shuffle', !store.data.settings.player.shuffle); toast(store.data.settings.player.shuffle ? 'Acak aktif' : 'Acak mati'); return;

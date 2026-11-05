@@ -1217,7 +1217,6 @@ body.lyrics-open .add-panel.floating { visibility: hidden; }
   body.has-player > .toasts { bottom: calc(var(--nav-h) + 72px + var(--safe-b) + var(--stage-space, 0px)); }
 
   /* video yang di-minimize disembunyikan (musik tetap jalan); munculkan lagi lewat ikon video di mini player */
-  body:not(.np-open) .stage.min { opacity: 0; pointer-events: none; }
   /* kartu video melayang yang terbuka */
   body:not(.np-open) .stage:not(.min) { right: 8px; bottom: calc(var(--nav-h) + var(--safe-b) + 74px); width: min(280px, 72vw); border-radius: 14px; }
   body:not(.np-open) .stage:not(.min) #stage-size { display: none; }
@@ -1240,3 +1239,9 @@ body.lyrics-open .add-panel.floating { visibility: hidden; }
   body.np-open .np-upnext .q-row { border-radius: 10px; }
   body.np-open .np-extra .btn { border-radius: 999px; }
 }
+
+/* ===================== Video disembunyikan secara bawaan (PC & HP) — v17 ===================== */
+/* Saat disembunyikan, kotak video tetap ada (supaya musik tidak berhenti) tapi tidak terlihat & tidak bisa diklik. */
+.stage { transition: width .2s, right .2s, opacity .2s, transform .2s; }
+body:not(.np-open) .stage.min { opacity: 0; pointer-events: none; transform: translateY(10px) scale(.97); }
+.dock-video-d.on, .dock-extra [data-video-toggle].on { color: var(--np-accent, var(--accent)); }
