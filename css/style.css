@@ -1245,3 +1245,56 @@ body.lyrics-open .add-panel.floating { visibility: hidden; }
 .stage { transition: width .2s, right .2s, opacity .2s, transform .2s; }
 body:not(.np-open) .stage.min { opacity: 0; pointer-events: none; transform: translateY(10px) scale(.97); }
 .dock-video-d.on, .dock-extra [data-video-toggle].on { color: var(--np-accent, var(--accent)); }
+
+/* ===================== v18: tidak tersedia, mix ===================== */
+.tag-warn { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); font-weight: 650; }
+.vrow:has(.tag-warn) .thumb img { filter: grayscale(.8); opacity: .6; }
+
+/* ===================== v18: mulai cepat ===================== */
+.quickstart { margin: 0 0 18px; padding: 14px 16px 10px; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 10%, var(--panel)), var(--panel) 60%); }
+.qs-head { display: flex; align-items: center; gap: 12px; }
+.qs-ic { display: grid; place-items: center; width: 36px; height: 36px; flex: none; border-radius: 10px; background: var(--accent); color: #fff; }
+.qs-ic .i { width: 20px; height: 20px; }
+.qs-title { display: flex; flex-direction: column; min-width: 0; }
+.qs-title b { font-size: 15.5px; }
+.qs-bar { flex: 1; max-width: 220px; height: 6px; margin-left: auto; border-radius: 6px; background: var(--panel-3); overflow: hidden; }
+.qs-bar i { display: block; height: 100%; border-radius: 6px; background: var(--accent); transition: width .4s; }
+.qs-steps { list-style: none; margin: 10px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px 14px; }
+.qs-steps li { display: flex; align-items: center; gap: 10px; padding: 8px 6px; border-radius: 10px; }
+.qs-steps li.done { opacity: .6; }
+.qs-steps li.done b { text-decoration: line-through; text-decoration-thickness: 1px; }
+.qs-check { display: grid; color: var(--muted); flex: none; }
+.qs-steps li.done .qs-check { color: var(--ok); }
+.qs-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.35; }
+.qs-text b { font-size: 14px; font-weight: 650; }
+@media (max-width: 640px) {
+  .quickstart { padding: 12px 12px 8px; }
+  .qs-bar { display: none; }
+  .qs-head .icon-btn { margin-left: auto; }
+  .qs-steps { grid-template-columns: 1fr; }
+}
+
+/* ===================== v18: cek kesehatan, export, terjemahan, tema ===================== */
+.hc-progress { display: flex; align-items: center; gap: 10px; margin: 12px 0; }
+.hc-bar { flex: 1; height: 8px; border-radius: 8px; background: var(--panel-3); overflow: hidden; }
+.hc-bar i { display: block; height: 100%; background: var(--accent); transition: width .25s; }
+.hc-ok { display: flex; align-items: center; gap: 8px; color: var(--ok); font-weight: 650; }
+.hc-h { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; font-size: 15px; }
+.hc-h .i { width: 18px; height: 18px; color: var(--warn); }
+.hc-list { margin: 0 0 8px; padding-left: 20px; max-height: 180px; overflow-y: auto; font-size: 13.5px; }
+.hc-actions { flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.export-text { width: 100%; box-sizing: border-box; margin-top: 8px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; }
+.lyr-tr { display: block; margin-top: 2px; font-size: .62em; font-weight: 500; line-height: 1.35; opacity: .75; letter-spacing: 0; }
+.lyrics-lines.plain .lyr-tr { font-size: .85em; font-style: italic; }
+.ls-tr { display: inline-flex; align-items: center; gap: 6px; }
+.ls-tr .i { width: 15px; height: 15px; }
+.ls-tr.on-soft { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+.lyrics-view .ls-tr.on-soft { background: rgba(255, 255, 255, .22); }
+.tr-note { color: inherit; opacity: .75; }
+.tr-note a { color: inherit; text-decoration: underline; }
+.lyrics-view .lyrics-meta { align-items: center; }
+.theme-btn { flex: none; }
+@media (max-width: 640px) { .theme-btn { display: none; } }
+.wn-list li { align-items: flex-start; }
+.theme-btn + .sync-badge { margin-left: 0; }

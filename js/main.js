@@ -14,11 +14,13 @@ import * as ui from './ui.js';
 import { icon } from './icons.js';
 import { applyTint } from './tint.js';
 import { openPalette } from './palette.js';
+import { healthCheckDialog } from './health.js';
+import { renderQuickstart, maybeShowWhatsNew, showWhatsNew } from './onboard.js';
 import { sortEntries, filterEntries, quickFilter, QUICK_FILTERS, animateOut, copyText, downloadText, escapeHtml, slugify, formatDuration } from './utils.js';
 import {
   isPhone, overlay, enableTouchReorder, setupPwa, promptInstall, isStandalone, takeLaunchParams,
 } from './mobile.js';
-import { libraryPicker, ytSearchDialog, youtubeAppUrl, ytPlaylistImportDialog, audioVersionDialog } from './sources.js';
+import { libraryPicker, ytSearchDialog, youtubeAppUrl, ytPlaylistImportDialog, audioVersionDialog, getApiKey } from './sources.js';
 import { buildSharePayload, encodeShare, decodeShare, shareUrl, takeShareFromUrl } from './share.js';
 import { logPlay, addListen, openStatsDialog } from './stats.js';
 import { createLyricsPanel, guessArtistTrack, rememberLyrics } from './lyrics.js';
@@ -44,7 +46,7 @@ const metaQueue = createMetaQueue((id, meta) => {
 // ---------- helper view ----------
 function currentSort() {
   const v = store.ui.view;
-  return store.ui.sort[v] || (v.startsWith('pl:') || v === 'history' ? 'manual' : 'addedNewest');
+  return store.ui.sort[v] || (v.startsWith('pl:') || v === 'history' || v === 'mix' ? 'manual' : 'addedNewest');
 }
 function canReorder() {
   return store.ui.view.startsWith('pl:') && currentSort() === 'manual' && !local.query.trim() && !local.qf;
@@ -93,6 +95,8 @@ function render() {
   ui.renderSidebar(store);
   renderAddTarget();
   renderMain();
+  renderQS();
+  renderThemeBtn();
   ui.renderBanner(store, sync);
   ui.renderSyncBadge(sync, store);
   ui.renderDock(player, store, dockOpts());
@@ -100,6 +104,25 @@ function render() {
   renderBottomNav();
   renderSelectBar();
   local.lastView = store.ui.view;
+}
+
+function renderQS() {
+  const vids = Object.values(store.data.videos);
+  renderQuickstart($('quickstart'), {
+    videos: vids.length,
+    played: vids.some((v) => v.lastPlayedAt),
+    apiKey: !!getApiKey(),
+    cloud: !!store.cloud.connected,
+    standalone: isStandalone(),
+    dismissed: !!store.ui.qsDone,
+  }, { installable: local.installable });
+}
+
+function renderThemeBtn() {
+  const t = store.ui.theme || 'auto';
+  const b = $('theme-btn');
+  b.innerHTML = icon({ auto: 'contrast', light: 'sun', dark: 'moon' }[t] || 'contrast');
+  b.title = `Tema: ${{ auto: 'ikuti sistem', light: 'terang', dark: 'gelap' }[t] || 'ikuti sistem'} — klik untuk ganti`;
 }
 
 function dockOpts() {
@@ -143,6 +166,10 @@ function renderMain() {
     hint.hidden = false;
     hint.innerHTML = `${icon('sort')}<span>Urutan otomatis aktif (tampilan saja — urutan asli tidak berubah).</span>
       <button type="button" class="link-btn" data-action="sort-manual">Kembali ke urutan manual</button>`;
+  } else if (view === 'mix' && all.length) {
+    hint.hidden = false;
+    hint.innerHTML = `${icon('sparkle')}<span>Dipilih dari library-mu berdasarkan lagu, channel, dan tag yang sering kamu putar. Berganti tiap hari.</span>
+      <button type="button" class="link-btn" data-action="play-all">Putar mix</button>`;
   } else {
     hint.hidden = true;
   }
@@ -414,6 +441,60 @@ function openItemMenu(anchor, entry) {
   ]);
 }
 
+/** Export daftar lagu (Artis – Judul) untuk dipindahkan ke Spotify/Apple Music lewat TuneMyMusic/Soundiiz. */
+function exportForStreaming(name, entries) {
+  const rows = entries.map((e) => {
+    const v = e.video;
+    const g = guessArtistTrack(v.title || '', v.channel || '');
+    return { artist: g.artist, track: g.track || v.title || '', url: watchUrl(e.youtubeId) };
+  }).filter((r) => r.track);
+  const text = rows.map((r) => (r.artist ? `${r.artist} - ${r.track}` : r.track)).join('\n');
+  const q = (x) => `"${String(x).replace(/"/g, '""')}"`;
+  const csv = ['Track name,Artist name,YouTube URL', ...rows.map((r) => [q(r.track), q(r.artist), q(r.url)].join(','))].join('\n');
+  const file = slugify(name) || 'playlist';
+  modal({
+    title: 'Export untuk Spotify / Apple Music',
+    wide: true,
+    body: `<p class="muted">${rows.length} lagu dari <b>${escapeHtml(name)}</b>. Judul video dibersihkan jadi <i>Artis - Judul</i> supaya mudah dicocokkan.</p>
+      <ol class="steps">
+        <li>Salin daftar di bawah, atau download sebagai CSV.</li>
+        <li>Buka <a href="https://www.tunemymusic.com/transfer" target="_blank" rel="noopener">TuneMyMusic</a> atau <a href="https://soundiiz.com" target="_blank" rel="noopener">Soundiiz</a> (gratis untuk playlist kecil), pilih sumber <b>Teks / File</b>, lalu tempel atau unggah.</li>
+        <li>Pilih tujuan Spotify / Apple Music / YouTube Music dan login di sana. Aplikasi ini tidak pernah melihat akunmu.</li>
+      </ol>
+      <textarea class="export-text" rows="10" readonly>${escapeHtml(text)}</textarea>`,
+    actions: [
+      { label: 'Download CSV', value: 'csv' },
+      { label: 'Salin daftar', value: 'copy', variant: 'primary' },
+    ],
+  }).then(async (v) => {
+    if (v === 'copy') toast((await copyText(text)) ? 'Daftar lagu disalin. Tempel di TuneMyMusic.' : 'Gagal menyalin.', 'success');
+    if (v === 'csv') downloadText(`${file}-untuk-spotify.csv`, csv, 'text/csv');
+  });
+}
+
+/** Periksa video rusak di view sekarang (playlist atau koleksi). */
+function checkHealth() {
+  const pl = store.currentPlaylist();
+  const entries = store.viewEntries();
+  if (!entries.length) { toast('Tidak ada video untuk diperiksa.'); return; }
+  healthCheckDialog(store, {
+    title: pl ? pl.name : ui.viewTitle(store.ui.view) || 'library',
+    ids: [...new Set(entries.map((e) => e.youtubeId))],
+    apiKey: getApiKey(),
+    onShow: () => { local.qf = 'unavail'; renderMain(); window.scrollTo({ top: 0 }); },
+    onRemove: (gone) => {
+      const set = new Set(gone);
+      if (pl) {
+        const removed = store.removeItems(pl.id, pl.items.filter((it) => set.has(it.youtubeId)).map((it) => it.itemId));
+        return removed.length;
+      }
+      store.snapshot();
+      store.deleteVideos(gone);
+      return gone.length;
+    },
+  });
+}
+
 async function deleteFromLibrary(entry) {
   const v = entry.video;
   if (await confirmDialog('Hapus dari library?', `“${v.title || v.youtubeId}” akan dihapus dari library dan dari semua playlist.`, { ok: 'Hapus', danger: true })) {
@@ -463,6 +544,8 @@ function openPlaylistMenu(anchor) {
           if (await confirmDialog('Hapus riwayat?', 'Daftar lagu yang pernah diputar dan jumlah putarnya dikosongkan. Video tetap ada di library.', { ok: 'Hapus', danger: true })) store.clearHistory();
         },
       },
+      { label: 'Periksa video rusak…', icon: 'heartPulse', disabled: !viewIds().length, action: () => checkHealth() },
+      { label: 'Export untuk Spotify / Apple Music…', icon: 'upload', disabled: !viewIds().length, action: () => exportForStreaming(ui.viewTitle(store.ui.view) || 'library', store.viewEntries()) },
       {
         label: 'Salin semua link', icon: 'copy', disabled: !viewIds().length,
         action: async () => toast((await copyText(viewIds().map(watchUrl).join('\n'))) ? 'Link disalin.' : 'Gagal menyalin.'),
@@ -480,6 +563,8 @@ function openPlaylistMenu(anchor) {
     'sep',
     { label: 'Putar di aplikasi YouTube', icon: 'external', disabled: !pl.items.length, action: () => playInYouTubeApp(viewIds()) },
     { label: 'Pilih beberapa…', icon: 'checks', disabled: !pl.items.length, action: () => startSelect() },
+    { label: 'Periksa video rusak…', icon: 'heartPulse', disabled: !pl.items.length, action: () => checkHealth() },
+    { label: 'Export untuk Spotify / Apple Music…', icon: 'upload', disabled: !pl.items.length, action: () => exportForStreaming(pl.name, store.viewEntries()) },
     'sep',
     { label: 'Duplikat playlist', icon: 'copyPlus', action: () => { const c = store.duplicatePlaylist(pl.id); if (c) toast(`Dibuat “${c.name}”.`, 'success'); } },
     store.data.playlists.indexOf(pl) > 0 && { label: 'Naikkan di daftar playlist', icon: 'up', action: () => store.movePlaylist(pl.id, -1) },
@@ -818,6 +903,10 @@ function openPlayerMenu(anchor) {
     player.current && { label: 'Tambah ke playlist…', icon: 'plus', action: () => addToOther({ youtubeId: player.current.youtubeId, playlistId: null }) },
     { label: 'Putar di aplikasi YouTube', icon: 'external', action: () => playInYouTubeApp(currentQueueIds()) },
     {
+      label: `Transisi halus antar lagu: ${store.ui.fade === true ? 'aktif' : 'mati'}`, icon: 'volume',
+      action: () => { store.ui.fade = store.ui.fade !== true; store.saveUi(); toast(store.ui.fade ? 'Transisi halus aktif: volume turun di akhir lagu dan naik di awal lagu berikutnya.' : 'Transisi halus mati.', 'info', 5000); },
+    },
+    {
       label: `Warna ikut lagu: ${store.ui.tint !== false ? 'aktif' : 'mati'}`, icon: 'contrast',
       action: () => {
         store.ui.tint = store.ui.tint === false;
@@ -859,6 +948,7 @@ function showShortcuts() {
       ${k(['S'], 'Acak aktif / mati')}${k(['R'], 'Ganti mode ulangi')}${k(['L'], 'Ulangi lagu ini (loop)')}
       ${k(['Y'], 'Tampilkan / tutup lirik')}
       ${k(['V'], 'Tampilkan / sembunyikan video')}
+      ${k(['Q'], 'Buka / tutup antrean')}${k(['F'], 'Favoritkan lagu yang diputar')}
       ${k(['[', ']'], 'Geser waktu lirik −/+ 0,5 detik')}
       ${k(['/'], 'Cari di library')}
       ${k(['Ctrl', 'A'], 'Pilih semua (saat mode pilih)')}
@@ -1005,6 +1095,18 @@ document.addEventListener('click', async (e) => {
     case 'player-menu': openPlayerMenu(el); break;
     case 'lyrics-toggle': toggleLyrics(); break;
     case 'density': setDensity(el.dataset.d); break;
+    case 'qs-dismiss':
+      store.ui.qsDone = true; store.saveUi();
+      toast('Panduan disembunyikan. Buka lagi lewat Ctrl+K → “Panduan mulai cepat”.', 'info', 6000);
+      break;
+    case 'whats-new': closeSidebar(); showWhatsNew(); break;
+    case 'theme-cycle': {
+      const nx = { auto: 'dark', dark: 'light', light: 'auto' };
+      store.ui.theme = nx[store.ui.theme || 'auto'] || 'dark';
+      store.saveUi();
+      toast({ auto: 'Tema: ikuti sistem', dark: 'Tema: gelap', light: 'Tema: terang' }[store.ui.theme], 'info', 1800);
+      break;
+    }
     case 'palette': openCommandPalette(); break;
     case 'qf':
       local.qf = local.qf === el.dataset.qf ? '' : el.dataset.qf;
@@ -1374,6 +1476,8 @@ document.addEventListener('keydown', (e) => {
     }
     case 'y': case 'Y': toggleLyrics(); return;
     case 'v': case 'V': if (player.current) toggleVideo(); return;
+    case 'q': case 'Q': toggleQueue(); return;
+    case 'f': case 'F': if (player.current) { store.toggleFavorite(player.current.youtubeId); toast(store.data.videos[player.current.youtubeId]?.favorite ? 'Ditambahkan ke favorit' : 'Dihapus dari favorit'); } return;
     case '[': if (!$('lyrics-panel').hidden) { lyricsPanel.nudge(-0.5); } return;
     case ']': if (!$('lyrics-panel').hidden) { lyricsPanel.nudge(0.5); } return;
     case 's': case 'S': store.setPlayerSetting('shuffle', !store.data.settings.player.shuffle); toast(store.data.settings.player.shuffle ? 'Acak aktif' : 'Acak mati'); return;
@@ -1465,6 +1569,9 @@ player.on((type, data) => {
   if (type === 'track' && !data) openNowPlaying(false);
   if (type === 'track') applyTint(player.current ? player.current.youtubeId : null, store.ui.tint !== false);
   if ((type === 'track' || type === 'playing') && !$('lyrics-panel').hidden) lyricsPanel.load();
+  if (type === 'error' && data && data.id && (data.code === 100 || data.code === 101 || data.code === 150)) {
+    store.setAvailability({ [data.id]: data.code === 100 ? 'gone' : 'embed' });
+  }
   if (type === 'error') toast(data && data.skipping ? `${player.error} Melewati ke video berikutnya…` : player.error, 'error', 5000);
   ui.renderDock(player, store);
   ui.renderQueue(player, store);
@@ -1531,7 +1638,7 @@ function fire(action, data = {}) {
 
 function openCommandPalette() {
   const go = (view) => () => { closeSidebar(); store.setView(view); local.query = ''; $('search').value = ''; window.scrollTo({ top: 0 }); };
-  const views = [['all', 'Semua video', 'grid'], ['favorites', 'Favorit', 'heart'], ['unwatched', 'Belum ditonton', 'checkCircle'], ['history', 'Riwayat', 'history']];
+  const views = [['all', 'Semua video', 'grid'], ['mix', 'Mix untukmu', 'sparkle'], ['favorites', 'Favorit', 'heart'], ['unwatched', 'Belum ditonton', 'checkCircle'], ['history', 'Riwayat', 'history']];
   const cur = store.ui.view;
   const items = [
     ...store.data.playlists.map((p) => ({ group: 'Playlist', label: p.name, hint: `${p.items.length} lagu${`pl:${p.id}` === cur ? ' · dibuka' : ''}`, icon: 'music', run: go(`pl:${p.id}`) })),
@@ -1552,6 +1659,9 @@ function openCommandPalette() {
     { group: 'Lainnya', label: 'Setelan', icon: 'settings', keywords: 'settings pengaturan', run: () => openSettings('general') },
     { group: 'Lainnya', label: 'Cloud Sync', icon: 'cloud', keywords: 'gist sync', hideEmpty: true, run: () => openSettings('cloud') },
     { group: 'Lainnya', label: 'Backup & export', icon: 'upload', keywords: 'backup export import', hideEmpty: true, run: () => openSettings('backup') },
+    { group: 'Lainnya', label: 'Panduan mulai cepat', icon: 'sparkle', keywords: 'onboarding tutorial panduan', run: () => { store.ui.qsDone = false; store.saveUi(); window.scrollTo({ top: 0 }); } },
+    { group: 'Lainnya', label: 'Apa yang baru', icon: 'gift', keywords: 'changelog update whats new', hideEmpty: true, run: () => showWhatsNew() },
+    { group: 'Aksi', label: 'Periksa video rusak', icon: 'heartPulse', keywords: 'health dihapus privat broken', run: () => checkHealth() },
     { group: 'Lainnya', label: 'Pintasan keyboard', icon: 'keyboard', keywords: 'shortcut', hideEmpty: true, run: () => showShortcuts() },
   ].filter(Boolean);
   const all = store.viewEntries('all');
@@ -1599,6 +1709,35 @@ async function findAudioVersion(info = {}) {
   if (entry) playFromEntry(entry); else playVideoById(res.id);
   toast(res.mode === 'after' ? 'Versi audio ditambahkan setelah MV dan sedang diputar.' : 'Diganti ke versi audio. MV tetap ada di Semua video.', 'success', 6000);
 }
+// ---------- transisi halus antar lagu (fade out di akhir, fade in di awal) ----------
+// Player YouTube hanya satu, jadi crossfade sejati tidak mungkin; yang bisa: volume turun pelan
+// di detik-detik terakhir lalu naik pelan di awal lagu berikutnya.
+const FADE_OUT = 4;
+const FADE_IN = 2;
+const fade = { base: null, applied: null };
+setInterval(() => {
+  if (store.ui.fade !== true || !player.current || !player.isPlaying) {
+    if (fade.applied != null && fade.base != null) { player.setVolume(fade.base); fade.applied = null; }
+    return;
+  }
+  if (player.isMuted()) return;
+  const t = player.time();
+  const d = player.duration();
+  if (!d || d < 20) return;
+  const left = d - t;
+  let factor = 1;
+  if (left < FADE_OUT) factor = Math.max(0.05, left / FADE_OUT);
+  else if (t < FADE_IN) factor = Math.max(0.15, t / FADE_IN);
+  if (factor >= 1) {
+    if (fade.applied != null) { player.setVolume(fade.base); fade.applied = null; }
+    else fade.base = player.volume(); // ikuti volume yang diatur pengguna
+    return;
+  }
+  if (fade.base == null) fade.base = player.volume();
+  const v = Math.round(fade.base * factor);
+  if (v !== fade.applied) { player.setVolume(v); fade.applied = v; }
+}, 150);
+
 // Sorot lirik lebih rapat (±0,2 dtk) selama panel lirik terbuka dan lagu berjalan.
 setInterval(() => {
   if (player.isPlaying && !$('lyrics-panel').hidden && document.visibilityState === 'visible') lyricsPanel.tick(player.time());
@@ -1657,7 +1796,8 @@ async function onboarding() {
         <li>${icon('link')}<span>Tempel link YouTube (satu atau banyak sekaligus) untuk menambah video.</span></li>
         <li>${icon('music')}<span>Banyak playlist, urutan manual atau otomatis, player dengan shuffle, repeat, dan antrean.</span></li>
         <li>${icon('cloud')}<span>Opsional: backup otomatis ke GitHub Gist private milikmu, lengkap dengan riwayat versi dan enkripsi.</span></li>
-      </ul>`,
+      </ul>
+      <p class="muted small">Ikuti kartu <b>Mulai cepat</b> di halaman utama. Langkahnya tercentang sendiri begitu selesai.</p>`,
     actions: [{ label: 'Mulai tanpa cloud', value: 'local' }, { label: 'Aktifkan cloud backup', value: 'cloud', variant: 'primary' }],
     dismissValue: 'local',
   });
@@ -1688,10 +1828,13 @@ render();
 const missing = Object.values(store.data.videos).filter((v) => !v.title).map((v) => v.youtubeId).slice(0, 50);
 if (missing.length) metaQueue.add(missing);
 setupPwa((available) => {
-  document.querySelectorAll('[data-action=install-app]').forEach((b) => { b.hidden = !available || isStandalone(); });
+  local.installable = !!available && !isStandalone();
+  document.querySelectorAll('.install-btn').forEach((b) => { b.hidden = !available || isStandalone(); });
+  renderQS();
 }, () => toast('Versi baru MyTube Vault tersedia.', 'info', 15000, { label: 'Muat ulang', fn: () => location.reload() }));
 document.body.classList.toggle('standalone', isStandalone());
 const shareCode = takeShareFromUrl();
 const launched = handleLaunch() || !!shareCode;
 if (shareCode) receiveShare(shareCode);
 if (store.isFresh && !launched) onboarding();
+maybeShowWhatsNew({ fresh: store.isFresh || launched });

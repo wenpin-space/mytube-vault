@@ -7,7 +7,7 @@ import { SORT_MODES } from './store.js';
 
 const $ = (id) => document.getElementById(id);
 
-const VIEW_TITLES = { all: 'Semua video', favorites: 'Favorit', unwatched: 'Belum ditonton', history: 'Riwayat' };
+const VIEW_TITLES = { all: 'Semua video', mix: 'Mix untukmu', favorites: 'Favorit', unwatched: 'Belum ditonton', history: 'Riwayat' };
 export const viewTitle = (v) => VIEW_TITLES[v] || '';
 
 const SYNC_UI = {
@@ -40,9 +40,10 @@ export function renderSidebar(store) {
     favorites: all.filter((v) => v.favorite).length,
     unwatched: all.filter((v) => !v.watched).length,
     history: all.filter((v) => v.lastPlayedAt).length,
+    mix: Math.min(50, all.filter((v) => v.unavailable !== 'gone').length),
   };
   const v = store.ui.view;
-  const smart = [['all', 'grid'], ['favorites', 'heart'], ['unwatched', 'clock'], ['history', 'history']];
+  const smart = [['all', 'grid'], ['mix', 'sparkle'], ['favorites', 'heart'], ['unwatched', 'clock'], ['history', 'history']];
   $('smart-nav').innerHTML = smart.map(([id, ic]) => navItem(id, VIEW_TITLES[id], ic, counts[id], v === id)).join('');
   $('playlist-nav').innerHTML = store.data.playlists
     .map((p) => navItem(`pl:${p.id}`, p.name, 'music', p.items.length, v === `pl:${p.id}`))
@@ -66,7 +67,7 @@ export function renderViewHead(store, info) {
   const countText = info.filtered ? `${info.visible} dari ${info.total} video` : `${info.total} video`;
   const dur = formatTotal(info.duration);
   const options = SORT_MODES.map(([k, l]) => {
-    const label = !pl && k === 'manual' ? (store.ui.view === 'history' ? 'Terakhir diputar' : 'Urutan ditambahkan') : l;
+    const label = !pl && k === 'manual' ? (store.ui.view === 'history' ? 'Terakhir diputar' : store.ui.view === 'mix' ? 'Rekomendasi' : 'Urutan ditambahkan') : l;
     return `<option value="${k}"${k === info.sort ? ' selected' : ''}>${label}</option>`;
   }).join('');
   $('view-head').innerHTML = `
@@ -146,7 +147,7 @@ function row(e, i, opt) {
   const fresh = opt.flashKeys && opt.flashKeys.has(e.youtubeId);
   const part = opt.progress ? opt.progress(v.youtubeId, v.duration) : 0;
   const prog = v.watched ? 1 : part > 0.02 ? part : 0;
-  const sub = opt.view === 'history' && v.lastPlayedAt ? `diputar ${timeAgo(v.lastPlayedAt)}${v.playCount > 1 ? ` · ${v.playCount}×` : ''}` : timeAgo(e.addedAt);
+  const sub = opt.view === 'mix' && e.reason ? e.reason : opt.view === 'history' && v.lastPlayedAt ? `diputar ${timeAgo(v.lastPlayedAt)}${v.playCount > 1 ? ` · ${v.playCount}×` : ''}` : timeAgo(e.addedAt);
   return `<li class="vrow${playing ? ' playing' : ''}${v.watched ? ' watched' : ''}${picked ? ' selected' : ''}${fresh ? ' flash' : ''}" data-key="${escapeHtml(e.key)}"${reorder ? ' draggable="true"' : ''}${sel ? ` aria-selected="${picked}"` : ''}>
     ${sel ? `<span class="pick" data-action="select-toggle" role="checkbox" aria-checked="${picked}" aria-label="Pilih">${icon(picked ? 'checkCircle' : 'circle')}</span>` : ''}
     ${reorder ? `<span class="grip" title="Geser untuk mengubah urutan">${icon('grip')}</span>` : ''}
@@ -165,7 +166,7 @@ function row(e, i, opt) {
     </div>
     <div class="meta" data-action="play">
       ${loading ? '<div class="title"><span class="sk sk-line" style="width:70%"></span></div>' : `<div class="title${v.title ? '' : ' untitled'}" title="${escapeHtml(v.title || '')}">${highlight(title, opt.query)}</div>`}
-      <div class="sub">${v.channel ? `<span>${highlight(v.channel, opt.query)}</span>` : ''}<span class="when">${sub}</span>${v.duration ? `<span class="c-dur">${formatDuration(v.duration)}</span>` : ''}${v.watched ? '<span class="tag">ditonton</span>' : ''}${(v.tags || []).slice(0, 4).map((t) => `<button type="button" class="tag tag-user" data-action="tag-open" data-tag="${escapeHtml(t)}">#${escapeHtml(t)}</button>`).join('')}</div>
+      <div class="sub">${v.channel ? `<span>${highlight(v.channel, opt.query)}</span>` : ''}<span class="when">${sub}</span>${v.duration ? `<span class="c-dur">${formatDuration(v.duration)}</span>` : ''}${v.unavailable ? `<span class="tag tag-warn" title="${v.unavailable === 'gone' ? 'Video dihapus, privat, atau tidak ditemukan di YouTube' : 'Pemilik video tidak mengizinkan diputar di luar YouTube'}">${v.unavailable === 'gone' ? 'tidak tersedia' : 'hanya di YouTube'}</span>` : ''}${v.watched ? '<span class="tag">ditonton</span>' : ''}${(v.tags || []).slice(0, 4).map((t) => `<button type="button" class="tag tag-user" data-action="tag-open" data-tag="${escapeHtml(t)}">#${escapeHtml(t)}</button>`).join('')}</div>
     </div>
     <div class="row-actions">
       <button type="button" class="icon-btn fav${v.favorite ? ' on' : ''}" data-action="fav" aria-label="Favorit" aria-pressed="${v.favorite}" title="Favorit">${icon('heart', v.favorite ? 'fill' : '')}</button>
@@ -237,7 +238,7 @@ export function renderBanner(store, sync) {
     html = banner('warn', 'lock', 'Backup terenkripsi butuh passphrase untuk sinkron.', 'banner-resolve', 'Masukkan passphrase');
   } else if (c.connected && sync.status === 'error') {
     html = banner('err', 'alert', `Sinkron gagal: ${sync.message}`, 'banner-settings', 'Lihat detail');
-  } else if (!c.connected && !store.ui.bannerDismissed && Object.keys(store.data.videos).length > 0) {
+  } else if (!c.connected && !store.ui.bannerDismissed && Object.keys(store.data.videos).length > 0 && $('quickstart').hidden) {
     html = banner('info', 'cloud', 'Playlist-mu baru tersimpan di browser ini. Aktifkan backup otomatis ke GitHub Gist supaya tidak hilang saat cache dibersihkan atau ganti perangkat.', 'banner-settings', 'Aktifkan', true);
   }
   $('banner').innerHTML = html;
@@ -273,17 +274,18 @@ export function renderDock(player, store, opts = {}) {
   const play = $('dock-play');
   play.innerHTML = icon(player.isPlaying ? 'pause' : 'play', 'fill');
   play.setAttribute('aria-label', player.isPlaying ? 'Jeda' : 'Putar');
+  play.title = `${player.isPlaying ? 'Jeda' : 'Putar'} (Spasi)`;
 
   const sh = $('dock-shuffle');
   sh.innerHTML = icon('shuffle');
   sh.classList.toggle('on', player.shuffle);
   sh.setAttribute('aria-pressed', String(player.shuffle));
-  sh.title = player.shuffle ? 'Acak: aktif' : 'Acak: mati';
+  sh.title = `${player.shuffle ? 'Acak: aktif' : 'Acak: mati'} (S)`;
 
   const rp = $('dock-repeat');
   rp.innerHTML = icon(player.repeat === 'one' ? 'repeatOne' : 'repeat');
   rp.classList.toggle('on', player.repeat !== 'off');
-  rp.title = { off: 'Ulangi: mati', all: 'Ulangi: semua', one: 'Ulangi: satu video' }[player.repeat];
+  rp.title = `${{ off: 'Ulangi: mati', all: 'Ulangi: semua', one: 'Ulangi: satu video' }[player.repeat]} (R, L = ulangi lagu ini)`;
 
   const sleep = $('dock-sleep');
   const info = [];
@@ -295,6 +297,7 @@ export function renderDock(player, store, opts = {}) {
   const fav = $('dock-fav');
   fav.innerHTML = icon('heart', v && v.favorite ? 'fill' : '');
   fav.classList.toggle('on', !!(v && v.favorite));
+  fav.title = `${v && v.favorite ? 'Hapus dari favorit' : 'Favorit'} (F)`;
 
   const large = !!store.ui.stageLarge;
   const min = store.ui.stageMin !== false; // bawaan: video disembunyikan
@@ -412,7 +415,7 @@ export function renderQuickFilters(all, { active, view, filters, tags }) {
   const box = $('quick-filters');
   if (!box) return;
   if (all.length < 3) { box.hidden = true; box.innerHTML = ''; return; }
-  const count = (test) => all.reduce((n, e) => n + (test(e.video) ? 1 : 0), 0);
+  const count = (test) => all.reduce((n, e) => n + (test(e.video, e) ? 1 : 0), 0);
   const chips = filters
     .filter((f) => !(f.hideOn || []).includes(view))
     .map((f) => ({ id: f.id, label: f.label, n: count(f.test) }))

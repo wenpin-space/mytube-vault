@@ -157,6 +157,8 @@ export const QUICK_FILTERS = [
   { id: 'never', label: 'Belum pernah diputar', test: (v) => !v.playCount, hideOn: ['history'] },
   { id: 'short', label: '< 5 menit', test: (v) => v.duration > 0 && v.duration < 300 },
   { id: 'long', label: '≥ 10 menit', test: (v) => v.duration >= 600 },
+  { id: 'new', label: 'Baru (7 hari)', test: (v, e) => Date.now() - Date.parse((e && e.addedAt) || v.firstAddedAt) < 7 * 86400000 },
+  { id: 'unavail', label: 'Tidak tersedia', test: (v) => !!v.unavailable, warn: true },
 ];
 export function quickFilter(entries, id) {
   if (!id) return entries;
@@ -165,7 +167,7 @@ export function quickFilter(entries, id) {
     return entries.filter(({ video: v }) => (v.tags || []).some((x) => x.toLocaleLowerCase('id') === t));
   }
   const f = QUICK_FILTERS.find((x) => x.id === id);
-  return f ? entries.filter(({ video: v }) => f.test(v)) : entries;
+  return f ? entries.filter((e) => f.test(e.video, e)) : entries;
 }
 
 /** Kerangka (skeleton) baris saat memuat. */

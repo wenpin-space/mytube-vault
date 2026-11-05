@@ -527,3 +527,62 @@ test('versi audio: durasi ISO, ranking Topic/Official Audio, tukar di playlist',
   store.replaceInPlaylists('dQw4w9WgXcQ', 'AUDIO000001', {}, 'after');
   assert.deepEqual(store.getPlaylist('p1').items.map((i) => i.youtubeId).slice(0, 2), ['dQw4w9WgXcQ', 'AUDIO000001']);
 });
+
+test('v18: rekomendasi, cek kesehatan, terjemahan, mulai cepat, filter', async () => {
+  const { recommend } = await import('../js/recommend.js');
+  const now = Date.parse('2026-11-05T10:00:00Z');
+  const ago = (d) => new Date(now - d * 86400000).toISOString();
+  const V = (id, o) => ({ youtubeId: id, title: id, channel: 'X', tags: [], playCount: 0, favorite: false, lastPlayedAt: null, firstAddedAt: ago(30), ...o });
+  const vids = [
+    V('fav', { favorite: true, channel: 'A', playCount: 2, lastPlayedAt: ago(3) }),
+    V('often', { channel: 'A', playCount: 20, lastPlayedAt: ago(40) }),
+    V('justnow', { channel: 'A', playCount: 20, lastPlayedAt: ago(0.1) }),
+    V('newA', { channel: 'A' }),
+    V('random', { channel: 'Z' }),
+    V('dead', { channel: 'A', playCount: 9, unavailable: 'gone' }),
+  ];
+  const r = recommend(vids, { now });
+  const ids = r.map((x) => x.video.youtubeId);
+  assert.ok(!ids.includes('dead'), 'video dihapus tidak direkomendasikan');
+  assert.ok(ids.indexOf('often') < ids.indexOf('random'));
+  assert.ok(ids.indexOf('newA') < ids.indexOf('random'), 'channel favorit didahulukan');
+  assert.ok(ids.indexOf('often') < ids.indexOf('justnow'), 'yang baru diputar turun');
+  assert.equal(r.find((x) => x.video.youtubeId === 'often').reason, 'Lama tidak kamu putar');
+  assert.deepEqual(recommend(vids, { now }).map((x) => x.video.youtubeId), ids, 'stabil dalam satu hari');
+
+  const { classifyApiItems } = await import('../js/health.js');
+  assert.deepEqual(classifyApiItems(['a', 'b', 'c', 'd'], [
+    { id: 'a', status: { privacyStatus: 'public', embeddable: true } },
+    { id: 'b', status: { privacyStatus: 'private' } },
+    { id: 'c', status: { privacyStatus: 'public', embeddable: false } },
+  ]), { a: null, b: 'gone', c: 'embed', d: 'gone' });
+
+  store.replaceData(normalizeData({ playlists: [{ id: 'p', name: 'P', items: [{ youtubeId: 'dQw4w9WgXcQ' }] }], videos: { dQw4w9WgXcQ: { title: 't', unavailable: 'weird' } } }));
+  assert.equal(store.data.videos.dQw4w9WgXcQ.unavailable, null);
+  store.setAvailability({ dQw4w9WgXcQ: 'gone' });
+  assert.equal(normalizeData(JSON.parse(JSON.stringify(store.data))).videos.dQw4w9WgXcQ.unavailable, 'gone', 'ikut tersimpan/sinkron');
+
+  const { quickFilter } = await import('../js/utils.js');
+  const es = [{ youtubeId: 'a', addedAt: new Date().toISOString(), video: { unavailable: 'gone' } }, { youtubeId: 'b', addedAt: '2020-01-01T00:00:00Z', video: {} }];
+  assert.deepEqual(quickFilter(es, 'new').map((e) => e.youtubeId), ['a']);
+  assert.deepEqual(quickFilter(es, 'unavail').map((e) => e.youtubeId), ['a']);
+
+  const { detectLang, chunkLines, translateLines } = await import('../js/lyrics.js');
+  assert.equal(detectLang('I love you, and you love me\nthe night is young'), 'en');
+  assert.equal(detectLang('小幸运 我听见雨滴落在青青草地 我听见远方下课钟声响起'), 'zh-CN');
+  assert.equal(detectLang('사랑해요 당신을 정말 사랑해요'), 'ko');
+  assert.equal(detectLang('aku cinta kamu yang selalu ada di hati'), 'id');
+  assert.deepEqual(chunkLines(['aaaa', 'bbbb', 'cccc'], 10).map((g) => g.length), [2, 1]);
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    const q = new URL(url).searchParams.get('q');
+    calls.push(q);
+    return { ok: true, status: 200, json: async () => ({ responseStatus: 200, responseData: { translatedText: q.split('\n').map((l) => `ID:${l}`).join('\n') } }) };
+  };
+  assert.deepEqual(await translateLines(['hello', '', 'world', 'hello'], 'en'), ['ID:hello', '', 'ID:world', 'ID:hello']);
+  assert.equal(calls.length, 1, 'satu permintaan untuk beberapa baris');
+
+  const { quickstartSteps } = await import('../js/onboard.js');
+  const st = quickstartSteps({ videos: 2, played: false, apiKey: true });
+  assert.deepEqual(st.map((s) => s.done), [true, false, true, false, false]);
+});

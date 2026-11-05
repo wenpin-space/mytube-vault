@@ -184,7 +184,7 @@ export class Player {
     this.errorStreak++;
     // Lewati otomatis, tapi jangan berputar tanpa henti kalau semua video bermasalah.
     const skipping = this.autoNext && this.order.length > 1 && this.errorStreak < this.order.length;
-    this.emit('error', { skipping });
+    this.emit('error', { skipping, code: e.data, id: cur && cur.youtubeId });
     if (skipping) {
       clearTimeout(this.skipTimer);
       this.skipTimer = setTimeout(() => {

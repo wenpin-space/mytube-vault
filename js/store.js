@@ -6,6 +6,7 @@
 //   ui    → view aktif, mode sort, tema. Lokal saja.
 // Token GitHub & passphrase disimpan di key terpisah dan TIDAK pernah ikut backup.
 
+import { recommend } from './recommend.js';
 import { uid, nowISO } from './utils.js';
 import { isValidId } from './parser.js';
 
@@ -14,7 +15,7 @@ const SNAPSHOT_KEY = 'mytube_vault_snapshot_v1';
 const TOKEN_KEY = 'mytube_vault_gh_token';
 export const PASS_KEY = 'mytube_vault_passphrase';
 export const VAULT_FILE = 'mytube-vault.json';
-const SMART_VIEWS = ['all', 'favorites', 'unwatched', 'history'];
+const SMART_VIEWS = ['all', 'mix', 'favorites', 'unwatched', 'history'];
 const POS_KEY = 'mytube_vault_positions_v1';
 
 export const SORT_MODES = [
@@ -100,6 +101,7 @@ function normVideo(id, v = {}, t = nowISO()) {
     tags: cleanTags(Array.isArray(v.tags) ? v.tags : []),
     playCount: Number.isFinite(v.playCount) && v.playCount > 0 ? Math.floor(v.playCount) : 0,
     lastPlayedAt: typeof v.lastPlayedAt === 'string' && !Number.isNaN(Date.parse(v.lastPlayedAt)) ? v.lastPlayedAt : null,
+    unavailable: v.unavailable === 'gone' || v.unavailable === 'embed' ? v.unavailable : null,
     firstAddedAt: iso(v.firstAddedAt ?? v.addedAt, t),
     updatedAt: iso(v.updatedAt, t),
   };
@@ -318,6 +320,12 @@ export const store = {
         .filter((e) => e.video);
     }
     let vids = Object.values(this.data.videos);
+    if (view === 'mix') {
+      return recommend(vids).map((r, index) => ({
+        key: `v:${r.video.youtubeId}`, itemId: null, playlistId: null, index,
+        youtubeId: r.video.youtubeId, addedAt: r.video.firstAddedAt, video: r.video, reason: r.reason,
+      }));
+    }
     if (view === 'favorites') vids = vids.filter((v) => v.favorite);
     if (view === 'unwatched') vids = vids.filter((v) => !v.watched);
     if (view.startsWith('tag:')) { const k = view.slice(4); vids = vids.filter((v) => v.tags.some((t) => tagKey(t) === k)); }
@@ -420,6 +428,18 @@ export const store = {
     }
     this.commit('replace-video');
     return n;
+  },
+  /** Tandai hasil cek kesehatan: map id → 'gone' | 'embed' | null (tersedia). */
+  setAvailability(map) {
+    let changed = false;
+    for (const [id, st] of Object.entries(map)) {
+      const v = this.data.videos[id];
+      if (!v) continue;
+      const val = st === 'gone' || st === 'embed' ? st : null;
+      if (v.unavailable !== val) { v.unavailable = val; v.updatedAt = nowISO(); changed = true; }
+    }
+    if (changed) this.commit('availability');
+    return changed;
   },
   updateVideo(id, patch) {
     const v = this.data.videos[id];

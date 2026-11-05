@@ -78,6 +78,15 @@ Vanilla JavaScript (ES modules), tanpa build step, tanpa backend. Tinggal taruh 
 - **Empty state berilustrasi** (animasi melayang) dengan tombol besar: Tambahkan lagu pertama, Jelajahi YouTube, Impor playlist dari URL
 - **Toast berikon** di pojok kanan bawah (desktop), hijau untuk sukses dan merah untuk error; lagu baru meluncur masuk, lagu yang dihapus mengecil lalu hilang
 - **Layar lirik ala Spotify (v14)**: tombol 🎤 di player bawah (atau `Y`) membuka lirik besar di area utama dengan latar warna lagu; baris yang sudah lewat lebih terang, baris sekarang putih. Kalau lirik tidak ada, yang tampil artwork + judul lagu. Video tetap melayang di pojok.
+- **v18 (dari review QA kedua)**:
+  - **Mulai cepat**: kartu checklist langkah awal (tambah lagu, putar, API key, backup, pasang aplikasi) yang tercentang otomatis; bisa disembunyikan dan dibuka lagi lewat `Ctrl+K`.
+  - **Apa yang baru**: muncul sekali setelah update (juga di sidebar → *Yang baru*).
+  - **Mix untukmu**: rekomendasi lokal dari library sendiri (sering/lama tidak diputar, channel & tag favorit), berganti tiap hari.
+  - **Periksa video rusak** (⋮ playlist): deteksi video dihapus/privat atau yang hanya bisa diputar di YouTube; tampilkan atau hapus sekaligus. Video yang gagal diputar juga ditandai otomatis.
+  - **Terjemahan lirik** ke Bahasa Indonesia (MyMemory, gratis tanpa key; disimpan per lagu).
+  - **Transisi halus antar lagu** (fade, ⋮ player). Crossfade sejati tidak mungkin dengan satu player YouTube.
+  - **Export untuk Spotify / Apple Music**: daftar *Artis - Judul* atau CSV untuk TuneMyMusic/Soundiiz.
+  - Filter cepat **Baru (7 hari)** dan **Tidak tersedia**, tombol tema di bar atas, pintasan `Q` (antrean) dan `F` (favorit), tooltip tombol menampilkan pintasannya.
 - **Video tersembunyi secara bawaan (v17)**: di PC maupun HP yang tampil cukup player bawah; tekan ikon 🎥 di player (atau tombol `V`) untuk menampilkan video, tekan lagi untuk menyembunyikan. Musik tetap jalan saat video disembunyikan.
 - **Tampilan HP (v16)**: mini player berupa kartu melayang di atas navigasi bawah dengan garis progres tipis; ikon 🎥 di mini player menampilkan/menyembunyikan video (musik tetap jalan); baris lagu lebih ringkas (judul 2 baris + channel, hati hanya tampil kalau favorit); kepala layar *Sedang diputar* tetap terlihat saat digulir. Perbaikan: daftar "Berikutnya" tidak lagi bocor di bawah mini player.
 - **Ganti ke versi audio (v15)**: di layar lirik (atau ⋮ player) cari versi *Artis - Topic* / *Official Audio* yang durasinya sama dengan lirik, lalu **Ganti & putar** (posisi di playlist tetap, MV tetap di library) atau **Tambah di sebelahnya**. Memakai API key YouTube yang sama dengan *Cari di YouTube* (1 pencarian ±100 unit kuota).
@@ -248,6 +257,9 @@ js/stats.js         log putar & waktu dengar lokal, ringkasan statistik
 js/lyrics.js        lirik LRCLIB: pembersih judul, parser LRC, panel lirik
 js/tint.js          warna aksen dari thumbnail lagu yang diputar
 js/palette.js       command palette (Ctrl+K) + pencocokan fuzzy
+js/recommend.js     rekomendasi lokal "Mix untukmu"
+js/health.js        cek video dihapus/privat (YouTube API / oEmbed)
+js/onboard.js       kartu Mulai cepat + Apa yang baru
 sw.js               service worker (kerangka aplikasi offline)
 manifest.webmanifest  metadata PWA (nama, ikon, share target, shortcut)
 icons/              ikon aplikasi (biasa + maskable untuk Android)

@@ -63,6 +63,10 @@ const P = {
   list: '<line x1="9" y1="5" x2="21" y2="5"/><line x1="9" y1="10" x2="21" y2="10"/><line x1="9" y1="15" x2="21" y2="15"/><line x1="9" y1="20" x2="21" y2="20"/><circle cx="4.5" cy="5" r="1"/><circle cx="4.5" cy="10" r="1"/><circle cx="4.5" cy="15" r="1"/><circle cx="4.5" cy="20" r="1"/>',
   command: '<path d="M9 6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3z"/>',
   video: '<rect x="2" y="5" width="14" height="14" rx="3"/><path d="M16 10l6-3.5v11L16 14"/>',
+  sparkle: '<path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
+  heartPulse: '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/><polyline points="3 12 8 12 10 9 13 15 15 12 21 12"/>',
+  translate: '<path d="M4 5h9M8.5 3v2M6 5c.5 3 2.5 6 5.5 7.5M11 5c-.8 3.5-3 6.5-7 8"/><path d="M13 21l4-9 4 9M14.5 18h5"/>',
+  gift: '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M5 12v9h14v-9"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 0 1 0 5"/>',
   install: '<rect x="5" y="2" width="14" height="20" rx="3"/><polyline points="9 11 12 14 15 11"/><line x1="12" y1="6" x2="12" y2="14"/><line x1="10" y1="18" x2="14" y2="18"/>',
 };
 
