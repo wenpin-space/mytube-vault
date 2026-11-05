@@ -62,6 +62,7 @@ const P = {
   rows: '<rect x="3" y="4" width="7" height="6" rx="1.5"/><line x1="13" y1="6" x2="21" y2="6"/><line x1="13" y1="9" x2="18" y2="9"/><rect x="3" y="14" width="7" height="6" rx="1.5"/><line x1="13" y1="16" x2="21" y2="16"/><line x1="13" y1="19" x2="18" y2="19"/>',
   list: '<line x1="9" y1="5" x2="21" y2="5"/><line x1="9" y1="10" x2="21" y2="10"/><line x1="9" y1="15" x2="21" y2="15"/><line x1="9" y1="20" x2="21" y2="20"/><circle cx="4.5" cy="5" r="1"/><circle cx="4.5" cy="10" r="1"/><circle cx="4.5" cy="15" r="1"/><circle cx="4.5" cy="20" r="1"/>',
   command: '<path d="M9 6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3z"/>',
+  video: '<rect x="2" y="5" width="14" height="14" rx="3"/><path d="M16 10l6-3.5v11L16 14"/>',
   install: '<rect x="5" y="2" width="14" height="20" rx="3"/><polyline points="9 11 12 14 15 11"/><line x1="12" y1="6" x2="12" y2="14"/><line x1="10" y1="18" x2="14" y2="18"/>',
 };
 

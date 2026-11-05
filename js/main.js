@@ -1237,7 +1237,8 @@ enableTouchReorder($('video-list'), {
 (() => {
   const stage = $('stage');
   const update = () => {
-    const visible = !stage.hidden && getComputedStyle(stage).position === 'fixed' && !document.body.classList.contains('np-open');
+    const cs = getComputedStyle(stage);
+    const visible = !stage.hidden && cs.position === 'fixed' && cs.opacity !== '0' && !document.body.classList.contains('np-open');
     document.body.style.setProperty('--stage-space', visible ? `${stage.offsetHeight + 12}px` : '0px');
   };
   if ('ResizeObserver' in window) new ResizeObserver(update).observe(stage);

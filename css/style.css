@@ -364,6 +364,7 @@ body.queue-open .stage { right: 392px; }
 .dock-next { display: block; max-width: 100%; margin-top: 2px; padding: 0; border: 0; background: none; color: var(--text); font-size: 12px; text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .85; }
 .dock-next:hover { color: var(--accent); opacity: 1; }
 .np-upnext { display: none; }
+#dock-video { display: none; }
 .q-title { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
 /* ===================== Toast ===================== */
@@ -1192,3 +1193,50 @@ body.lyrics-open .add-panel.floating { visibility: hidden; }
 .av-badge.best { background: var(--accent); color: #fff; }
 .av-actions { display: flex; gap: 6px; flex: none; margin-left: auto; }
 @media (max-width: 640px) { .av-actions { width: 100%; justify-content: flex-end; } }
+
+/* ===================== HP: mini player kartu, video tersembunyi, baris lebih rapi (v16) ===================== */
+@media (max-width: 640px) {
+  /* mini player = kartu melayang di atas navigasi bawah */
+  body:not(.np-open) .dock {
+    left: 8px; right: 8px; bottom: calc(var(--nav-h) + var(--safe-b) + 6px); height: 60px;
+    padding: 0 4px 0 6px; border-radius: 14px; overflow: hidden;
+    border: 1px solid var(--glass-line); box-shadow: 0 10px 30px rgba(0, 0, 0, .45);
+  }
+  body:not(.np-open) .dock-progress { left: 10px; right: 10px; bottom: 0; top: auto; height: 4px; }
+  body:not(.np-open) .dock-progress::before, body:not(.np-open) .dock-bar { top: 1px; height: 2px; border-radius: 2px; }
+  body:not(.np-open) .dock-progress::before { background: color-mix(in srgb, var(--text) 14%, transparent); }
+  body:not(.np-open) .dock-thumb { width: 46px; height: 46px; border-radius: 9px; }
+  body:not(.np-open) .dock-title { font-size: 14px; }
+  body:not(.np-open) .dock-sub { font-size: 12.5px; }
+  body:not(.np-open) #dock-video { display: inline-grid; color: var(--muted); }
+  body:not(.np-open) #dock-video.on { color: var(--np-accent, var(--accent)); }
+  body:not(.np-open) #dock-video .i { width: 22px; height: 22px; }
+  .bottom-nav { border-top-color: var(--glass-line); }
+  body.has-player .main { padding-bottom: calc(var(--nav-h) + 66px + var(--safe-b) + var(--stage-space, 0px) + 24px); }
+  .toasts, body.has-player > .toasts { bottom: calc(var(--nav-h) + var(--safe-b) + 12px); }
+  body.has-player > .toasts { bottom: calc(var(--nav-h) + 72px + var(--safe-b) + var(--stage-space, 0px)); }
+
+  /* video yang di-minimize disembunyikan (musik tetap jalan); munculkan lagi lewat ikon video di mini player */
+  body:not(.np-open) .stage.min { opacity: 0; pointer-events: none; }
+  /* kartu video melayang yang terbuka */
+  body:not(.np-open) .stage:not(.min) { right: 8px; bottom: calc(var(--nav-h) + var(--safe-b) + 74px); width: min(280px, 72vw); border-radius: 14px; }
+  body:not(.np-open) .stage:not(.min) #stage-size { display: none; }
+
+  /* baris lagu: judul 2 baris, info 1 baris; hati hanya tampil kalau favorit */
+  .video-list:not([data-density="grid"]) .vrow { padding: 6px 2px; gap: 12px; }
+  .video-list:not([data-density="grid"]) .sub { flex-wrap: nowrap; white-space: nowrap; overflow: hidden; gap: 8px; }
+  .video-list:not([data-density="grid"]) .sub > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .video-list:not([data-density="grid"]) .sub .when, .video-list:not([data-density="grid"]) .sub .tag { display: none; }
+  .video-list:not([data-density="grid"]) .row-actions .icon-btn.fav:not(.on) { display: none; }
+  .video-list[data-density="comfy"] .thumb { width: 116px; }
+  .title { letter-spacing: -0.01em; }
+
+  body:not(.np-open) .dock, body.tinted:not(.np-open) .dock { background: linear-gradient(90deg, color-mix(in srgb, var(--np-tint, var(--panel)) 22%, transparent), transparent 70%), color-mix(in srgb, var(--panel-2) 96%, transparent); }
+  .vh-actions .select-wrap select { font-size: 14px; padding-left: 30px; padding-right: 26px; }
+  /* layar "Sedang diputar": kepala tetap terlihat saat digulir */
+  body.np-open .np-head { position: fixed; z-index: 77; background: var(--bg); }
+  body.tinted.np-open .np-head { background: color-mix(in srgb, var(--np-tint) 46%, var(--bg)); }
+  /* layar "Sedang diputar" */
+  body.np-open .np-upnext .q-row { border-radius: 10px; }
+  body.np-open .np-extra .btn { border-radius: 999px; }
+}

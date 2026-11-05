@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..800&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=15">
+  <link rel="stylesheet" href="css/style.css?v=16">
 </head>
 <body>
   <a class="skip-link" href="#main">Lewati ke daftar video</a>
@@ -159,6 +159,7 @@
       <button type="button" class="icon-btn" data-action="dock-add" data-icon="plus" aria-label="Tambah ke playlist" title="Tambah ke playlist"></button>
     </div>
     <div class="dock-controls">
+      <button type="button" class="icon-btn" id="dock-video" data-action="stage-min" aria-label="Tampilkan video" title="Tampilkan / sembunyikan video"></button>
       <button type="button" class="icon-btn" id="dock-shuffle" data-action="dock-shuffle" aria-label="Acak"></button>
       <button type="button" class="icon-btn" data-action="dock-prev" data-icon="prev" aria-label="Sebelumnya" title="Sebelumnya (P)"></button>
       <button type="button" class="play-btn" id="dock-play" data-action="dock-play" aria-label="Putar"></button>
@@ -171,7 +172,7 @@
       <button type="button" class="icon-btn" id="dock-lyrics" data-action="lyrics-toggle" data-icon="mic" aria-label="Lirik layar penuh" title="Lirik (Y)" aria-pressed="false"></button>
       <button type="button" class="icon-btn" data-action="queue-toggle" data-icon="queue" aria-label="Antrean" title="Antrean"></button>
     </div>
-    <section class="np-upnext only-phone" id="np-upnext" aria-label="Berikutnya"></section>
+    <section class="np-upnext" id="np-upnext" aria-label="Berikutnya"></section>
     <div class="np-extra only-phone">
       <button type="button" class="btn" data-action="play-in-yt" data-icon="external"><span>Putar di aplikasi YouTube</span></button>
       <p class="muted small">Pakai ini kalau mau tetap dengar saat layar mati atau pindah aplikasi (YouTube Premium).</p>
@@ -189,6 +190,6 @@
   </nav>
 
   <noscript><p style="padding:24px">MyTube Vault butuh JavaScript.</p></noscript>
-  <script type="module" src="js/main.js?v=15"></script>
+  <script type="module" src="js/main.js?v=16"></script>
 </body>
 </html>

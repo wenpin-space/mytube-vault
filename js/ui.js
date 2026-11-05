@@ -307,6 +307,14 @@ export function renderDock(player, store, opts = {}) {
   minBtn.title = min ? 'Tampilkan video' : 'Minimize video (musik tetap jalan)';
   minBtn.setAttribute('aria-label', minBtn.title);
   minBtn.setAttribute('aria-expanded', String(!min));
+  const vBtn = $('dock-video');
+  if (vBtn) {
+    vBtn.innerHTML = icon('video');
+    vBtn.classList.toggle('on', !min);
+    vBtn.title = min ? 'Tampilkan video' : 'Sembunyikan video (musik tetap jalan)';
+    vBtn.setAttribute('aria-label', vBtn.title);
+    vBtn.setAttribute('aria-pressed', String(!min));
+  }
   const sizeIcon = icon(large ? 'shrink' : 'expand');
   $('stage-size').innerHTML = sizeIcon;
   $('stage-size').title = large ? 'Perkecil video' : 'Perbesar video';
