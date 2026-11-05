@@ -78,6 +78,7 @@ Vanilla JavaScript (ES modules), tanpa build step, tanpa backend. Tinggal taruh 
 - **Empty state berilustrasi** (animasi melayang) dengan tombol besar: Tambahkan lagu pertama, Jelajahi YouTube, Impor playlist dari URL
 - **Toast berikon** di pojok kanan bawah (desktop), hijau untuk sukses dan merah untuk error; lagu baru meluncur masuk, lagu yang dihapus mengecil lalu hilang
 - **Layar lirik ala Spotify (v14)**: tombol 🎤 di player bawah (atau `Y`) membuka lirik besar di area utama dengan latar warna lagu; baris yang sudah lewat lebih terang, baris sekarang putih. Kalau lirik tidak ada, yang tampil artwork + judul lagu. Video tetap melayang di pojok.
+- **v19**: error YouTube API sekarang menjelaskan penyebab persisnya (API belum diaktifkan di project, pembatasan website/API, key salah, kuota habis) beserta cara memperbaikinya; tombol **Tes key** di Setelan → Umum; permintaan ke API mengirim alamat lengkap halaman sehingga *Website restrictions* berbasis path ikut cocok.
 - **v18 (dari review QA kedua)**:
   - **Mulai cepat**: kartu checklist langkah awal (tambah lagu, putar, API key, backup, pasang aplikasi) yang tercentang otomatis; bisa disembunyikan dan dibuka lagi lewat `Ctrl+K`.
   - **Apa yang baru**: muncul sekali setelah update (juga di sidebar → *Yang baru*).

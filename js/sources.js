@@ -69,19 +69,73 @@ export function libraryPicker(store, targetId) {
   });
 }
 
-// ---------- cari di YouTube ----------
-async function searchYouTube(q, key) {
-  const u = new URL('https://www.googleapis.com/youtube/v3/search');
-  u.search = new URLSearchParams({ part: 'snippet', type: 'video', maxResults: '20', q, key, videoEmbeddable: 'true' });
-  const res = await fetch(u);
+// ---------- akses YouTube Data API + diagnosis error yang jelas ----------
+/** Pola "Website restrictions" yang cocok untuk alamat aplikasi ini. */
+export const siteReferrerPattern = () => (typeof location !== 'undefined' ? `${location.origin}/*` : 'https://namakamu.github.io/*');
+
+/**
+ * Terjemahkan error Google API jadi penyebab + cara memperbaiki. Murni (mudah diuji).
+ * Hasil: { code, message }.
+ */
+export function explainYtError(status, json = {}) {
+  const err = (json && json.error) || {};
+  const reasons = [
+    ...((err.errors || []).map((e) => e.reason)),
+    ...((err.details || []).map((d) => d.reason)),
+    err.status,
+  ].filter(Boolean).map(String);
+  const has = (...r) => r.some((x) => reasons.includes(x));
+  const gmsg = String(err.message || '');
+  const project = ((err.details || []).find((d) => d.metadata && (d.metadata.consumer || d.metadata.activationUrl)) || {}).metadata || {};
+  if (has('quotaExceeded', 'dailyLimitExceeded', 'rateLimitExceeded', 'RATE_LIMIT_EXCEEDED')) {
+    return { code: 'quota', message: 'Kuota YouTube API hari ini habis (±10.000 unit/hari; 1 pencarian = 100 unit). Coba lagi besok — kuota direset sekitar pukul 14.00–15.00 WIB.' };
+  }
+  if (has('accessNotConfigured', 'SERVICE_DISABLED') || /has not been used|is disabled/i.test(gmsg)) {
+    const url = project.activationUrl || 'https://console.cloud.google.com/apis/library/youtube.googleapis.com';
+    return { code: 'disabled', message: `YouTube Data API v3 belum diaktifkan di project Google Cloud tempat key ini dibuat. Buka ${url}, pastikan project yang dipilih sama dengan project key-nya, klik ENABLE, tunggu 1–5 menit, lalu coba lagi.` };
+  }
+  if (has('ipRefererBlocked', 'API_KEY_HTTP_REFERRER_BLOCKED') || /referer|referrer/i.test(gmsg)) {
+    return { code: 'referrer', message: `Pembatasan website (Website restrictions) di key ini menolak aplikasi. Di Google Cloud → Credentials → key-mu → Website restrictions, tambahkan persis: ${siteReferrerPattern()} lalu Save (berlaku 1–5 menit).` };
+  }
+  if (has('API_KEY_SERVICE_BLOCKED') || /blocked/i.test(gmsg)) {
+    return { code: 'restricted', message: 'Key ini dibatasi untuk API lain. Di Google Cloud → Credentials → key-mu → API restrictions, centang “YouTube Data API v3” (atau pilih “Don\'t restrict key”), lalu Save.' };
+  }
+  if (has('keyInvalid', 'API_KEY_INVALID') || (status === 400 && /api key/i.test(gmsg))) {
+    return { code: 'invalid', message: 'API key tidak valid — mungkin salah salin, sudah dihapus, atau di-regenerate. Salin ulang dari Google Cloud → Credentials.' };
+  }
+  if (has('playlistNotFound') || status === 404) {
+    return { code: 'notfound', message: 'Playlist tidak ditemukan atau privat. Mix/Radio otomatis YouTube (list=RD…) juga tidak bisa diambil.' };
+  }
+  return { code: 'other', message: `Permintaan ke YouTube gagal (${status})${gmsg ? `: ${gmsg}` : ''}.` };
+}
+
+/** fetch ke YouTube Data API. Mengirim alamat lengkap halaman sebagai referrer supaya pembatasan website berbasis path juga cocok. */
+export async function ytFetch(path, params, key) {
+  const u = new URL(`https://www.googleapis.com/youtube/v3/${path}`);
+  u.search = new URLSearchParams({ ...params, key });
+  let res;
+  try {
+    res = await fetch(u, { referrerPolicy: 'no-referrer-when-downgrade' });
+  } catch {
+    throw Object.assign(new Error(navigator.onLine === false ? 'Kamu sedang offline.' : 'Tidak bisa menghubungi YouTube API (jaringan/ekstensi pemblokir).'), { code: 'network' });
+  }
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const reason = json.error && json.error.errors && json.error.errors[0] && json.error.errors[0].reason;
-    if (reason === 'quotaExceeded' || reason === 'dailyLimitExceeded') throw new Error('Kuota pencarian YouTube hari ini habis (±100 pencarian/hari). Coba lagi besok.');
-    if (res.status === 400 || reason === 'keyInvalid') throw new Error('API key tidak valid. Periksa lagi di Setelan → Umum.');
-    if (res.status === 403) throw new Error('API key ditolak. Pastikan “YouTube Data API v3” sudah diaktifkan dan pembatasan referrer mengizinkan situs ini.');
-    throw new Error(`Pencarian gagal (${res.status}).`);
+    const e = explainYtError(res.status, json);
+    throw Object.assign(new Error(e.message), { code: e.code });
   }
+  return json;
+}
+
+/** Tes API key dengan permintaan termurah (1 unit). */
+export async function testApiKey(key) {
+  await ytFetch('videos', { part: 'id', id: 'dQw4w9WgXcQ' }, key);
+  return true;
+}
+
+// ---------- cari di YouTube ----------
+async function searchYouTube(q, key) {
+  const json = await ytFetch('search', { part: 'snippet', type: 'video', maxResults: '20', q, videoEmbeddable: 'true' }, key);
   return (json.items || [])
     .filter((it) => it.id && it.id.videoId)
     .map((it) => ({ id: it.id.videoId, title: decode(it.snippet.title), channel: decode(it.snippet.channelTitle) }));
@@ -170,7 +224,7 @@ export function ytSearchDialog(store, { targetId, query = '' } = {}) {
           render(await searchYouTube(qText, key));
         } catch (err) {
           box.innerHTML = `<p class="error-text pad">${escapeHtml(err.message || String(err))}</p>`;
-          if (/API key/.test(err.message || '')) needKey(qText);
+          if (['invalid', 'disabled', 'referrer', 'restricted'].includes(err.code)) box.insertAdjacentHTML('beforeend', '<p class="hint pad">Perbaiki di Google Cloud, lalu tekan Cari lagi. Cek cepat: Setelan → Umum → <b>Tes key</b>.</p>');
         }
       });
 
@@ -195,19 +249,7 @@ export function youtubeAppUrl(ids) {
 
 // ---------- import playlist YouTube ----------
 async function ytApi(path, params, key) {
-  const u = new URL(`https://www.googleapis.com/youtube/v3/${path}`);
-  u.search = new URLSearchParams({ ...params, key });
-  const res = await fetch(u);
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const reason = json.error && json.error.errors && json.error.errors[0] && json.error.errors[0].reason;
-    if (reason === 'quotaExceeded' || reason === 'dailyLimitExceeded') throw new Error('Kuota YouTube API hari ini habis. Coba lagi besok.');
-    if (reason === 'playlistNotFound' || res.status === 404) throw new Error('Playlist tidak ditemukan atau privat. Mix/Radio otomatis YouTube (list=RD…) juga tidak bisa di-import.');
-    if (res.status === 400 || reason === 'keyInvalid') throw new Error('API key tidak valid. Periksa lagi di Setelan → Umum.');
-    if (res.status === 403) throw new Error('Akses ditolak. Pastikan YouTube Data API v3 aktif untuk API key ini.');
-    throw new Error(`Permintaan ke YouTube gagal (${res.status}).`);
-  }
-  return json;
+  return ytFetch(path, params, key);
 }
 
 /** Ambil judul playlist + semua video (maks. 1000). onProgress(n) dipanggil tiap halaman. */

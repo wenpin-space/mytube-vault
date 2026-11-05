@@ -1298,3 +1298,6 @@ body:not(.np-open) .stage.min { opacity: 0; pointer-events: none; transform: tra
 @media (max-width: 640px) { .theme-btn { display: none; } }
 .wn-list li { align-items: flex-start; }
 .theme-btn + .sync-badge { margin-left: 0; }
+.key-test p { display: flex; align-items: flex-start; gap: 8px; margin: 8px 0 0; font-size: 13.5px; line-height: 1.45; word-break: break-word; }
+.key-test .i { flex: none; width: 18px; height: 18px; margin-top: 1px; }
+.ok-text { color: var(--ok); }

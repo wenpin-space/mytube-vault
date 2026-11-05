@@ -6,6 +6,7 @@ import { modal, toast } from './dialogs.js';
 import { icon } from './icons.js';
 import { escapeHtml } from './utils.js';
 import { watchUrl } from './metadata.js';
+import { ytFetch } from './sources.js';
 
 /** Hasil videos.list → map id → 'gone' | 'embed' | null. Murni (mudah diuji). */
 export function classifyApiItems(ids, items) {
@@ -27,14 +28,7 @@ async function viaApi(ids, key, onProgress) {
   const meta = {};
   for (let i = 0; i < ids.length; i += 50) {
     const batch = ids.slice(i, i + 50);
-    const u = new URL('https://www.googleapis.com/youtube/v3/videos');
-    u.search = new URLSearchParams({ part: 'status,snippet,contentDetails', id: batch.join(','), maxResults: '50', key });
-    const res = await fetch(u);
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      const reason = json.error && json.error.errors && json.error.errors[0] && json.error.errors[0].reason;
-      throw new Error(reason === 'quotaExceeded' ? 'Kuota YouTube API hari ini habis.' : `Permintaan ke YouTube gagal (${res.status}).`);
-    }
+    const json = await ytFetch('videos', { part: 'status,snippet,contentDetails', id: batch.join(','), maxResults: '50' }, key);
     Object.assign(result, classifyApiItems(batch, json.items));
     for (const it of json.items || []) meta[it.id] = { title: it.snippet && it.snippet.title, channel: it.snippet && it.snippet.channelTitle };
     onProgress(Math.min(ids.length, i + 50), ids.length);

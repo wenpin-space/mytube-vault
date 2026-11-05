@@ -586,3 +586,16 @@ test('v18: rekomendasi, cek kesehatan, terjemahan, mulai cepat, filter', async (
   const st = quickstartSteps({ videos: 2, played: false, apiKey: true });
   assert.deepEqual(st.map((s) => s.done), [true, false, true, false, false]);
 });
+
+test('diagnosis error YouTube API', async () => {
+  const { explainYtError } = await import('../js/sources.js');
+  const disabled = { error: { code: 403, message: 'YouTube Data API v3 has not been used in project 123 before or it is disabled.', errors: [{ reason: 'accessNotConfigured' }], details: [{ reason: 'SERVICE_DISABLED', metadata: { activationUrl: 'https://console.developers.google.com/apis/api/youtube.googleapis.com/overview?project=123' } }] } };
+  const d = explainYtError(403, disabled);
+  assert.equal(d.code, 'disabled');
+  assert.ok(d.message.includes('project=123'));
+  assert.equal(explainYtError(403, { error: { message: 'Requests from referer https://x.github.io/ are blocked.', details: [{ reason: 'API_KEY_HTTP_REFERRER_BLOCKED' }] } }).code, 'referrer');
+  assert.equal(explainYtError(403, { error: { message: 'Requests to this API youtube.googleapis.com method youtube.api.v3.V3DataSearchService.List are blocked.', details: [{ reason: 'API_KEY_SERVICE_BLOCKED' }] } }).code, 'restricted');
+  assert.equal(explainYtError(400, { error: { message: 'API key not valid. Please pass a valid API key.', details: [{ reason: 'API_KEY_INVALID' }] } }).code, 'invalid');
+  assert.equal(explainYtError(403, { error: { errors: [{ reason: 'quotaExceeded' }] } }).code, 'quota');
+  assert.equal(explainYtError(500, {}).code, 'other');
+});

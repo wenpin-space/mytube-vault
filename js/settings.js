@@ -7,7 +7,7 @@ import { modal, toast, confirmDialog, passphraseDialog, textInputDialog } from '
 import { icon } from './icons.js';
 import { escapeHtml, formatDateTime, timeAgo, downloadText, todayStamp, copyText, formatBytes } from './utils.js';
 import { syncLabel } from './ui.js';
-import { getApiKey, setApiKey } from './sources.js';
+import { getApiKey, setApiKey, testApiKey, siteReferrerPattern } from './sources.js';
 
 const TOKEN_URL = 'https://github.com/settings/tokens/new?scopes=gist&description=MyTube%20Vault';
 const TABS = [['cloud', 'Cloud Sync'], ['backup', 'Backup & Riwayat'], ['general', 'Umum']];
@@ -197,7 +197,10 @@ export async function openSettings(initialTab = 'cloud') {
             <h3>Pencarian YouTube</h3>
             <p class="muted">Untuk mencari lagu langsung dari aplikasi (Tambah → Cari di YouTube). Butuh YouTube Data API key gratis milikmu sendiri, disimpan hanya di perangkat ini.</p>
             <div class="row"><input type="text" id="yt-key" placeholder="AIza…" value="${escapeHtml(getApiKey())}" aria-label="YouTube API key">
-              <button type="button" class="btn" data-act="yt-key-save">Simpan</button></div>
+              <button type="button" class="btn" data-act="yt-key-save">Simpan</button>
+              <button type="button" class="btn" data-act="yt-key-test">Tes key</button></div>
+            <div class="key-test" aria-live="polite"></div>
+            <p class="hint">Kalau key dibatasi per website, isi <b>Website restrictions</b> dengan <code>${escapeHtml(siteReferrerPattern())}</code> dan di <b>API restrictions</b> izinkan <i>YouTube Data API v3</i>.</p>
             <p class="hint">Cara membuat: <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener">aktifkan YouTube Data API v3</a> → <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Credentials → Create API key</a>.</p>
           </section>
           <section class="card">
@@ -365,6 +368,20 @@ export async function openSettings(initialTab = 'cloud') {
               downloadText(`mytube-vault-${b.dataset.sha.slice(0, 7)}.json`, await sync.loadRevisionText(b.dataset.sha));
             });
             break;
+          case 'yt-key-test': {
+            const k = panel.querySelector('#yt-key').value.trim();
+            const out = panel.querySelector('.key-test');
+            if (!k) { out.innerHTML = '<p class="error-text">Isi API key dulu.</p>'; break; }
+            out.innerHTML = '<p class="muted"><span class="spinner"></span> Menguji key…</p>';
+            try {
+              await testApiKey(k);
+              if (k !== getApiKey()) setApiKey(k);
+              out.innerHTML = `<p class="ok-text">${icon('checkCircle')}Key berfungsi dan sudah disimpan. Cari di YouTube, import playlist, dan versi audio siap dipakai.</p>`;
+            } catch (e) {
+              out.innerHTML = `<p class="error-text">${icon('alert')}${escapeHtml(e.message || String(e))}</p>`;
+            }
+            break;
+          }
           case 'yt-key-save': {
             const k = panel.querySelector('#yt-key').value.trim();
             if (k && !/^[\w-]{20,}$/.test(k)) { toast('Format API key tidak dikenali.', 'error'); break; }
