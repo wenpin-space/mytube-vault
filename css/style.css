@@ -1559,9 +1559,6 @@ body { font-size: 14.5px; letter-spacing: -0.005em; }
 @keyframes lv-enter { from { opacity: 0; transform: translateY(24px); } }
 
 /* View Transitions: artwork & judul "terbang" dari bar musik ke kepala halaman lirik */
-.vt-lyrics .lb-np img, .vt-lyrics #lv-thumb { view-transition-name: np-art; }
-.vt-lyrics .lb-np-text b, .vt-lyrics #lv-title { view-transition-name: np-title; }
-.vt-lyrics .lb-np-text > span, .vt-lyrics #lv-sub { view-transition-name: np-sub; }
 ::view-transition-group(np-art), ::view-transition-group(np-title), ::view-transition-group(np-sub) { animation-duration: .5s; animation-timing-function: cubic-bezier(.2, .8, .25, 1); }
 ::view-transition-old(root) { animation: .35s ease both vt-fade-out; }
 ::view-transition-new(root) { animation: .45s cubic-bezier(.2, .8, .25, 1) both vt-rise-in; }

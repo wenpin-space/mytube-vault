@@ -150,22 +150,37 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
   }
 
   /** Klik bar musik → pindah ke halaman lirik dengan transisi (artwork & judul "terbang" ke tempatnya). */
+  const VT_NAMES = [['.lb-np img', 'lv-thumb', 'np-art'], ['.lb-np-text b', 'lv-title', 'np-title'], ['.lb-np-text > span', 'lv-sub', 'np-sub']];
+  function vtNames(side) {
+    // nama transisi dipasang hanya di satu sisi pada satu waktu → tidak pernah ada nama ganda
+    VT_NAMES.forEach(([lobbySel, lvId, name]) => {
+      const a = el.querySelector(lobbySel); const b = document.getElementById(lvId);
+      if (a) a.style.viewTransitionName = side === 'old' ? name : '';
+      if (b) b.style.viewTransitionName = side === 'new' ? name : '';
+    });
+  }
   function toLyrics() {
     if (!openLyrics || !player.current) return;
+    const lv = document.getElementById('lyrics-panel');
+    const lyricsAlreadyOpen = lv && !lv.hidden;
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
     const swap = () => { hide({ silent: true }); openLyrics(); };
-    const root = document.documentElement;
-    if (document.startViewTransition && !reduce) {
-      root.classList.add('vt-lyrics');
+    if (document.startViewTransition && !reduce && !lyricsAlreadyOpen) {
+      vtNames('old');
       try {
-        const t = document.startViewTransition(swap);
-        t.finished.finally(() => root.classList.remove('vt-lyrics'));
-      } catch { root.classList.remove('vt-lyrics'); swap(); }
+        const t = document.startViewTransition(() => { swap(); vtNames('new'); });
+        const quiet = (p) => { if (p && p.catch) p.catch(() => {}); };
+        quiet(t.ready); quiet(t.updateCallbackDone);
+        t.finished.catch(() => {}).finally(() => vtNames('none'));
+      } catch { vtNames('none'); if (open) swap(); }
       return;
     }
     if (reduce) { swap(); return; }
     el.classList.add('leaving');
-    setTimeout(() => { swap(); const lv = document.getElementById('lyrics-panel'); if (lv) { lv.classList.remove('lv-enter'); void lv.offsetWidth; lv.classList.add('lv-enter'); } }, 260);
+    setTimeout(() => {
+      swap();
+      if (lv && !lyricsAlreadyOpen) { lv.classList.remove('lv-enter'); void lv.offsetWidth; lv.classList.add('lv-enter'); }
+    }, 260);
   }
 
   // ------------------------------------------------------------------ kamar santai: lokasi, cuaca, waktu
