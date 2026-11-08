@@ -35,7 +35,7 @@ export const SLEEP_PRESETS = [15, 30, 45, 60, 90];
 const DEFAULTS = { room: { loc: 'mountain', weather: 'rain', time: 'auto', autoSound: true }, mix: null, master: 0.8, presets: [], lowPower: false, autoHide: true, startup: false, nickname: '', showLyrics: true, wake: true, customSounds: [], pomo: { work: 25, brk: 5, long: 15 } };
 const PHASE = { work: 'Fokus', break: 'Istirahat', long: 'Istirahat panjang' };
 
-export function createLobby({ store, player, icon, toast, getLyric, playSomething, onOpenChange, isPhone }) {
+export function createLobby({ store, player, icon, toast, getLyric, playSomething, onOpenChange, isPhone, openLyrics }) {
   const cfg = () => {
     const c = { ...DEFAULTS, ...(store.ui.lobby || {}) };
     // bersihkan sisa versi lama (mode/latar lain sudah dihapus)
@@ -134,7 +134,7 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
     loadCustomSounds();
     onOpenChange && onOpenChange(true);
   }
-  function hide() {
+  function hide({ silent = false } = {}) {
     if (!open) return;
     open = false;
     el.hidden = true;
@@ -145,7 +145,27 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
     clearTimeout(idleTimer);
     closePanels();
     releaseWake();
-    onOpenChange && onOpenChange(false);
+    el.classList.remove('leaving');
+    if (!silent && onOpenChange) onOpenChange(false);
+  }
+
+  /** Klik bar musik → pindah ke halaman lirik dengan transisi (artwork & judul "terbang" ke tempatnya). */
+  function toLyrics() {
+    if (!openLyrics || !player.current) return;
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const swap = () => { hide({ silent: true }); openLyrics(); };
+    const root = document.documentElement;
+    if (document.startViewTransition && !reduce) {
+      root.classList.add('vt-lyrics');
+      try {
+        const t = document.startViewTransition(swap);
+        t.finished.finally(() => root.classList.remove('vt-lyrics'));
+      } catch { root.classList.remove('vt-lyrics'); swap(); }
+      return;
+    }
+    if (reduce) { swap(); return; }
+    el.classList.add('leaving');
+    setTimeout(() => { swap(); const lv = document.getElementById('lyrics-panel'); if (lv) { lv.classList.remove('lv-enter'); void lv.offsetWidth; lv.classList.add('lv-enter'); } }, 260);
   }
 
   // ------------------------------------------------------------------ kamar santai: lokasi, cuaca, waktu
@@ -322,17 +342,6 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
       if (line) box.classList.add('in');
     }
   }
-  // artwork: coba beberapa ukuran — sebagian video tidak punya mqdefault (YouTube mengembalikan gambar abu 120px)
-  const QUALITIES = ['mqdefault', 'hqdefault', 'sddefault', 'default'];
-  function artFallback(img) {
-    const next = () => {
-      const i = QUALITIES.indexOf(img.dataset.q) + 1;
-      if (i >= QUALITIES.length) { img.classList.add('none'); return; }
-      img.dataset.q = QUALITIES[i]; img.src = thumbUrl(img.dataset.id, QUALITIES[i]);
-    };
-    img.addEventListener('error', next);
-    img.addEventListener('load', () => { if (img.naturalWidth <= 120 && img.dataset.q !== 'default') next(); });
-  }
   function renderNP() {
     if (!el) return;
     const cur = player.current;
@@ -345,15 +354,17 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
     }
     const v = store.data.videos[cur.youtubeId] || {};
     box.innerHTML = `
-      <img data-id="${escapeHtml(cur.youtubeId)}" data-q="mqdefault" src="${thumbUrl(cur.youtubeId, 'mqdefault')}" alt="">
-      <div class="lb-np-text" translate="no"><b>${escapeHtml(v.title || 'Memuat judul…')}</b><span>${escapeHtml(v.channel || '')}</span></div>
+      <button type="button" class="lb-np-main" data-lb="to-lyrics" title="Buka lirik" aria-label="Buka lirik">
+        <img data-id="${escapeHtml(cur.youtubeId)}" data-q="mqdefault" src="${thumbUrl(cur.youtubeId, 'mqdefault')}" alt="">
+        <span class="lb-np-text" translate="no"><b>${escapeHtml(v.title || 'Memuat judul…')}</b><span>${escapeHtml(v.channel || '')}</span></span>
+        <span class="lb-np-lyr" aria-hidden="true">${icon('mic')}</span>
+      </button>
       <div class="lb-np-ctl">
         <button type="button" class="lb-ico sm" data-lb="prev" aria-label="Sebelumnya">${icon('prev')}</button>
         <button type="button" class="lb-ico lb-pp" data-lb="toggle" aria-label="${player.isPlaying ? 'Jeda' : 'Putar'}">${icon(player.isPlaying ? 'pause' : 'play', 'fill')}</button>
         <button type="button" class="lb-ico sm" data-lb="next" aria-label="Berikutnya">${icon('next')}</button>
         ${sound}
       </div>`;
-    artFallback(box.querySelector('img'));
   }
 
   // ------------------------------------------------------------------ widget kecil (muncul hanya saat aktif)
@@ -529,6 +540,7 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
         break;
       }
       case 'play-something': playSomething(); break;
+      case 'to-lyrics': toLyrics(); break;
       case 'prev': player.prev(); break;
       case 'next': player.next(); break;
       case 'toggle': player.toggle(); break;
@@ -610,6 +622,7 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
       return false;
     },
     openMixer() { show(); openPanel('scene', 'sound'); },
+    toLyrics,
     openScene() { show(); openPanel('scene', 'view'); },
     openFocus() { show(); openPanel('timer', 'focus'); },
     openSleep() { show(); openPanel('timer', 'sleep'); },

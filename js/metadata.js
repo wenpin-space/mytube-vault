@@ -3,7 +3,36 @@
 //  - judul & channel: oEmbed YouTube, cadangan noembed.com
 //  - durasi: diambil dari player saat video diputar (lihat main.js)
 
-export const thumbUrl = (id, quality = 'mqdefault') => `https://i.ytimg.com/vi/${id}/${quality}.jpg`;
+// Sebagian video tidak punya thumbnail ukuran tertentu (YouTube mengembalikan gambar abu 120×90).
+// Ukuran yang berhasil diingat per video; kalau tidak ada sama sekali dipakai gambar cadangan bergradasi.
+const thumbResolved = new Map();
+export const MISSING_THUMB = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="-6 -6 36 36" fill="none" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><!--ytmissing--><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>')}`;
+export const thumbUrl = (id, quality = 'mqdefault') => thumbResolved.get(id) || `https://i.ytimg.com/vi/${id}/${quality}.jpg`;
+/** Pasang sekali: memperbaiki thumbnail yang hilang di seluruh halaman. */
+export function installThumbFallback() {
+  const fix = (e) => {
+    const img = e.target;
+    if (!(img instanceof HTMLImageElement)) return;
+    const m = /i\.ytimg\.com\/vi\/([\w-]{11})\/(\w+)\.jpg/.exec(img.getAttribute('src') || '');
+    if (!m) return;
+    const missing = e.type === 'error' || (img.naturalWidth <= 120 && img.naturalHeight <= 90 && m[2] !== 'default');
+    if (!missing) return;
+    const tried = new Set((img.dataset.ytTried || '').split(',').filter(Boolean)); tried.add(m[2]);
+    img.dataset.ytTried = [...tried].join(',');
+    const next = ['hqdefault', 'mqdefault', 'sddefault'].find((q) => !tried.has(q));
+    const src = next ? `https://i.ytimg.com/vi/${m[1]}/${next}.jpg` : MISSING_THUMB;
+    if (!next) thumbResolved.set(m[1], MISSING_THUMB);
+    img.src = src;
+  };
+  const ok = (e) => {
+    const img = e.target;
+    if (!(img instanceof HTMLImageElement) || !img.dataset.ytTried) return;
+    const m = /i\.ytimg\.com\/vi\/([\w-]{11})\/(\w+)\.jpg/.exec(img.getAttribute('src') || '');
+    if (m && img.naturalWidth > 120) thumbResolved.set(m[1], img.getAttribute('src'));
+  };
+  document.addEventListener('error', fix, true);
+  document.addEventListener('load', (e) => { fix(e); ok(e); }, true);
+}
 export const watchUrl = (id) => `https://www.youtube.com/watch?v=${id}`;
 
 async function getJson(url, ms = 7000) {

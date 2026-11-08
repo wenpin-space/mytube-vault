@@ -4,7 +4,7 @@ import { store, normalizeData } from './store.js';
 import { sync } from './sync.js';
 import { Player } from './player.js';
 import { extractYouTubeId, parseMany, extractPlaylistId } from './parser.js';
-import { createMetaQueue, watchUrl } from './metadata.js';
+import { createMetaQueue, watchUrl, installThumbFallback } from './metadata.js';
 import { openEnvelope, summarize } from './envelope.js';
 import {
   toast, modal, confirmDialog, promptDialog, passphraseDialog, conflictDialog, pickPlaylistDialog, openMenu,
@@ -29,6 +29,7 @@ import { createLyricsPanel, guessArtistTrack, rememberLyrics } from './lyrics.js
 import { startTranslator, LANG, setLang } from './i18n.js';
 
 startTranslator();
+installThumbFallback();
 
 const PAGE = 200;
 const $ = (id) => document.getElementById(id);
@@ -1021,17 +1022,26 @@ function toggleVideo(force) {
   store.saveUi();
 }
 
+function applyLyrics(on) {
+  $('lyrics-panel').hidden = !on;
+  document.body.classList.toggle('lyrics-open', on);
+  if (on) { lyricsPanel.load(); setTimeout(() => lyricsPanel.tick(player.time()), 60); }
+  ui.renderDock(player, store, dockOpts());
+}
 function toggleLyrics(force) {
   const panel = $('lyrics-panel');
   const open = force !== undefined ? force : panel.hidden;
   if (open === !panel.hidden) return;
   if (open && !$('queue-panel').hidden) toggleQueue(false);
-  setPanel('lyrics', open, (on) => {
-    panel.hidden = !on;
-    document.body.classList.toggle('lyrics-open', on);
-    if (on) { lyricsPanel.load(); setTimeout(() => lyricsPanel.tick(player.time()), 60); }
-    ui.renderDock(player, store, dockOpts());
-  });
+  setPanel('lyrics', open, applyLyrics);
+}
+/** Dari Lobby langsung ke lirik: entri riwayat Lobby ditukar dengan lirik (tombol Back tetap menutup lirik). */
+function lyricsFromLobby() {
+  if (!$('lyrics-panel').hidden) { overlay.close('lobby'); return; }
+  if (!$('queue-panel').hidden) toggleQueue(false);
+  applyLyrics(true);
+  overlay.swap('lobby', 'lyrics', () => { applyLyrics(false); renderBottomNav(); });
+  renderBottomNav();
 }
 
 function openAddSheet(open = true) {
@@ -1801,6 +1811,7 @@ function currentLyricLine() {
 }
 const lobby = createLobby({
   store, player, icon, toast,
+  openLyrics: lyricsFromLobby,
   getLyric: currentLyricLine,
   playSomething: () => {
     if (visibleEntries().length) fire('play-all');

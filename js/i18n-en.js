@@ -830,6 +830,13 @@ export const EN = {
   'Rekaman asli': 'Real recordings',
   'Suara alam pakai rekaman asli': 'Nature sounds use real recordings',
   'Hujan, petir, jangkrik, kafe, keramaian orang, kipas angin, lalu lintas, dan lainnya kini rekaman asli (CC0/Pixabay), diputar berulang tanpa jeda. Baru: hujan deras, burung camar, burung hantu, restoran ramai, kucing mendengkur.': 'Rain, thunder, crickets, café, crowd chatter, fan, traffic and more are now real recordings (CC0/Pixabay), looping seamlessly. New: heavy rain, seagulls, owl, busy restaurant, cat purring.',
+  'Buka lirik': 'Open lyrics',
+  'Sinkronkan': 'Sync',
+  '±{0} dtk': '±{0} s',
+  '+{0} dtk': '+{0} s',
+  '−{0} dtk': '−{0} s',
+  'Dari Lobby langsung ke lirik': 'From the Lobby straight to lyrics',
+  'Klik bar musik di Lobby → pindah ke halaman lirik dengan animasi (artwork & judul ikut berpindah). Tombol Back kembali ke daftar lagu.': 'Click the music bar in the Lobby → move to the lyrics page with an animation (artwork & title travel along). Back returns to the song list.',
   // waktu relatif & lain-lain
   '{0} menit lalu': '{0} min ago',
   '{0} jam lalu': '{0} h ago',

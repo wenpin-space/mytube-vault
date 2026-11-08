@@ -17,6 +17,13 @@ export const overlay = {
     stack.push({ name, close });
     try { history.pushState({ mtvOverlay: name }, ''); } catch { /* abaikan */ }
   },
+  /** Tukar panel `from` dengan `to` tanpa menggeser riwayat (mis. Lobby → Lirik). */
+  swap(from, to, close) {
+    const i = stack.findIndex((o) => o.name === from);
+    if (i < 0) { this.open(to, close); return; }
+    stack[i] = { name: to, close };
+    if (i === stack.length - 1) { try { history.replaceState({ mtvOverlay: to }, ''); } catch { /* abaikan */ } }
+  },
   /** Tutup lewat UI (tombol X, scrim). Kalau panel ini teratas, mundurkan riwayat juga. */
   close(name) {
     const i = stack.findIndex((o) => o.name === name);
