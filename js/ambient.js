@@ -1,8 +1,11 @@
-// Suara alam untuk Lobby — semuanya DISINTESIS di browser (Web Audio): tanpa file, jalan offline,
-// tanpa urusan hak cipta. Plus "suara sendiri" dari file audio yang diunggah pengguna.
+// Suara alam untuk Lobby. Sebagian besar memakai REKAMAN ASLI (folder sounds/, lisensi CC0 / Pixabay —
+// lihat sounds/CREDITS.md) yang dimuat saat dinyalakan lalu diputar berulang dengan crossfade supaya
+// sambungannya tidak terdengar. Kalau file gagal dimuat (mis. offline dan belum tersimpan), suara
+// sintetis Web Audio dipakai sebagai cadangan. Plus "suara sendiri" dari file yang diunggah pengguna.
 
 export const SOUNDS = [
-  { id: 'rain', name: 'Hujan', icon: 'rain' },
+  { id: 'rain', name: 'Hujan di jendela', icon: 'rain' },
+  { id: 'heavyrain', name: 'Hujan deras', icon: 'rain' },
   { id: 'thunder', name: 'Petir', icon: 'bolt' },
   { id: 'wind', name: 'Angin', icon: 'wind' },
   { id: 'waves', name: 'Ombak', icon: 'waves' },
@@ -10,8 +13,12 @@ export const SOUNDS = [
   { id: 'crickets', name: 'Jangkrik', icon: 'moon' },
   { id: 'birds', name: 'Burung', icon: 'bird' },
   { id: 'stream', name: 'Sungai', icon: 'droplet' },
-  { id: 'cafe', name: 'Kafe ramai', icon: 'coffee' },
-  { id: 'people', name: 'Orang ngobrol', icon: 'users' },
+  { id: 'seagulls', name: 'Burung camar', icon: 'bird' },
+  { id: 'owl', name: 'Burung hantu', icon: 'moon' },
+  { id: 'cafe', name: 'Kafe', icon: 'coffee' },
+  { id: 'restaurant', name: 'Restoran ramai', icon: 'coffee' },
+  { id: 'people', name: 'Keramaian orang', icon: 'users' },
+  { id: 'purr', name: 'Kucing mendengkur', icon: 'heart' },
   { id: 'keyboard', name: 'Ketikan keyboard', icon: 'keyboard' },
   { id: 'clock', name: 'Jam dinding', icon: 'clock' },
   { id: 'train', name: 'Kereta', icon: 'train' },
@@ -42,7 +49,12 @@ function ensure() {
     ctx = new AC();
     master = ctx.createGain();
     master.gain.value = masterLevel;
-    master.connect(ctx.destination);
+    // pembatas lembut supaya beberapa suara yang dinyalakan bersamaan tidak pecah
+    if (ctx.createDynamicsCompressor) {
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = -10; comp.knee.value = 12; comp.ratio.value = 4; comp.attack.value = 0.01; comp.release.value = 0.4;
+      master.connect(comp); comp.connect(ctx.destination);
+    } else master.connect(ctx.destination);
   }
   if (ctx.state === 'suspended') ctx.resume().catch(() => {});
   return ctx;
@@ -118,6 +130,71 @@ function lfo(freq, depth, target) {
   return o;
 }
 const pending = new Set();
+
+// ---------- rekaman asli ----------
+/** Suara yang punya rekaman di folder sounds/ (id → [nama file, penguat]). Kekerasan file sudah
+ *  disamakan (loudness-normalized) saat dikompres, jadi penguatnya hanya penyesuaian kecil. */
+export const FILES = {
+  rain: ['rain', 1], heavyrain: ['heavyrain', 1], thunder: ['thunder', 1.1], wind: ['wind', 1], waves: ['waves', 1],
+  fire: ['fire', 1.5], crickets: ['crickets', 1], birds: ['birds', 1], stream: ['stream', 1], seagulls: ['seagulls', 1],
+  owl: ['owl', 1], cafe: ['cafe', 1], restaurant: ['restaurant', 1], people: ['people', 1], purr: ['purr', 0.8],
+  keyboard: ['keyboard', 1], clock: ['clock', 1], train: ['train', 0.6], fan: ['fan', 1], traffic: ['traffic', 0.65], vinyl: ['vinyl', 0.6],
+};
+const SOUND_BASE = (() => { try { return new URL('../sounds/', import.meta.url).href; } catch { return 'sounds/'; } })();
+const fileCache = new Map(); // id → Promise<{buf, norm}>
+function loadFile(id) {
+  if (!fileCache.has(id)) {
+    const [name, trim] = FILES[id];
+    const pr = fetch(`${SOUND_BASE}${name}.mp3`)
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.arrayBuffer(); })
+      .then((ab) => new Promise((res, rej) => ctx.decodeAudioData(ab, res, rej)))
+      .then((buf) => ({ buf, norm: trim * 2.2 }));
+    pr.catch(() => fileCache.delete(id)); // coba lagi lain kali
+    fileCache.set(id, pr);
+  }
+  return fileCache.get(id);
+}
+/** Putar buffer berulang dengan crossfade equal-power; dijadwalkan ±90 detik ke depan
+ *  supaya tetap mulus walau timer tab latar dibatasi browser. */
+function xfadeLoop(buf, dest) {
+  const xf = Math.min(3, buf.duration / 4);
+  const N = 64; const fadeIn = new Float32Array(N); const fadeOut = new Float32Array(N);
+  for (let i = 0; i < N; i++) { const x = i / (N - 1); fadeIn[i] = Math.sin((x * Math.PI) / 2); fadeOut[i] = Math.cos((x * Math.PI) / 2); }
+  const live = new Set();
+  let alive = true; let timer = null;
+  let next = ctx.currentTime + 0.05;
+  let offset = Math.random() * Math.max(0, buf.duration - xf * 3);
+  const schedule = () => {
+    if (!alive) return;
+    while (next < ctx.currentTime + 90) {
+      const src = ctx.createBufferSource(); src.buffer = buf;
+      const g = ctx.createGain(); src.connect(g); g.connect(dest);
+      const dur = buf.duration - offset;
+      g.gain.setValueCurveAtTime(fadeIn, next, xf);
+      g.gain.setValueCurveAtTime(fadeOut, next + dur - xf, xf);
+      src.start(next, offset); src.stop(next + dur + 0.05);
+      live.add(src); src.onended = () => { live.delete(src); try { g.disconnect(); } catch { /* */ } };
+      next += dur - xf; offset = 0;
+    }
+    timer = setTimeout(schedule, 20000);
+  };
+  schedule();
+  return { stop: () => { alive = false; clearTimeout(timer); live.forEach((x) => { try { x.stop(); } catch { /* */ } }); } };
+}
+/** Suara dari rekaman; kalau gagal dimuat, pakai versi sintetis (kalau ada). */
+function fileVoice(id, out) {
+  let alive = true; let part = null;
+  const pr = loadFile(id).then(({ buf, norm }) => {
+    if (!alive) return;
+    const g = gainNode(norm); g.connect(out);
+    part = xfadeLoop(buf, g);
+  }).catch(() => {
+    if (!alive || !RECIPES[id]) return;
+    const ps = RECIPES[id](out); part = { stop: () => ps.forEach((p) => { try { p.stop(); } catch { /* */ } }) };
+  });
+  pending.add(pr); pr.finally(() => pending.delete(pr));
+  return { stop: () => { alive = false; if (part) part.stop(); } };
+}
 /** Selesai kalau semua suara yang dibuat secara async (mis. obrolan kafe) sudah siap. */
 export const whenReady = () => Promise.all([...pending]);
 const panner = (pan) => { if (!ctx.createStereoPanner) return gainNode(1); const p = ctx.createStereoPanner(); p.pan.value = pan; return p; };
@@ -595,7 +672,8 @@ export function setLevel(id, value) {
       const b = customBuffers.get(id);
       if (!b) return;
       parts = [loop(b, gain)];
-    } else if (RECIPES[id]) parts = RECIPES[id](gain);
+    } else if (FILES[id]) parts = [fileVoice(id, gain)];
+    else if (RECIPES[id]) parts = RECIPES[id](gain);
     else return;
     voice = {
       gain, level: v,

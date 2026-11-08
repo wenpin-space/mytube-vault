@@ -45,15 +45,15 @@ export function roomSoundMix({ loc = 'mountain', weather = 'clear', time = 'nigh
   switch (loc) {
     case 'mountain': Object.assign(m, { wind: 0.12 }, nature); break;
     case 'city': Object.assign(m, { traffic: 0.22, cafe: 0.1 }); break;
-    case 'beach': Object.assign(m, { waves: 0.55, wind: 0.1 }, night ? {} : { birds: 0.08 }); break;
-    case 'forest': Object.assign(m, { stream: 0.18 }, night ? { crickets: 0.32 } : { birds: 0.3 }); break;
+    case 'beach': Object.assign(m, { waves: 0.55, wind: 0.1 }, night ? {} : { seagulls: 0.25 }); break;
+    case 'forest': Object.assign(m, { stream: 0.18 }, night ? { crickets: 0.32, owl: 0.3 } : { birds: 0.3 }); break;
     case 'village': Object.assign(m, { wind: 0.08 }, night ? { crickets: 0.3 } : { birds: 0.22 }); break;
     case 'ricefield': Object.assign(m, { stream: 0.24 }, night ? { crickets: 0.35 } : { birds: 0.2 }); break;
     default: break;
   }
-  if (weather === 'rain' || weather === 'storm' || weather === 'snow') { delete m.birds; delete m.crickets; }
+  if (weather === 'rain' || weather === 'storm' || weather === 'snow') { delete m.birds; delete m.crickets; delete m.seagulls; delete m.owl; }
   if (weather === 'rain') m.rain = 0.6;
-  if (weather === 'storm') Object.assign(m, { rain: 0.8, thunder: 0.55, wind: 0.3 });
+  if (weather === 'storm') Object.assign(m, { heavyrain: 0.65, thunder: 0.6, wind: 0.3 });
   if (weather === 'snow') m.wind = Math.max(m.wind || 0, 0.35);
   if (weather === 'fog') m.wind = Math.max(m.wind || 0, 0.15);
   return m;

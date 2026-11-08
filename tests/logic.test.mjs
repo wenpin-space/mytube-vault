@@ -641,9 +641,9 @@ test('Kamar santai: waktu otomatis & suara ikut suasana', async () => {
   assert.equal(resolveTime('auto', 23), 'night');
   assert.equal(resolveTime('dusk', 3), 'dusk');
   const m1 = roomSoundMix({ loc: 'beach', weather: 'clear', time: 'day' });
-  assert.ok(m1.waves > 0 && m1.birds > 0);
+  assert.ok(m1.waves > 0 && m1.seagulls > 0);
   const m2 = roomSoundMix({ loc: 'forest', weather: 'storm', time: 'night' });
-  assert.ok(m2.rain && m2.thunder && !m2.crickets && !m2.birds);
+  assert.ok(m2.heavyrain && m2.thunder && !m2.crickets && !m2.birds && !m2.owl);
   const m3 = roomSoundMix({ loc: 'ricefield', weather: 'clear', time: 'night' });
   assert.ok(m3.crickets && m3.stream && !m3.birds);
   for (const l of LOCATIONS) for (const w of WEATHERS) for (const t of ['morning', 'day', 'dusk', 'night']) {

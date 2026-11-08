@@ -1,13 +1,14 @@
 // Service worker: menyimpan "kerangka" aplikasi supaya bisa dibuka offline dan dipasang di Android.
 // Data playlist TIDAK lewat sini (ada di LocalStorage); YouTube & GitHub selalu langsung ke jaringan.
 
-const VERSION = 'v25';
+const VERSION = 'v26';
 const CACHE = `mytube-vault-${VERSION}`;
+const SOUND_CACHE = 'mytube-vault-sounds-1'; // rekaman suara alam: disimpan terpisah, tidak diunduh ulang tiap update
 const SHELL = [
   './',
   'index.html',
   'manifest.webmanifest',
-  'css/style.css', 'css/style.css?v=25', 'js/main.js?v=25',
+  'css/style.css', 'css/style.css?v=26', 'js/main.js?v=26',
   'js/main.js', 'js/store.js', 'js/sync.js', 'js/gist.js', 'js/envelope.js', 'js/crypto.js',
   'js/player.js', 'js/parser.js', 'js/metadata.js', 'js/ui.js', 'js/dialogs.js',
   'js/settings.js', 'js/utils.js', 'js/icons.js', 'js/mobile.js', 'js/sources.js', 'js/share.js', 'js/stats.js', 'js/lyrics.js', 'js/tint.js', 'js/palette.js', 'js/recommend.js', 'js/health.js', 'js/onboard.js', 'js/lobby.js', 'js/ambient.js', 'js/scenes.js', 'js/idb.js', 'js/room.js', 'js/paint.js', 'js/i18n.js', 'js/i18n-en.js',
@@ -22,7 +23,7 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter((k) => k.startsWith('mytube-vault-') && k !== CACHE).map((k) => caches.delete(k)));
+    await Promise.all(keys.filter((k) => k.startsWith('mytube-vault-') && k !== CACHE && k !== SOUND_CACHE).map((k) => caches.delete(k)));
     await self.clients.claim();
   })());
 });
@@ -32,6 +33,19 @@ self.addEventListener('fetch', (e) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return; // YouTube, GitHub, thumbnail: jangan disentuh
+
+  // Rekaman suara alam: cache dulu (file besar & tidak berubah), diunduh hanya saat pertama dinyalakan.
+  if (url.pathname.includes('/sounds/') && url.pathname.endsWith('.mp3')) {
+    e.respondWith((async () => {
+      const c = await caches.open(SOUND_CACHE);
+      const hit = await c.match(req, { ignoreSearch: true });
+      if (hit) return hit;
+      const res = await fetch(req);
+      if (res.ok) c.put(req, res.clone());
+      return res;
+    })());
+    return;
+  }
 
   // Jaringan dulu, supaya semua modul JS selalu dari versi yang sama setelah update.
   // Kalau offline, pakai salinan terakhir dari cache.
