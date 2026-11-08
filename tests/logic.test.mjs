@@ -599,3 +599,56 @@ test('diagnosis error YouTube API', async () => {
   assert.equal(explainYtError(403, { error: { errors: [{ reason: 'quotaExceeded' }] } }).code, 'quota');
   assert.equal(explainYtError(500, {}).code, 'other');
 });
+
+test('Lobby: noise, scene, Pomodoro, sapaan', async () => {
+  const { fillNoise, fillClicks, SOUNDS } = await import('../js/ambient.js');
+  for (const type of ['white', 'pink', 'brown']) {
+    const a = fillNoise(new Float32Array(44100), type);
+    const peak = a.reduce((m, x) => Math.max(m, Math.abs(x)), 0);
+    assert.ok(peak > 0.01 && peak <= 1.5, `${type} dalam batas (${peak})`);
+    assert.ok(a.every(Number.isFinite));
+  }
+  const c = fillClicks(new Float32Array(8000), 8000, { count: 20 });
+  assert.ok(c.some((x) => x !== 0));
+  assert.ok(SOUNDS.length >= 12 && new Set(SOUNDS.map((s) => s.id)).size === SOUNDS.length);
+
+  const { ridge, SCENES } = await import('../js/scenes.js');
+  const r = ridge(33);
+  assert.equal(r.length, 33);
+  assert.ok(Math.min(...r) === 0 && Math.max(...r) === 1);
+  assert.ok(SCENES.some((s) => s.id === 'city') && SCENES.some((s) => s.id === 'custom'));
+
+  const { greeting, pomodoroNext, MODES } = await import('../js/lobby.js');
+  assert.equal(greeting(7), 'Selamat pagi');
+  assert.equal(greeting(13), 'Selamat siang');
+  assert.equal(greeting(17), 'Selamat sore');
+  assert.equal(greeting(22), 'Selamat malam');
+  let st = { phase: 'work', remaining: 0, sessions: 0 };
+  const seq = [];
+  for (let i = 0; i < 8; i++) { st = pomodoroNext(st); seq.push(st.phase); }
+  assert.deepEqual(seq, ['break', 'work', 'break', 'work', 'break', 'work', 'long', 'work']);
+  assert.equal(st.sessions, 4);
+  assert.ok(MODES.every((m) => SCENES.some((s) => s.id === m.scene)), 'tiap mode punya latar');
+  assert.ok(MODES.every((m) => Object.keys(m.mix).every((k) => SOUNDS.some((s) => s.id === k))), 'tiap mode memakai suara yang ada');
+});
+
+test('Kamar santai: waktu otomatis & suara ikut suasana', async () => {
+  const { resolveTime, roomSoundMix, LOCATIONS, WEATHERS } = await import('../js/room.js');
+  const { SOUNDS } = await import('../js/ambient.js');
+  assert.equal(resolveTime('auto', 7), 'morning');
+  assert.equal(resolveTime('auto', 12), 'day');
+  assert.equal(resolveTime('auto', 17), 'dusk');
+  assert.equal(resolveTime('auto', 23), 'night');
+  assert.equal(resolveTime('dusk', 3), 'dusk');
+  const m1 = roomSoundMix({ loc: 'beach', weather: 'clear', time: 'day' });
+  assert.ok(m1.waves > 0 && m1.birds > 0);
+  const m2 = roomSoundMix({ loc: 'forest', weather: 'storm', time: 'night' });
+  assert.ok(m2.rain && m2.thunder && !m2.crickets && !m2.birds);
+  const m3 = roomSoundMix({ loc: 'ricefield', weather: 'clear', time: 'night' });
+  assert.ok(m3.crickets && m3.stream && !m3.birds);
+  for (const l of LOCATIONS) for (const w of WEATHERS) for (const t of ['morning', 'day', 'dusk', 'night']) {
+    const m = roomSoundMix({ loc: l.id, weather: w.id, time: t });
+    assert.ok(Object.keys(m).every((k) => SOUNDS.some((s) => s.id === k)), `${l.id}/${w.id}/${t}`);
+    assert.ok(Object.values(m).every((v) => v > 0 && v <= 1));
+  }
+});

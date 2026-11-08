@@ -15,6 +15,8 @@ import { icon } from './icons.js';
 import { applyTint } from './tint.js';
 import { openPalette } from './palette.js';
 import { healthCheckDialog } from './health.js';
+import { createLobby, MODES as LOBBY_MODES } from './lobby.js';
+import * as ambient from './ambient.js';
 import { renderQuickstart, maybeShowWhatsNew, showWhatsNew } from './onboard.js';
 import { sortEntries, filterEntries, quickFilter, QUICK_FILTERS, animateOut, copyText, downloadText, escapeHtml, slugify, formatDuration } from './utils.js';
 import {
@@ -947,6 +949,7 @@ function showShortcuts() {
       ${k(['M'], 'Bisukan / bunyikan')}
       ${k(['S'], 'Acak aktif / mati')}${k(['R'], 'Ganti mode ulangi')}${k(['L'], 'Ulangi lagu ini (loop)')}
       ${k(['Y'], 'Tampilkan / tutup lirik')}
+      ${k(['B'], 'Buka / tutup Lobby (suasana santai + suara alam)')}
       ${k(['V'], 'Tampilkan / sembunyikan video')}
       ${k(['Q'], 'Buka / tutup antrean')}${k(['F'], 'Favoritkan lagu yang diputar')}
       ${k(['[', ']'], 'Geser waktu lirik −/+ 0,5 detik')}
@@ -1095,6 +1098,8 @@ document.addEventListener('click', async (e) => {
     case 'player-menu': openPlayerMenu(el); break;
     case 'lyrics-toggle': toggleLyrics(); break;
     case 'density': setDensity(el.dataset.d); break;
+    case 'lobby': lobby.toggle(); break;
+    case 'lobby-mixer': lobby.openMixer(); break;
     case 'qs-dismiss':
       store.ui.qsDone = true; store.saveUi();
       toast('Panduan disembunyikan. Buka lagi lewat Ctrl+K → “Panduan mulai cepat”.', 'info', 6000);
@@ -1476,7 +1481,8 @@ document.addEventListener('keydown', (e) => {
     }
     case 'y': case 'Y': toggleLyrics(); return;
     case 'v': case 'V': if (player.current) toggleVideo(); return;
-    case 'q': case 'Q': toggleQueue(); return;
+    case 'q': case 'Q': if (!lobby.isOpen()) toggleQueue(); return;
+    case 'b': case 'B': lobby.toggle(); return;
     case 'f': case 'F': if (player.current) { store.toggleFavorite(player.current.youtubeId); toast(store.data.videos[player.current.youtubeId]?.favorite ? 'Ditambahkan ke favorit' : 'Dihapus dari favorit'); } return;
     case '[': if (!$('lyrics-panel').hidden) { lyricsPanel.nudge(-0.5); } return;
     case ']': if (!$('lyrics-panel').hidden) { lyricsPanel.nudge(0.5); } return;
@@ -1498,6 +1504,7 @@ document.addEventListener('keydown', (e) => {
     case 'p': case 'P': player.prev(); break;
     case '/': e.preventDefault(); $('search').focus(); break;
     case 'Escape':
+      if (lobby.escape()) break;
       if (local.selecting) { endSelect(); break; }
       closeSidebar();
       if (!$('queue-panel').hidden) toggleQueue(false);
@@ -1525,6 +1532,7 @@ store.on((type) => {
   render();
 });
 
+player.on((type) => { try { lobby.update(type); } catch { /* Lobby belum siap */ } });
 player.on((type, data) => {
   if (type === 'ended' && data && store.data.settings.player.autoMarkWatched) {
     const v = store.data.videos[data.youtubeId];
@@ -1644,6 +1652,9 @@ function openCommandPalette() {
     ...store.data.playlists.map((p) => ({ group: 'Playlist', label: p.name, hint: `${p.items.length} lagu${`pl:${p.id}` === cur ? ' · dibuka' : ''}`, icon: 'music', run: go(`pl:${p.id}`) })),
     ...views.map(([v, l, ic]) => ({ group: 'Koleksi', label: l, icon: ic, hint: v === cur ? 'dibuka' : '', run: go(v) })),
     ...store.allTags().map((t) => ({ group: 'Tag', label: `#${t.name}`, hint: `${t.count} lagu`, icon: 'tag', hideEmpty: store.allTags().length > 6, run: go(`tag:${t.key}`) })),
+    { group: 'Lobby', label: 'Buka Lobby', icon: 'sofa', keywords: 'lobby santai lofi suasana ambient', run: () => lobby.open() },
+    ...LOBBY_MODES.map((m) => ({ group: 'Lobby', label: `Lobby: ${m.name}`, icon: m.icon, keywords: 'lobby mode suasana', hideEmpty: true, run: () => lobby.openMode(m.id) })),
+    { group: 'Lobby', label: 'Suara alam (mixer)', icon: 'sliders', keywords: 'hujan rain ambient noise suara', run: () => lobby.openMixer() },
     { group: 'Aksi', label: 'Tambah lagu (tempel link)', icon: 'link', keywords: 'add tambah video', run: () => openAddSheet(true) },
     { group: 'Aksi', label: 'Cari lagu di YouTube', icon: 'search', keywords: 'search youtube', run: () => fire('yt-search') },
     { group: 'Aksi', label: 'Import playlist YouTube', icon: 'download', keywords: 'import', run: () => fire('yt-import') },
@@ -1737,6 +1748,34 @@ setInterval(() => {
   const v = Math.round(fade.base * factor);
   if (v !== fade.applied) { player.setVolume(v); fade.applied = v; }
 }, 150);
+
+// ---------- Lobby ----------
+/** Baris lirik yang sedang dinyanyikan (dipakai Lobby). */
+function currentLyricLine() {
+  if (!player.current) return '';
+  lyricsPanel.load();
+  lyricsPanel.tick(player.time());
+  const p = $('lyrics-panel').querySelector('.lyrics-lines.synced p.now');
+  if (!p) return '';
+  const clone = p.cloneNode(true);
+  clone.querySelectorAll('.lyr-tr').forEach((n) => n.remove());
+  return clone.textContent.trim();
+}
+const lobby = createLobby({
+  store, player, icon, toast,
+  getLyric: currentLyricLine,
+  playSomething: () => {
+    if (visibleEntries().length) fire('play-all');
+    else if (store.viewEntries('all').length) { store.setView('all'); setTimeout(() => fire('play-all'), 50); }
+    else { lobby.close(); openAddSheet(true); toast('Tambahkan lagu dulu, lalu putar dari Lobby.', 'info'); }
+  },
+  onOpenChange: (open) => {
+    if (open) overlay.open('lobby', () => lobby.close());
+    else overlay.close('lobby');
+  },
+  isPhone,
+});
+ambient.onChange(() => document.body.classList.toggle('ambient-on', ambient.isPlaying()));
 
 // Sorot lirik lebih rapat (±0,2 dtk) selama panel lirik terbuka dan lagu berjalan.
 setInterval(() => {
@@ -1838,3 +1877,4 @@ const launched = handleLaunch() || !!shareCode;
 if (shareCode) receiveShare(shareCode);
 if (store.isFresh && !launched) onboarding();
 maybeShowWhatsNew({ fresh: store.isFresh || launched });
+if (!store.isFresh && !launched && store.ui.lobby && store.ui.lobby.startup) setTimeout(() => lobby.open(), 300);

@@ -4,7 +4,7 @@ import { modal } from './dialogs.js';
 import { icon } from './icons.js';
 import { escapeHtml } from './utils.js';
 
-export const APP_VERSION = 'v18';
+export const APP_VERSION = 'v23';
 const SEEN_KEY = 'mytube_vault_seen_version';
 
 /** Langkah mulai cepat dan statusnya (murni, mudah diuji). */
@@ -41,6 +41,12 @@ export function renderQuickstart(host, state, { installable = false } = {}) {
 }
 
 const CHANGES = [
+  ['sparkle', 'Kamar santai jadi lukisan', 'Setiap suasana kini dilukis dengan sapuan kuas (tekstur kanvas, tepi lembut, cahaya hangat) — tanaman, pot gantung, dan kucing ikut bergerak pelan.'],
+  ['type', 'Tipografi baru', 'Plus Jakarta Sans untuk teks dan Fraunces untuk judul & jam — tersimpan offline, tanpa Google Fonts.'],
+  ['sparkle', 'Kamar santai bergaya lukisan lofi', 'Gambar ulang lebih hidup: gunung berlapis kabut, pantulan di danau, cahaya lampu hangat yang tumpah ke dinding, hujan tiga lapis, grain film, dan pemandangan yang sedikit bergeser mengikuti mouse.'],
+  ['cloud', 'Kamar santai di Lobby', 'Ilustrasi kamar detail: ganti pemandangan (gunung, kota, pantai, hutan, pedesaan, sawah), cuaca, dan waktu — suara alam ikut menyesuaikan.'],
+  ['sofa', 'Lobby santai', 'Tombol sofa di bar atas (atau B): latar animasi, jam, lirik, 8 mode suasana, Pomodoro & timer tidur.'],
+  ['sliders', 'Suara alam', 'Hujan, petir, ombak, api unggun, kafe, dan lainnya — racik sendiri lalu simpan.'],
   ['sparkle', 'Mix untukmu', 'Koleksi baru di sidebar: rekomendasi dari library-mu sendiri, berganti tiap hari.'],
   ['heartPulse', 'Periksa video rusak', 'Menu ⋮ playlist → temukan video yang sudah dihapus/privat, lalu hapus sekaligus.'],
   ['translate', 'Terjemahan lirik', 'Tombol Terjemahkan di layar lirik — terjemahan Indonesia di bawah tiap baris.'],

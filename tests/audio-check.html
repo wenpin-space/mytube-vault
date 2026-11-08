@@ -1,0 +1,21 @@
+<!doctype html><meta charset="utf-8"><title>audio check</title>
+<script>
+  window.AudioContext = class extends OfflineAudioContext { constructor() { super(2, 44100 * 4, 44100); window.__ctx = this; } resume() { return Promise.resolve(); } };
+</script>
+<script type="module">
+  const amb = await import('../js/ambient.js');
+  const out = {};
+  for (const s of amb.SOUNDS) {
+    if (s.id === 'thunder') continue; // dipicu timer waktu nyata
+    window.__ctx = null;
+    // modul menyimpan satu ctx; muat ulang modul dengan query unik
+    const m = await import(`../js/ambient.js?x=${s.id}`);
+    m.setLevel(s.id, 1);
+    const buf = await window.__ctx.startRendering();
+    const d = buf.getChannelData(0);
+    let sum = 0, peak = 0;
+    for (let i = 44100; i < d.length; i++) { sum += d[i] * d[i]; peak = Math.max(peak, Math.abs(d[i])); }
+    out[s.id] = { rms: +Math.sqrt(sum / (d.length - 44100)).toFixed(4), peak: +peak.toFixed(3) };
+  }
+  window.__result = out;
+</script>
