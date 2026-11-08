@@ -4,7 +4,7 @@ import { modal } from './dialogs.js';
 import { icon } from './icons.js';
 import { escapeHtml } from './utils.js';
 
-export const APP_VERSION = 'v23';
+export const APP_VERSION = 'v24';
 const SEEN_KEY = 'mytube_vault_seen_version';
 
 /** Langkah mulai cepat dan statusnya (murni, mudah diuji). */
@@ -18,34 +18,42 @@ export function quickstartSteps({ videos = 0, played = false, apiKey = false, cl
   ];
 }
 
+let qsOpen = false;
+export function toggleQuickstart() { qsOpen = !qsOpen; }
+
+/** Mulai cepat versi ringkas: satu baris (progres + langkah berikutnya); daftar lengkap bisa dibuka. */
 export function renderQuickstart(host, state, { installable = false } = {}) {
   const steps = quickstartSteps(state).filter((s) => s.id !== 'install' || installable || s.done);
   const done = steps.filter((s) => s.done).length;
   const core = steps.filter((s) => !s.optional).every((s) => s.done);
   if (state.dismissed || done === steps.length || (core && state.videos >= 10)) { host.hidden = true; host.innerHTML = ''; return; }
   host.hidden = false;
+  host.classList.toggle('open', qsOpen);
   const pct = Math.round((done / steps.length) * 100);
+  const next = steps.find((s) => !s.done && !s.optional) || steps.find((s) => !s.done);
+  const btn = (s, primary) => `<button type="button" class="btn sm${primary ? ' btn-primary' : ''}" data-action="${s.action}"${s.tab ? ` data-tab="${s.tab}"` : ''}>${escapeHtml(s.cta)}</button>`;
   host.innerHTML = `
-    <div class="qs-head">
-      <span class="qs-ic">${icon('sparkle')}</span>
-      <div class="qs-title"><b>Mulai cepat</b><span class="muted small">${done} dari ${steps.length} langkah · tercentang otomatis</span></div>
-      <div class="qs-bar" aria-hidden="true"><i style="width:${pct}%"></i></div>
+    <div class="qs-row">
+      <span class="qs-ring" style="--p:${pct}" aria-hidden="true"><b>${done}/${steps.length}</b></span>
+      <div class="qs-title"><b>Mulai cepat</b><span class="muted small">Berikutnya: ${escapeHtml(next.label)}</span></div>
+      ${btn(next, true)}
+      <button type="button" class="icon-btn sm" data-action="qs-toggle" aria-expanded="${qsOpen}" aria-label="${qsOpen ? 'Sembunyikan langkah' : 'Lihat semua langkah'}" title="${qsOpen ? 'Sembunyikan langkah' : 'Lihat semua langkah'}">${icon(qsOpen ? 'up' : 'down')}</button>
       <button type="button" class="icon-btn sm" data-action="qs-dismiss" aria-label="Sembunyikan panduan" title="Sembunyikan (bisa dibuka lagi dari Ctrl+K atau Setelan)">${icon('x')}</button>
     </div>
-    <ol class="qs-steps">${steps.map((s) => `
+    ${qsOpen ? `<ol class="qs-steps">${steps.map((s) => `
       <li class="${s.done ? 'done' : ''}">
         <span class="qs-check">${icon(s.done ? 'checkCircle' : 'circle')}</span>
         <span class="qs-text"><b>${escapeHtml(s.label)}</b><span class="muted small">${escapeHtml(s.hint)}</span></span>
-        ${s.done ? '' : `<button type="button" class="btn sm${s.optional ? '' : ' btn-primary'}" data-action="${s.action}"${s.tab ? ` data-tab="${s.tab}"` : ''}>${escapeHtml(s.cta)}</button>`}
-      </li>`).join('')}</ol>`;
+        ${s.done ? '' : btn(s, false)}
+      </li>`).join('')}</ol>` : ''}`;
 }
 
 const CHANGES = [
-  ['sparkle', 'Kamar santai jadi lukisan', 'Setiap suasana kini dilukis dengan sapuan kuas (tekstur kanvas, tepi lembut, cahaya hangat) — tanaman, pot gantung, dan kucing ikut bergerak pelan.'],
-  ['type', 'Tipografi baru', 'Plus Jakarta Sans untuk teks dan Fraunces untuk judul & jam — tersimpan offline, tanpa Google Fonts.'],
-  ['sparkle', 'Kamar santai bergaya lukisan lofi', 'Gambar ulang lebih hidup: gunung berlapis kabut, pantulan di danau, cahaya lampu hangat yang tumpah ke dinding, hujan tiga lapis, grain film, dan pemandangan yang sedikit bergeser mengikuti mouse.'],
-  ['cloud', 'Kamar santai di Lobby', 'Ilustrasi kamar detail: ganti pemandangan (gunung, kota, pantai, hutan, pedesaan, sawah), cuaca, dan waktu — suara alam ikut menyesuaikan.'],
-  ['sofa', 'Lobby santai', 'Tombol sofa di bar atas (atau B): latar animasi, jam, lirik, 8 mode suasana, Pomodoro & timer tidur.'],
+  ['search', 'Cari & tempel link di satu kolom', 'Kolom atas sekarang serbaguna: ketik untuk mencari, tempel link YouTube untuk langsung menambah. Tombol Tambah (A) membuka opsi lengkap.'],
+  ['sofa', 'Lobby minimalis', 'Cukup 4 ikon kecil: Suasana (pemandangan & suara), Timer (Fokus & tidur), Setelan, Tutup — semuanya menghilang saat diam.'],
+  ['sparkle', 'Lukisan yang lebih manusiawi', 'Garis seperti digambar tangan, sapuan kuas meruncing, bayangan dingin & cahaya hangat, plus barang-barang kecil di kamar.'],
+  ['type', 'Font Poppins', 'Tampilan lebih bersih dan modern di seluruh aplikasi.'],
+  ['sort', 'Header playlist lebih ringkas', 'Urutan & tampilan digabung ke satu tombol; baris lagu cukup ♥ dan ⋮.'],
   ['sliders', 'Suara alam', 'Hujan, petir, ombak, api unggun, kafe, dan lainnya — racik sendiri lalu simpan.'],
   ['sparkle', 'Mix untukmu', 'Koleksi baru di sidebar: rekomendasi dari library-mu sendiri, berganti tiap hari.'],
   ['heartPulse', 'Periksa video rusak', 'Menu ⋮ playlist → temukan video yang sudah dihapus/privat, lalu hapus sekaligus.'],

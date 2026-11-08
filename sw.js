@@ -1,17 +1,17 @@
 // Service worker: menyimpan "kerangka" aplikasi supaya bisa dibuka offline dan dipasang di Android.
 // Data playlist TIDAK lewat sini (ada di LocalStorage); YouTube & GitHub selalu langsung ke jaringan.
 
-const VERSION = 'v23';
+const VERSION = 'v24';
 const CACHE = `mytube-vault-${VERSION}`;
 const SHELL = [
   './',
   'index.html',
   'manifest.webmanifest',
-  'css/style.css', 'css/style.css?v=23', 'js/main.js?v=23',
+  'css/style.css', 'css/style.css?v=24', 'js/main.js?v=24',
   'js/main.js', 'js/store.js', 'js/sync.js', 'js/gist.js', 'js/envelope.js', 'js/crypto.js',
   'js/player.js', 'js/parser.js', 'js/metadata.js', 'js/ui.js', 'js/dialogs.js',
   'js/settings.js', 'js/utils.js', 'js/icons.js', 'js/mobile.js', 'js/sources.js', 'js/share.js', 'js/stats.js', 'js/lyrics.js', 'js/tint.js', 'js/palette.js', 'js/recommend.js', 'js/health.js', 'js/onboard.js', 'js/lobby.js', 'js/ambient.js', 'js/scenes.js', 'js/idb.js', 'js/room.js', 'js/paint.js',
-  'fonts/plus-jakarta-sans-latin-wght-normal.woff2', 'fonts/plus-jakarta-sans-latin-ext-wght-normal.woff2', 'fonts/plus-jakarta-sans-latin-wght-italic.woff2', 'fonts/plus-jakarta-sans-latin-ext-wght-italic.woff2', 'fonts/fraunces-latin-soft-normal.woff2', 'fonts/fraunces-latin-soft-italic.woff2',
+  'fonts/poppins-latin-200-normal.woff2', 'fonts/poppins-latin-ext-200-normal.woff2', 'fonts/poppins-latin-300-normal.woff2', 'fonts/poppins-latin-ext-300-normal.woff2', 'fonts/poppins-latin-400-normal.woff2', 'fonts/poppins-latin-ext-400-normal.woff2', 'fonts/poppins-latin-500-normal.woff2', 'fonts/poppins-latin-ext-500-normal.woff2', 'fonts/poppins-latin-600-normal.woff2', 'fonts/poppins-latin-ext-600-normal.woff2', 'fonts/poppins-latin-700-normal.woff2', 'fonts/poppins-latin-ext-700-normal.woff2', 'fonts/poppins-latin-400-italic.woff2', 'fonts/poppins-latin-ext-400-italic.woff2',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png',
 ];
 

@@ -616,9 +616,9 @@ test('Lobby: noise, scene, Pomodoro, sapaan', async () => {
   const r = ridge(33);
   assert.equal(r.length, 33);
   assert.ok(Math.min(...r) === 0 && Math.max(...r) === 1);
-  assert.ok(SCENES.some((s) => s.id === 'city') && SCENES.some((s) => s.id === 'custom'));
+  assert.deepEqual(SCENES.map((s) => s.id), ['room']);
 
-  const { greeting, pomodoroNext, MODES } = await import('../js/lobby.js');
+  const { greeting, pomodoroNext, FOCUS_PRESETS, SLEEP_PRESETS } = await import('../js/lobby.js');
   assert.equal(greeting(7), 'Selamat pagi');
   assert.equal(greeting(13), 'Selamat siang');
   assert.equal(greeting(17), 'Selamat sore');
@@ -628,8 +628,8 @@ test('Lobby: noise, scene, Pomodoro, sapaan', async () => {
   for (let i = 0; i < 8; i++) { st = pomodoroNext(st); seq.push(st.phase); }
   assert.deepEqual(seq, ['break', 'work', 'break', 'work', 'break', 'work', 'long', 'work']);
   assert.equal(st.sessions, 4);
-  assert.ok(MODES.every((m) => SCENES.some((s) => s.id === m.scene)), 'tiap mode punya latar');
-  assert.ok(MODES.every((m) => Object.keys(m.mix).every((k) => SOUNDS.some((s) => s.id === k))), 'tiap mode memakai suara yang ada');
+  assert.ok(FOCUS_PRESETS.every(([w, b, l]) => w > b && l > b), 'durasi fokus masuk akal');
+  assert.ok(SLEEP_PRESETS.length && SLEEP_PRESETS.every((m) => m > 0));
 });
 
 test('Kamar santai: waktu otomatis & suara ikut suasana', async () => {

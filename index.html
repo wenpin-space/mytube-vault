@@ -13,9 +13,9 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="MyTube Vault">
-  <link rel="preload" href="fonts/plus-jakarta-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="fonts/fraunces-latin-soft-normal.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="css/style.css?v=23">
+  <link rel="preload" href="fonts/poppins-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/poppins-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/style.css?v=24">
 </head>
 <body>
   <a class="skip-link" href="#main">Lewati ke daftar video</a>
@@ -27,10 +27,11 @@
       </a>
       <label class="search">
         <span class="search-icon" data-icon="search"></span>
-        <input id="search" type="search" placeholder="Cari judul atau channel…" autocomplete="off" aria-label="Cari video" enterkeyhint="search">
+        <input id="search" type="search" placeholder="Cari lagu atau tempel link YouTube…" autocomplete="off" aria-label="Cari lagu atau tempel link YouTube" enterkeyhint="search">
         <button type="button" class="search-clear" id="search-clear" data-action="search-clear" data-icon="x" aria-label="Hapus pencarian" hidden></button>
         <kbd class="search-kbd">/</kbd>
       </label>
+      <button type="button" class="btn btn-primary add-top hide-phone" data-action="open-add" title="Tambah lagu (A)"><span data-icon="plus"></span><span>Tambah</span></button>
       <button type="button" class="palette-btn hide-phone" data-action="palette" title="Perintah cepat (Ctrl+K)" aria-label="Perintah cepat"><span data-icon="command"></span><kbd>Ctrl K</kbd></button>
       <button type="button" class="icon-btn lobby-btn" data-action="lobby" data-icon="sofa" title="Lobby — suasana santai & suara alam (B)" aria-label="Buka Lobby"></button>
       <button type="button" class="icon-btn theme-btn" id="theme-btn" data-action="theme-cycle" aria-label="Ganti tema"></button>
@@ -50,14 +51,11 @@
       <div class="nav-title" id="tag-title" hidden><span>Tag</span></div>
       <div class="nav-group tag-nav" id="tag-nav"></div>
       <div class="sidebar-foot">
-        <button type="button" class="link-btn" data-action="open-settings" data-tab="cloud">Cloud Sync</button>
-        <span aria-hidden="true">·</span>
-        <button type="button" class="link-btn" data-action="open-settings" data-tab="backup">Backup</button>
-        <span aria-hidden="true">·</span>
-        <button type="button" class="link-btn" data-action="open-stats">Statistik</button>
-        <span aria-hidden="true">·</span>
-        <button type="button" class="link-btn" data-action="whats-new">Yang baru</button>
-        <button type="button" class="link-btn install-btn" data-action="install-app" hidden>Pasang aplikasi</button>
+        <button type="button" class="foot-btn" data-action="open-settings" data-tab="cloud" title="Cloud Sync" aria-label="Cloud Sync"><span data-icon="cloud"></span></button>
+        <button type="button" class="foot-btn" data-action="open-settings" data-tab="backup" title="Backup & restore" aria-label="Backup"><span data-icon="download"></span></button>
+        <button type="button" class="foot-btn" data-action="open-stats" title="Statistik mendengarkan" aria-label="Statistik"><span data-icon="chart"></span></button>
+        <button type="button" class="foot-btn" data-action="whats-new" title="Yang baru" aria-label="Yang baru"><span data-icon="sparkle"></span></button>
+        <button type="button" class="foot-btn install-btn" data-action="install-app" title="Pasang aplikasi" aria-label="Pasang aplikasi" hidden><span data-icon="install"></span></button>
       </div>
     </nav>
 
@@ -196,6 +194,6 @@
   </nav>
 
   <noscript><p style="padding:24px">MyTube Vault butuh JavaScript.</p></noscript>
-  <script type="module" src="js/main.js?v=23"></script>
+  <script type="module" src="js/main.js?v=24"></script>
 </body>
 </html>

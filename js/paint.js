@@ -14,6 +14,47 @@ const PASSES = [
   [3, 2.8, 12, 0.12, 0.6, 1.7, 3],
 ];
 
+// bentuk sapuan (ruang satuan, x -1..1): meruncing seperti kuas ditekan lalu diangkat
+let SHAPES = null;
+function shapes() {
+  if (SHAPES || typeof Path2D === 'undefined') return SHAPES;
+  const mk = (d) => new Path2D(d);
+  SHAPES = [
+    mk('M-1 0C-1.05-.75-.1-.95 1-.1L1 .1C-.1 .95-1.05 .75-1 0Z'),
+    mk('M-1 0C-1-.8 0-.9 1 .15L1 .35C0 .9-1 .8-1 0Z'),
+    mk('M-1 0C-.6-.95.6-.95 1 0C.6 .95-.6 .95-1 0Z'),
+    mk('M-1 .05C-1-.7.2-1 1-.3L.95-.1C.3 .8-1 .85-1 .05Z'),
+  ];
+  return SHAPES;
+}
+
+/** Goyangan "garis tangan": geser piksel sedikit dengan pola gelombang halus supaya tidak ada garis lurus sempurna. */
+function wobbleCanvas(src, amp, unit, seed) {
+  const w = src.width; const h = src.height;
+  let srcData;
+  try { srcData = src.getContext('2d').getImageData(0, 0, w, h); } catch { return src; }
+  const r = seeded(seed * 7 + 3);
+  const A = amp * unit;
+  const tab = (n, period) => { const p = r() * 6.28; const f = 6.2832 / (period * unit); const t = new Float32Array(n); for (let i = 0; i < n; i++) t[i] = Math.sin(i * f + p); return t; };
+  const SY = tab(h, 170); const SX = tab(w, 190); const SD1 = tab(w + h, 83); const SD2 = tab(w + h, 97);
+  const out = new ImageData(w, h); const od = out.data; const sd = srcData.data;
+  const u32o = new Uint32Array(od.buffer); const u32s = new Uint32Array(sd.buffer);
+  for (let y = 0; y < h; y++) {
+    const sy1 = SY[y] * 0.65;
+    for (let x = 0; x < w; x++) {
+      const dx = A * (sy1 + SD1[x + y] * 0.35);
+      const dy = A * (SX[x] * 0.65 + SD2[x - y + h - 1] * 0.35);
+      let sx = (x + dx + 0.5) | 0; let syy = (y + dy + 0.5) | 0;
+      if (sx < 0) sx = 0; else if (sx >= w) sx = w - 1;
+      if (syy < 0) syy = 0; else if (syy >= h) syy = h - 1;
+      u32o[y * w + x] = u32s[syy * w + sx];
+    }
+  }
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  cv.getContext('2d').putImageData(out, 0, 0);
+  return cv;
+}
+
 let paperTex = null;
 function paper() {
   if (paperTex) return paperTex;
@@ -38,7 +79,8 @@ function paper() {
  * @param {{unit?:number, seed?:number, softEdge?:number, scale?:number}} o
  *   unit = piksel perangkat per piksel virtual; scale = pengali ukuran kuas; softEdge = buram tepi siluet
  */
-export function createPainter(src, { unit = 1, seed = 1, softEdge = 0, scale = 1 } = {}) {
+export function createPainter(src0, { unit = 1, seed = 1, softEdge = 0, scale = 1, wobble = 0 } = {}) {
+  const src = wobble > 0 ? wobbleCanvas(src0, wobble, unit, seed) : src0;
   const w = src.width; const h = src.height;
   const out = document.createElement('canvas'); out.width = w; out.height = h;
   const o = out.getContext('2d');
@@ -146,20 +188,33 @@ export function createPainter(src, { unit = 1, seed = 1, softEdge = 0, scale = 1
       }
       const [rad, , , , alpha, lmin, lmax] = pass;
       const end = Math.min(list.length, pos + 3 * 400);
+      const SH = shapes();
+      const bristle = passIdx === 0;
       o.globalAlpha = alpha;
       for (; pos < end; pos += 3) {
-        const x = list[pos]; const y = list[pos + 1]; const a = list[pos + 2];
+        const x = list[pos]; const y = list[pos + 1]; const a = list[pos + 2] + (r() < 0.5 ? Math.PI : 0);
         const i = (y * w + x) * 4; const i2 = ((y + d) * w + x) * 4; const i3 = (y * w + x + d) * 4;
-        const k = 1 + (r() - 0.5) * 0.09; const warm = (r() - 0.5) * 7;
-        const R = ((data[i] * 2 + data[i2] + data[i3]) / 4) * k + warm;
-        const G = ((data[i + 1] * 2 + data[i2 + 1] + data[i3 + 1]) / 4) * k;
-        const B = ((data[i + 2] * 2 + data[i2 + 2] + data[i3 + 2]) / 4) * k - warm;
-        const rr = rad * unit * scale * (0.8 + r() * 0.4);
-        const len = rr * (lmin + r() * (lmax - lmin)); const wid = rr * (0.55 + r() * 0.25);
+        const k = 1 + (r() - 0.5) * 0.1; const warm = (r() - 0.5) * 7;
+        let R = ((data[i] * 2 + data[i2] + data[i3]) / 4) * k + warm;
+        let G = ((data[i + 1] * 2 + data[i2 + 1] + data[i3 + 1]) / 4) * k;
+        let B = ((data[i + 2] * 2 + data[i2 + 2] + data[i3 + 2]) / 4) * k - warm;
+        // suhu warna ala pelukis: bagian terang sedikit hangat, bayangan sedikit dingin
+        const t = ((R * 0.3 + G * 0.59 + B * 0.11) - 120) / 135;
+        R += t * 9; B -= t * 9; G += t * 2;
+        const rr = rad * unit * scale * (0.75 + r() * 0.5);
+        const len = rr * (lmin + r() * (lmax - lmin)); const wid = rr * (0.5 + r() * 0.3);
         const ca = Math.cos(a); const sa = Math.sin(a);
         o.setTransform(ca * len, sa * len, -sa * wid, ca * wid, x, y);
         o.fillStyle = `rgb(${R | 0},${G | 0},${B | 0})`;
-        o.beginPath(); o.arc(0, 0, 1, 0, TAU); o.fill();
+        if (SH) o.fill(SH[(r() * SH.length) | 0]); else { o.beginPath(); o.arc(0, 0, 1, 0, TAU); o.fill(); }
+        if (bristle && r() < 0.35) { // jejak bulu kuas kering
+          const ga = o.globalAlpha; o.globalAlpha = 0.22; o.lineWidth = 0.12;
+          o.strokeStyle = `rgb(${Math.min(255, R + 22) | 0},${Math.min(255, G + 20) | 0},${Math.min(255, B + 16) | 0})`;
+          o.beginPath(); o.moveTo(-0.85, -0.32); o.lineTo(0.9, -0.22); o.stroke();
+          o.strokeStyle = `rgb(${Math.max(0, R - 26) | 0},${Math.max(0, G - 24) | 0},${Math.max(0, B - 20) | 0})`;
+          o.beginPath(); o.moveTo(-0.8, 0.3); o.lineTo(0.85, 0.2); o.stroke();
+          o.globalAlpha = ga;
+        }
         doneCount++;
       }
       o.setTransform(1, 0, 0, 1, 0, 0);

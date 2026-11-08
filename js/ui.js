@@ -60,16 +60,19 @@ function navItem(view, label, ic, count, active) {
 
 export const DENSITIES = [['comfy', 'rows', 'Tampilan nyaman'], ['compact', 'list', 'Tampilan ringkas'], ['grid', 'grid', 'Tampilan kisi']];
 
+/** Pilihan urutan untuk view ini (label "manual" berbeda per koleksi). */
+export function sortModes(store) {
+  const pl = store.currentPlaylist();
+  return SORT_MODES.map(([k, l]) => [k, !pl && k === 'manual' ? (store.ui.view === 'history' ? 'Terakhir diputar' : store.ui.view === 'mix' ? 'Rekomendasi' : 'Urutan ditambahkan') : l]);
+}
+
 export function renderViewHead(store, info) {
   const pl = store.currentPlaylist();
   const tagView = store.ui.view.startsWith('tag:') ? store.allTags().find((t) => t.key === store.ui.view.slice(4)) : null;
   const title = pl ? pl.name : tagView ? `#${tagView.name}` : VIEW_TITLES[store.ui.view];
   const countText = info.filtered ? `${info.visible} dari ${info.total} video` : `${info.total} video`;
   const dur = formatTotal(info.duration);
-  const options = SORT_MODES.map(([k, l]) => {
-    const label = !pl && k === 'manual' ? (store.ui.view === 'history' ? 'Terakhir diputar' : store.ui.view === 'mix' ? 'Rekomendasi' : 'Urutan ditambahkan') : l;
-    return `<option value="${k}"${k === info.sort ? ' selected' : ''}>${label}</option>`;
-  }).join('');
+  const sortLabel = (sortModes(store).find(([k]) => k === info.sort) || [, 'Urutan'])[1];
   $('view-head').innerHTML = `
     <div class="vh-text">
       <p class="eyebrow">${pl ? 'Playlist' : tagView ? 'Tag' : 'Koleksi otomatis'}</p>
@@ -79,10 +82,9 @@ export function renderViewHead(store, info) {
     <div class="vh-actions">
       <button type="button" class="btn btn-primary" data-action="play-all" ${info.visible ? '' : 'disabled'}>${icon('play', 'fill')}<span>Putar</span></button>
       <button type="button" class="btn" data-action="shuffle-all" ${info.visible ? '' : 'disabled'}>${icon('shuffle')}<span>Acak</span></button>
-      ${pl ? `<button type="button" class="btn add-song" data-action="open-add" title="Tambah lagu">${icon('plus')}<span>Tambah lagu</span></button>` : ''}
-      <label class="select-wrap" title="Urutkan">${icon('sort')}<select data-action="sort" aria-label="Urutkan">${options}</select></label>
-      <div class="seg" role="group" aria-label="Tampilan daftar">${DENSITIES.map(([k, ic, l]) => `<button type="button" data-action="density" data-d="${k}" aria-pressed="${k === info.density}" aria-label="${l}" title="${l}">${icon(ic)}</button>`).join('')}</div>
-      <button type="button" class="icon-btn" data-action="playlist-menu" aria-label="Opsi lainnya">${icon('more')}</button>
+      <span class="vh-spacer"></span>
+      <button type="button" class="btn ghost view-btn" data-action="view-menu" title="Urutan & tampilan" aria-label="Urutan & tampilan: ${escapeHtml(sortLabel)}">${icon('sort')}<span>${escapeHtml(sortLabel)}</span>${icon((DENSITIES.find(([k]) => k === info.density) || DENSITIES[0])[1])}</button>
+      <button type="button" class="icon-btn" data-action="playlist-menu" aria-label="Opsi lainnya" title="Opsi lainnya">${icon('more')}</button>
     </div>`;
 }
 
@@ -170,9 +172,6 @@ function row(e, i, opt) {
     </div>
     <div class="row-actions">
       <button type="button" class="icon-btn fav${v.favorite ? ' on' : ''}" data-action="fav" aria-label="Favorit" aria-pressed="${v.favorite}" title="Favorit">${icon('heart', v.favorite ? 'fill' : '')}</button>
-      <button type="button" class="icon-btn watch reveal hide-sm${v.watched ? ' on' : ''}" data-action="watched" aria-label="Tandai ditonton" aria-pressed="${v.watched}" title="${v.watched ? 'Tandai belum ditonton' : 'Tandai sudah ditonton'}">${icon('checkCircle')}</button>
-      ${reorder ? `<button type="button" class="icon-btn reveal hide-sm" data-action="up" ${e.index === 0 ? 'disabled' : ''} aria-label="Naikkan" title="Naikkan">${icon('up')}</button>
-      <button type="button" class="icon-btn reveal hide-sm" data-action="down" ${e.index === opt.lastIndex ? 'disabled' : ''} aria-label="Turunkan" title="Turunkan">${icon('down')}</button>` : ''}
       <button type="button" class="icon-btn" data-action="item-menu" aria-label="Opsi lainnya" title="Opsi lainnya">${icon('more')}</button>
     </div>
   </li>`;

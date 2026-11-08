@@ -258,12 +258,14 @@ export function openMenu(anchor, items) {
   for (const it of items) {
     if (!it) continue;
     if (it === 'sep') { m.insertAdjacentHTML('beforeend', '<div class="menu-sep"></div>'); continue; }
+    if (it.heading) { m.insertAdjacentHTML('beforeend', `<div class="menu-heading">${escapeHtml(it.heading)}</div>`); continue; }
     const b = document.createElement('button');
     b.type = 'button';
     b.setAttribute('role', 'menuitem');
     b.className = `menu-item${it.danger ? ' danger' : ''}`;
     b.disabled = !!it.disabled;
-    b.innerHTML = `${it.icon ? icon(it.icon) : '<span class="i"></span>'}<span>${escapeHtml(it.label)}</span>`;
+    if (it.checked != null) b.setAttribute('aria-checked', String(!!it.checked));
+    b.innerHTML = `${it.icon ? icon(it.icon) : '<span class="i"></span>'}<span>${escapeHtml(it.label)}</span>${it.checked ? `<span class="menu-check">${icon('check')}</span>` : ''}`;
     b.addEventListener('click', () => { closeMenu(); if (it.action) it.action(); });
     m.appendChild(b);
   }

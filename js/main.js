@@ -15,9 +15,9 @@ import { icon } from './icons.js';
 import { applyTint } from './tint.js';
 import { openPalette } from './palette.js';
 import { healthCheckDialog } from './health.js';
-import { createLobby, MODES as LOBBY_MODES } from './lobby.js';
+import { createLobby } from './lobby.js';
 import * as ambient from './ambient.js';
-import { renderQuickstart, maybeShowWhatsNew, showWhatsNew } from './onboard.js';
+import { renderQuickstart, toggleQuickstart, maybeShowWhatsNew, showWhatsNew } from './onboard.js';
 import { sortEntries, filterEntries, quickFilter, QUICK_FILTERS, animateOut, copyText, downloadText, escapeHtml, slugify, formatDuration } from './utils.js';
 import {
   isPhone, overlay, enableTouchReorder, setupPwa, promptInstall, isStandalone, takeLaunchParams,
@@ -322,6 +322,7 @@ function addIds(ids, target, { invalid = 0, dup = 0 } = {}) {
     toast(msg, 'success', undo ? 7000 : 3500, undo);
   }
   if (res.added && overlay.isOpen('add')) overlay.close('add');
+  if ((res.added || res.skipped) && document.body.classList.contains('add-open-d')) setTimeout(() => openAddSheet(false), 900);
   return res.added > 0 || res.skipped > 0;
 }
 
@@ -523,6 +524,19 @@ function currentQueueIds() {
 function addTarget() {
   const pl = store.currentPlaylist();
   return (pl && pl.id) || $('add-target').value;
+}
+
+/** Satu tombol "Tampilan": urutan + kepadatan daftar. */
+function openViewMenu(anchor) {
+  const cur = currentSort();
+  const d = density();
+  openMenu(anchor, [
+    { heading: 'Urutkan' },
+    ...ui.sortModes(store).map(([k, l]) => ({ label: l, checked: k === cur, action: () => { store.ui.sort[store.ui.view] = k; store.saveUi(); } })),
+    'sep',
+    { heading: 'Tampilan' },
+    ...ui.DENSITIES.map(([k, ic, l]) => ({ label: l.replace('Tampilan ', '').replace(/^./, (c) => c.toUpperCase()), icon: ic, checked: k === d, action: () => setDensity(k) })),
+  ]);
 }
 
 function openPlaylistMenu(anchor) {
@@ -1019,7 +1033,11 @@ function toggleLyrics(force) {
 
 function openAddSheet(open = true) {
   if (!isPhone()) {
-    if (open) { window.scrollTo({ top: 0, behavior: 'smooth' }); (local.multi ? $('add-multi') : $('add-input')).focus(); }
+    // PC: panel tambah muncul sebagai kartu melayang di bawah bar atas (tidak memakan tempat daftar lagu)
+    if (open === document.body.classList.contains('add-open-d')) return;
+    document.body.classList.toggle('add-open-d', open);
+    placeAddPopover();
+    if (open) { feedback(''); renderAddTarget(); $('add-target').value = addTarget(); setTimeout(() => (local.multi ? $('add-multi') : $('add-input')).focus(), 30); }
     return;
   }
   if (open === document.body.classList.contains('add-open')) return;
@@ -1100,6 +1118,7 @@ document.addEventListener('click', async (e) => {
     case 'density': setDensity(el.dataset.d); break;
     case 'lobby': lobby.toggle(); break;
     case 'lobby-mixer': lobby.openMixer(); break;
+    case 'qs-toggle': toggleQuickstart(); renderQS(); break;
     case 'qs-dismiss':
       store.ui.qsDone = true; store.saveUi();
       toast('Panduan disembunyikan. Buka lagi lewat Ctrl+K → “Panduan mulai cepat”.', 'info', 6000);
@@ -1152,6 +1171,7 @@ document.addEventListener('click', async (e) => {
     case 'down': if (entry) store.moveItem(entry.playlistId, entry.index, entry.index + 1); break;
     case 'item-menu': if (entry) openItemMenu(el, entry); break;
     case 'playlist-menu': openPlaylistMenu(el); break;
+    case 'view-menu': openViewMenu(el); break;
     case 'more': local.limit += PAGE; renderMain(); break;
     case 'sort-manual': store.ui.sort[store.ui.view] = 'manual'; store.saveUi(); break;
     case 'toggle-multi': setMulti(!local.multi); break;
@@ -1306,48 +1326,19 @@ enableTouchReorder($('video-list'), {
   bar.addEventListener('pointercancel', end);
 })();
 
-// Kolom tambah tetap terlihat saat menggulir (desktop/tablet).
-// Pakai position:fixed + pengganti ruang, bukan CSS sticky, supaya sama di semua browser (termasuk Firefox/Zen).
-(() => {
+// PC: panel Tambah melayang di bawah bar atas, selebar area daftar lagu.
+function placeAddPopover() {
   const panel = $('add-form');
+  if (isPhone() || !document.body.classList.contains('add-open-d')) { panel.style.left = ''; panel.style.width = ''; return; }
   const main = $('main');
-  const spacer = document.createElement('div');
-  spacer.className = 'add-spacer';
-  panel.before(spacer);
-  let floating = false;
-
-  const place = () => {
-    const cs = getComputedStyle(main);
-    const r = main.getBoundingClientRect();
-    panel.style.left = `${r.left + parseFloat(cs.paddingLeft)}px`;
-    panel.style.width = `${main.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)}px`;
-  };
-  const setFloating = (on) => {
-    if (on === floating) { if (on) place(); return; }
-    floating = on;
-    if (on) {
-      spacer.style.height = `${panel.offsetHeight + parseFloat(getComputedStyle(panel).marginBottom)}px`;
-      panel.classList.add('floating');
-      place();
-    } else {
-      panel.classList.remove('floating');
-      panel.style.left = ''; panel.style.width = '';
-      spacer.style.height = '0px';
-    }
-  };
-  const check = () => {
-    if (window.innerWidth <= 640) { setFloating(false); return; } // HP memakai sheet Tambah
-    const topbar = document.querySelector('.topbar').getBoundingClientRect().bottom;
-    const anchor = (floating ? spacer : panel).getBoundingClientRect().top;
-    setFloating(anchor < topbar + 10);
-  };
-  let raf = 0;
-  const schedule = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; check(); }); };
-  window.addEventListener('scroll', schedule, { passive: true });
-  window.addEventListener('resize', schedule);
-  if ('ResizeObserver' in window) new ResizeObserver(schedule).observe(main);
-  check();
-})();
+  const cs = getComputedStyle(main);
+  const r = main.getBoundingClientRect();
+  const w = Math.min(820, main.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight));
+  panel.style.width = `${w}px`;
+  panel.style.left = `${r.left + (main.clientWidth - w) / 2}px`;
+}
+window.addEventListener('resize', () => { if (isPhone()) openAddSheet(false); placeAddPopover(); });
+$('add-form').addEventListener('keydown', (e) => { if (e.key === 'Escape' && !isPhone()) { e.preventDefault(); openAddSheet(false); } });
 
 // ---------- toast di pojok kanan bawah, tepat di atas video melayang ----------
 (() => {
@@ -1436,12 +1427,51 @@ $('add-multi').addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); $('add-form').requestSubmit(); }
 });
 
+// ---------- kolom serbaguna: ketik = cari, tempel link YouTube = langsung tambah ----------
+const hasLinks = (text) => /(youtu\.be\/|youtube\.com\/|music\.youtube)/i.test(text || '');
+function addFromSearch(text) {
+  const r = parseMany(text);
+  const target = addTarget();
+  if (r.valid.length > 1) addIds(r.valid, target, { invalid: r.invalid.length, dup: r.duplicates });
+  else {
+    $('add-target').value = target;
+    $('add-input').value = text.trim();
+    handleAdd({ preventDefault() {} });
+    if ($('add-input').value) { toast('Link tidak dikenali. Tempel link video atau playlist YouTube.', 'error'); $('add-input').value = ''; }
+  }
+  $('search').value = ''; $('search-clear').hidden = true; searchHint('');
+  if (local.query) { local.query = ''; renderMain(); }
+}
+function searchHint(msg) {
+  let h = document.getElementById('search-hint');
+  if (!h) { h = document.createElement('div'); h.id = 'search-hint'; h.className = 'search-hint'; $('search').closest('.search').appendChild(h); }
+  h.textContent = msg; h.hidden = !msg;
+}
 let searchTimer = null;
 $('search').addEventListener('input', (e) => {
   clearTimeout(searchTimer);
-  $('search-clear').hidden = !e.target.value;
-  searchTimer = setTimeout(() => { local.query = e.target.value; local.limit = PAGE; renderMain(); }, 250);
+  const v = e.target.value;
+  $('search-clear').hidden = !v;
+  if (hasLinks(v)) {
+    const n = parseMany(v).valid.length;
+    const pl = store.getPlaylist(addTarget());
+    searchHint(n ? `Enter: tambahkan ${n > 1 ? `${n} lagu` : 'lagu ini'} ke “${(pl || {}).name || 'playlist'}”` : 'Enter: tambahkan dari link ini');
+    if (local.query) { local.query = ''; renderMain(); }
+    return;
+  }
+  searchHint('');
+  searchTimer = setTimeout(() => { local.query = v; local.limit = PAGE; renderMain(); }, 250);
 });
+$('search').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && hasLinks(e.target.value)) { e.preventDefault(); addFromSearch(e.target.value); }
+});
+$('search').addEventListener('paste', (e) => {
+  const text = (e.clipboardData && e.clipboardData.getData('text')) || '';
+  if (!hasLinks(text) || $('search').value.trim()) return;
+  e.preventDefault();
+  addFromSearch(text);
+});
+$('search').addEventListener('blur', () => setTimeout(() => searchHint(''), 150));
 
 $('dock-progress').addEventListener('click', (e) => {
   const d = player.duration();
@@ -1466,8 +1496,10 @@ document.addEventListener('keydown', (e) => {
   if (document.querySelector('dialog[open]')) return;
   if (e.key === ' ' && t.closest && t.closest('button, a')) return;
   if ((e.key === 'a' || e.key === 'A') && (e.ctrlKey || e.metaKey) && local.selecting) { e.preventDefault(); selectionAction('sel-all'); return; }
+  if (lobby.isOpen() && lobby.key(e.key)) { e.preventDefault(); return; }
   switch (e.key) {
     case '?': e.preventDefault(); showShortcuts(); return;
+    case 'a': case 'A': e.preventDefault(); openAddSheet(true); return;
     case 'ArrowLeft': if (player.current) { e.preventDefault(); player.seek(Math.max(0, player.time() - 5)); } return;
     case 'ArrowRight': if (player.current) { e.preventDefault(); player.seek(player.time() + 5); } return;
     case 'ArrowUp': if (player.current) { e.preventDefault(); const v = Math.min(100, player.volume() + 10); player.setVolume(v); toast(`Volume ${v}%`); } return;
@@ -1653,7 +1685,9 @@ function openCommandPalette() {
     ...views.map(([v, l, ic]) => ({ group: 'Koleksi', label: l, icon: ic, hint: v === cur ? 'dibuka' : '', run: go(v) })),
     ...store.allTags().map((t) => ({ group: 'Tag', label: `#${t.name}`, hint: `${t.count} lagu`, icon: 'tag', hideEmpty: store.allTags().length > 6, run: go(`tag:${t.key}`) })),
     { group: 'Lobby', label: 'Buka Lobby', icon: 'sofa', keywords: 'lobby santai lofi suasana ambient', run: () => lobby.open() },
-    ...LOBBY_MODES.map((m) => ({ group: 'Lobby', label: `Lobby: ${m.name}`, icon: m.icon, keywords: 'lobby mode suasana', hideEmpty: true, run: () => lobby.openMode(m.id) })),
+    { group: 'Lobby', label: 'Suasana kamar (lokasi, cuaca, waktu)', icon: 'cloud', keywords: 'lobby suasana cuaca lokasi pemandangan', hideEmpty: true, run: () => lobby.openScene() },
+    { group: 'Lobby', label: 'Fokus (Pomodoro)', icon: 'timer', keywords: 'lobby fokus pomodoro belajar kerja', hideEmpty: true, run: () => lobby.openFocus() },
+    { group: 'Lobby', label: 'Timer tidur', icon: 'moon', keywords: 'lobby tidur sleep timer', hideEmpty: true, run: () => lobby.openSleep() },
     { group: 'Lobby', label: 'Suara alam (mixer)', icon: 'sliders', keywords: 'hujan rain ambient noise suara', run: () => lobby.openMixer() },
     { group: 'Aksi', label: 'Tambah lagu (tempel link)', icon: 'link', keywords: 'add tambah video', run: () => openAddSheet(true) },
     { group: 'Aksi', label: 'Cari lagu di YouTube', icon: 'search', keywords: 'search youtube', run: () => fire('yt-search') },
@@ -1841,8 +1875,7 @@ async function onboarding() {
     dismissValue: 'local',
   });
   if (choice === 'cloud') openSettings('cloud');
-  else if (isPhone()) openAddSheet(true);
-  else $('add-input').focus();
+  else openAddSheet(true);
 }
 
 function handleLaunch() {

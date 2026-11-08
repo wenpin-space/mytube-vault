@@ -66,7 +66,7 @@ export function roomSoundMix({ loc = 'mountain', weather = 'clear', time = 'nigh
 const VW = 1600;
 const VH = 900;
 const W = { x: 300, y: 110, w: 1000, h: 450 }; // kaca jendela (ruang virtual)
-const OW = { x: W.x - 24, y: W.y - 18, w: W.w + 48, h: W.h + 26 }; // area pemandangan (lebih lebar untuk parallax)
+const OW = { x: W.x - 30, y: W.y - 24, w: W.w + 60, h: W.h + 40 }; // area pemandangan (lebih lebar untuk parallax)
 const HZ = W.y + W.h * 0.56; // cakrawala
 const BT = OW.y + OW.h; // dasar pemandangan
 const TAU = Math.PI * 2;
@@ -570,18 +570,60 @@ function drawRoom(c, s, L) {
   c.strokeStyle = '#3e6b4c'; c.lineWidth = 3; c.beginPath(); c.moveTo(1435, 792); c.quadraticCurveTo(1430, 752, 1415, 732); c.moveTo(1435, 792); c.quadraticCurveTo(1445, 747, 1462, 730); c.stroke();
   c.fillStyle = '#4d7a5c'; c.beginPath(); c.ellipse(1413, 728, 10, 6, -0.5, 0, TAU); c.ellipse(1464, 726, 10, 6, 0.5, 0, TAU); c.fill();
 
+  // ---- barang-barang kecil supaya kamar terasa ditinggali
+  // polaroid dijepit di tali lampu
+  [[0.12, -0.08, '#e9a27a', '#6a8fb0'], [0.27, 0.06, '#9cc3a0', '#f2d39b'], [0.71, -0.05, '#7f9fc9', '#e7b9a8'], [0.86, 0.09, '#f0c48a', '#5b7b8f']].forEach(([tt, rot, c1, c2]) => {
+    const x = W.x + W.w * tt; const y = W.y - 4 + Math.sin(tt * Math.PI) * 30;
+    c.save(); c.translate(x, y + 3); c.rotate(rot);
+    softShadow(c, 2, 26, 22, 20, 0.35);
+    c.fillStyle = '#efe9dc'; c.fillRect(-17, 4, 34, 42);
+    c.fillStyle = lin(c, 0, 8, 0, 36, [[0, c1], [1, c2]]); c.fillRect(-13, 8, 26, 26);
+    c.fillStyle = 'rgba(255,255,255,0.18)'; c.beginPath(); c.arc(4, 16, 5, 0, TAU); c.fill();
+    c.fillStyle = '#8a6b4e'; c.fillRect(-3, -2, 6, 9);
+    c.restore();
+  });
+  // bingkai foto kecil di dinding kanan
+  [[1392, 150, 62, 78, '#c98f6a', '#3f5d6e'], [1412, 246, 44, 54, '#88a77e', '#e8d2a6']].forEach(([x, y, w2, h2, a1, a2]) => {
+    softShadow(c, x + w2 / 2 + 4, y + h2 + 4, w2 * 0.6, 8, 0.35);
+    c.fillStyle = '#2a201b'; c.fillRect(x - 5, y - 5, w2 + 10, h2 + 10);
+    c.fillStyle = '#e8e1d2'; c.fillRect(x, y, w2, h2);
+    c.fillStyle = lin(c, x, y + 6, x, y + h2 - 6, [[0, a1], [1, a2]]); c.fillRect(x + 6, y + 6, w2 - 12, h2 - 12);
+    c.fillStyle = 'rgba(20,30,40,0.55)'; c.beginPath(); c.moveTo(x + 6, y + h2 - 6); c.lineTo(x + w2 * 0.45, y + h2 * 0.5); c.lineTo(x + w2 - 6, y + h2 - 6); c.fill();
+  });
+  // catatan tempel di dinding bawah jendela
+  [[905, 640, -0.08, '#f3d36b'], [948, 648, 0.06, '#f2a7a0'], [990, 638, -0.03, '#a9dcc0']].forEach(([x, y, rot, col]) => {
+    c.save(); c.translate(x, y); c.rotate(rot);
+    softShadow(c, 3, 34, 22, 6, 0.4);
+    c.fillStyle = col; c.fillRect(-18, 0, 36, 36);
+    c.fillStyle = 'rgba(0,0,0,0.08)'; c.beginPath(); c.moveTo(10, 36); c.lineTo(18, 28); c.lineTo(18, 36); c.fill();
+    c.strokeStyle = 'rgba(40,40,60,0.45)'; c.lineWidth = 1.4;
+    c.beginPath(); c.moveTo(-12, 10); c.lineTo(10, 9); c.moveTo(-12, 17); c.lineTo(6, 17); c.moveTo(-12, 24); c.lineTo(12, 23); c.stroke();
+    c.restore();
+  });
+  // kabel laptop menjuntai ke tepi meja
+  c.strokeStyle = '#1b1d22'; c.lineWidth = 4; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(660, 790); c.bezierCurveTo(700, 800, 690, 850, 760, 862); c.bezierCurveTo(820, 872, 800, 890, 830, 905); c.stroke();
+  // gumpalan kertas & pensil
+  softShadow(c, 1135, 846, 20, 5, 0.4);
+  c.fillStyle = '#e6dfcf';
+  c.beginPath(); c.moveTo(1120, 840); c.lineTo(1128, 826); c.lineTo(1142, 824); c.lineTo(1152, 834); c.lineTo(1148, 846); c.lineTo(1132, 850); c.closePath(); c.fill();
+  c.strokeStyle = 'rgba(0,0,0,0.18)'; c.lineWidth = 1; c.beginPath(); c.moveTo(1126, 834); c.lineTo(1140, 838); c.lineTo(1146, 830); c.stroke();
+  c.save(); c.translate(300, 860); c.rotate(-0.12);
+  c.fillStyle = '#e2b04a'; c.fillRect(0, -4, 110, 8); c.fillStyle = '#f0d3a7'; c.beginPath(); c.moveTo(110, -4); c.lineTo(124, 0); c.lineTo(110, 4); c.fill();
+  c.fillStyle = '#d98a8a'; c.fillRect(-10, -4, 10, 8); c.restore();
+
   // ambient occlusion: pojok & bawah plafon lebih gelap
   c.globalCompositeOperation = 'source-atop';
   c.fillStyle = lin(c, 0, 44, 0, 200, [[0, 'rgba(0,0,0,0.35)'], [1, 'rgba(0,0,0,0)']]); c.fillRect(0, 44, VW, 160);
   c.fillStyle = lin(c, 0, 0, 220, 0, [[0, 'rgba(0,0,0,0.35)'], [1, 'rgba(0,0,0,0)']]); c.fillRect(0, 0, 220, VH);
   c.fillStyle = lin(c, VW, 0, VW - 220, 0, [[0, 'rgba(0,0,0,0.3)'], [1, 'rgba(0,0,0,0)']]); c.fillRect(VW - 220, 0, 220, VH);
   // gelap sesuai waktu & cuaca (biru kehijauan, bukan hitam)
-  c.fillStyle = `rgba(10,22,30,${L.indoorDark * 0.84})`; c.fillRect(0, 0, VW, VH);
+  c.fillStyle = `rgba(8,18,34,${L.indoorDark * 0.76})`; c.fillRect(0, 0, VW, VH);
   if (L.warm) { c.fillStyle = `rgba(255,140,80,${L.warm * 0.3})`; c.fillRect(0, 0, VW, VH); }
   // cahaya lampu yang tumpah ke dinding, tirai, dan meja (hanya saat lampu menyala)
   if (L.lampsOn) {
     const k = Math.min(1, (L.indoorDark - 0.2) * 1.6);
-    const spill = (x, y, rad, a, sy = 1) => { c.save(); c.translate(x, y); c.scale(1, sy); const g = c.createRadialGradient(0, 0, 0, 0, 0, rad); g.addColorStop(0, C(WARM, a * k)); g.addColorStop(0.5, C(WARM, a * k * 0.4)); g.addColorStop(1, C(WARM, 0)); c.fillStyle = g; c.fillRect(-rad, -rad, rad * 2, rad * 2); c.restore(); };
+    const spill = (x, y, rad, a, sy = 1) => { a *= 1.2; c.save(); c.translate(x, y); c.scale(1, sy); const g = c.createRadialGradient(0, 0, 0, 0, 0, rad); g.addColorStop(0, C(WARM, a * k)); g.addColorStop(0.5, C(WARM, a * k * 0.4)); g.addColorStop(1, C(WARM, 0)); c.fillStyle = g; c.fillRect(-rad, -rad, rad * 2, rad * 2); c.restore(); };
     spill(1540, 400, 480, 0.42);
     spill(1090, 770, 360, 0.5, 0.42);
     spill(573, sill - 20, 170, 0.35);
@@ -620,7 +662,7 @@ const SPRITES = {
   plantB: { x: 1140, y: 140, w: 600, h: 616, px: 1431, py: 744 },
   cat: { x: 1030, y: SILL - 70, w: 210, h: 76, px: 1150, py: SILL },
 };
-const shade = (L, h) => M(H(h), [10, 22, 30], Math.min(0.9, L.indoorDark * 0.84));
+const shade = (L, h) => M(H(h), [8, 18, 34], Math.min(0.9, L.indoorDark * 0.76));
 const rimOf = (L) => (L.lampsOn ? Math.min(1, (L.indoorDark - 0.2) * 1.6) : 0);
 function leaf(c, x, y, len, wid, ang, col, rim) {
   c.save(); c.translate(x, y); c.rotate(ang);
@@ -716,8 +758,8 @@ export function roomScene() {
     }
     // semuanya dilukis ulang dengan sapuan kuas (bertahap, mulai dari underpainting yang buram)
     const unit = s * dpr;
-    const pOut = createPainter(baseOut, { unit, seed: 3 });
-    const pRoom = createPainter(baseRoom, { unit, seed: 5 });
+    const pOut = createPainter(baseOut, { unit, seed: 3, wobble: 1.4, scale: 1.2 });
+    const pRoom = createPainter(baseRoom, { unit, seed: 5, wobble: 2.4 });
     outside = pOut.canvas; room = pRoom.canvas;
     painters = [pOut, pRoom];
     spr = {};
@@ -725,7 +767,7 @@ export function roomScene() {
       const cv = document.createElement('canvas'); cv.width = Math.ceil(b.w * unit); cv.height = Math.ceil(b.h * unit);
       const sx = cv.getContext('2d'); sx.setTransform(unit, 0, 0, unit, -b.x * unit, -b.y * unit);
       SPRITE_DRAW[id](sx, L);
-      const pp = createPainter(cv, { unit, seed: id.length * 13, softEdge: 0.7, scale: 0.6 });
+      const pp = createPainter(cv, { unit, seed: id.length * 13, softEdge: 0.7, scale: 0.6, wobble: 1.2 });
       spr[id] = pp.canvas; painters.push(pp);
     }
     const storm = st.weather === 'storm';
@@ -761,9 +803,10 @@ export function roomScene() {
       const night = st.time === 'night';
 
       // ---------- pemandangan luar
+      c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, c.canvas.width, c.canvas.height); c.restore();
       c.save();
       c.translate(tf.ox, tf.oy); c.scale(tf.s, tf.s);
-      c.beginPath(); c.rect(W.x, W.y, W.w, W.h); c.clip();
+      c.beginPath(); c.rect(W.x - 8, W.y - 8, W.w + 16, W.h + 16); c.clip();
       c.translate(pdx, pdy);
       c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(outside, pdx * tf.s * dpr, pdy * tf.s * dpr); c.restore();
       // awan bergerak
@@ -831,7 +874,7 @@ export function roomScene() {
 
       // kaca: tetes hujan dengan jejak, embun beku, pantulan & bayangan atas
       c.save(); c.translate(tf.ox, tf.oy); c.scale(tf.s, tf.s);
-      c.beginPath(); c.rect(W.x, W.y, W.w, W.h); c.clip();
+      c.beginPath(); c.rect(W.x - 8, W.y - 8, W.w + 16, W.h + 16); c.clip();
       if (st.weather === 'rain' || st.weather === 'storm') {
         for (const d of drops) {
           if (d.slide) { d.v = Math.min(d.v + 50 * dt, 170); d.y += d.v * dt; d.trail = Math.min(60, d.trail + d.v * dt); if (d.y > W.y + W.h + 6) { d.y = W.y + Math.random() * 60; d.slide = false; d.v = 0; d.trail = 0; } } else if (Math.random() < 0.0012) d.slide = true;

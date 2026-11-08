@@ -74,17 +74,22 @@ Vanilla JavaScript (ES modules), tanpa build step, tanpa backend. Tinggal taruh 
 - **Skeleton & animasi halus**: kerangka saat memuat (judul, hasil cari YouTube, lirik), animasi saat lagu ditambah/dihapus dan saat pindah halaman; mengikuti setelan *kurangi gerakan* sistem.
 - **Kartu video lebih bersih (v12)**: saat kursor di atas thumbnail muncul tombol ▶ Putar, Tambah ke antrean, dan Hapus. Garis tipis di bawah thumbnail menunjukkan sejauh mana lagu sudah diputar (abu-abu = sudah ditonton).
 - **Drag & drop** baris atau kartu (mode kisi: geser ke kiri/kanan) saat urutan manual
-- **Kaca buram** pada player bawah, menu, dialog, antrean, dan navigasi HP; **latar & sidebar ikut warna lagu**; font **Inter** (otomatis kembali ke font sistem saat offline)
+- **Kaca buram** pada player bawah, menu, dialog, antrean, dan navigasi HP; **latar & sidebar ikut warna lagu**; font **Poppins** (di-host sendiri, ikut tersimpan offline)
 - **Empty state berilustrasi** (animasi melayang) dengan tombol besar: Tambahkan lagu pertama, Jelajahi YouTube, Impor playlist dari URL
 - **Toast berikon** di pojok kanan bawah (desktop), hijau untuk sukses dan merah untuk error; lagu baru meluncur masuk, lagu yang dihapus mengecil lalu hilang
 - **Layar lirik ala Spotify (v14)**: tombol 🎤 di player bawah (atau `Y`) membuka lirik besar di area utama dengan latar warna lagu; baris yang sudah lewat lebih terang, baris sekarang putih. Kalau lirik tidak ada, yang tampil artwork + judul lagu. Video tetap melayang di pojok.
 - **Kamar santai (v21)**: latar utama Lobby berupa ilustrasi kamar berlapis (rak buku, meja, laptop, kopi beruap, kucing tidur, tanaman yang bergoyang, lampu-lampu). Lewat tombol **Suasana**: 6 pemandangan di luar jendela (gunung & danau, kota, pantai, hutan pinus, pedesaan dengan kincir, sawah dengan gunung berasap), 6 cuaca (cerah, berawan, hujan, badai berkilat, salju, kabut) dan waktu (otomatis/pagi/siang/senja/malam) yang mengubah cahaya kamar. Suara alam otomatis ikut suasana (bisa dimatikan); ada tombol *Suasana acak*.
 - **Gaya lukisan lofi (v22)**: Kamar santai digambar ulang dengan palet teal keabuan + aksen hangat, atmospheric perspective (gunung jauh memudar ke kabut), sisi lereng terang/gelap, pantulan danau, kabut yang melayang, cahaya lampu yang tumpah ke dinding dan rim light di tepi benda, serat kayu, hujan tiga lapis dengan jejak tetes di kaca, burung sesekali, grain film halus, dan parallax pemandangan yang mengikuti mouse (dimatikan bila *reduced motion*).
 - **Lukisan sapuan kuas (v23)**: `js/paint.js` melukis ulang setiap suasana: underpainting buram → tiga lapis sapuan kuas (warna diambil dari gambar, arah mengikuti tepi benda) → tepi benda dirapikan kembali → bloom lembut + tekstur kanvas. Dikerjakan bertahap ±10 ms per frame sehingga terlihat "terlukis" dalam 1–3 detik tanpa membuat animasi tersendat. Tanaman, pot gantung, dan kucing dilukis sebagai sprite lalu digerakkan (bergoyang/bernapas).
-- **Tipografi (v23)**: Plus Jakarta Sans (teks) + Fraunces (judul, jam Lobby, lirik Lobby), di-host sendiri di `fonts/` (lisensi SIL OFL) dan ikut tersimpan offline.
-- **Lobby (v20)**: tombol sofa di bar atas (atau `B`) membuka layar santai penuh.
-  - **8 mode**: Hujan malam, Santai, Fokus (Pomodoro), Tidur (timer tidur yang memelankan lalu menghentikan musik & suara), Api unggun, Pantai, Kota retro, Musim dingin.
-  - **10 latar** dengan gaya berbeda: hujan di jendela (realistis), senja di bukit (vektor), aurora (cahaya lembut), langit malam, api unggun (partikel), pantai senja, kota retro (pixel art), salju, thumbnail lagu yang diburamkan, dan gambar/GIF sendiri.
+- **v24 — lebih ringkas & bersih**:
+  - **Font Poppins** di seluruh aplikasi (di-host sendiri di `fonts/`, lisensi SIL OFL).
+  - **Kolom serbaguna**: kolom di bar atas untuk mencari *dan* menambah — tempel link YouTube (satu atau banyak) langsung masuk ke playlist yang sedang dibuka, ketik teks untuk mencari. Tombol **Tambah** (atau `A`) membuka panel lengkap (pilih playlist, cari di YouTube, dari library, import playlist, banyak link) sebagai kartu melayang, jadi daftar lagu tidak lagi terdorong ke bawah.
+  - **Mulai cepat** jadi satu baris (progres + langkah berikutnya), daftar lengkap bisa dibuka.
+  - **Header playlist**: Putar, Acak, satu tombol **Urutan & tampilan** (menu berisi urutan dan kepadatan daftar), dan ⋮. Baris lagu cukup ♥ dan ⋮ (naikkan/turunkan/ditonton ada di ⋮, urutan tetap bisa digeser).
+  - Kaki sidebar jadi deretan ikon (Cloud Sync, Backup, Statistik, Yang baru).
+  - **Lobby minimalis**: hanya Kamar santai. Empat ikon kecil di kanan atas — **Suasana** (tab Pemandangan & Suara alam, `S`), **Timer** (tab Fokus/Pomodoro & Timer tidur, `T`), Setelan, Tutup. Fokus & timer tampil sebagai widget kecil hanya saat aktif. Bar musik tipis di bawah (artwork dengan cadangan ukuran lain kalau thumbnail tidak ada), nama lokasi di samping tanggal, warna jam mengikuti cahaya (pagi kebiruan, senja oranye, malam krem), angka jam bergulir. Mode/latar lain dan unggah gambar latar dihapus (cuaca & lokasinya sudah ada di Kamar santai).
+  - **Lukisan lebih manusiawi**: garis seperti digambar tangan (tidak ada yang lurus sempurna), sapuan kuas meruncing dengan jejak bulu kuas kering, terang sedikit hangat & bayangan sedikit dingin, dan barang-barang kecil (polaroid di tali lampu, bingkai foto, catatan tempel, kabel laptop, gumpalan kertas, pensil).
+- **Lobby (v20, disederhanakan di v24)**: tombol sofa di bar atas (atau `B`) membuka layar santai penuh dengan Kamar santai, Fokus (Pomodoro) dan Timer tidur.
   - **13 suara alam disintesis langsung di browser** (tanpa file, jalan offline): hujan, petir, angin, ombak, api unggun, jangkrik, burung, sungai, kafe, piringan hitam, brown/pink/white noise. Mixer per suara, volume utama, preset, simpan racikan sendiri, dan **tambah suara sendiri** dari file audio (disimpan di perangkat).
   - Jam besar + sapaan (bisa pakai nama panggilan), lagu yang diputar dengan kontrol, baris lirik yang sedang dinyanyikan, tombol otomatis tersembunyi saat diam, mode hemat baterai, layar tetap menyala, opsi buka Lobby saat aplikasi dibuka. Suara alam tetap berbunyi setelah Lobby ditutup (ikon di player bawah).
 - **v19**: error YouTube API sekarang menjelaskan penyebab persisnya (API belum diaktifkan di project, pembatasan website/API, key salah, kuota habis) beserta cara memperbaikinya; tombol **Tes key** di Setelan → Umum; permintaan ke API mengirim alamat lengkap halaman sehingga *Website restrictions* berbasis path ikut cocok.
@@ -270,11 +275,11 @@ js/palette.js       command palette (Ctrl+K) + pencocokan fuzzy
 js/recommend.js     rekomendasi lokal "Mix untukmu"
 js/health.js        cek video dihapus/privat (YouTube API / oEmbed)
 js/onboard.js       kartu Mulai cepat + Apa yang baru
-js/lobby.js         Lobby: mode, jam, lirik, Pomodoro, timer tidur, panel
-js/scenes.js        latar animasi canvas (8 scene)
+js/lobby.js         Lobby: jam, lirik, suasana, suara alam, Fokus, timer tidur
+js/scenes.js        penjalan animasi canvas Lobby
 js/room.js          scene Kamar santai: lokasi, cuaca, waktu + suara yang cocok
 js/paint.js         pelukis sapuan kuas untuk Kamar santai
-fonts/              Plus Jakarta Sans & Fraunces (woff2, SIL OFL)
+fonts/              Poppins (woff2, SIL OFL)
 js/ambient.js       suara alam sintesis (Web Audio) + suara sendiri
 js/idb.js           penyimpanan file besar di perangkat (IndexedDB)
 sw.js               service worker (kerangka aplikasi offline)
