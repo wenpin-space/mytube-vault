@@ -4,7 +4,7 @@ import { modal } from './dialogs.js';
 import { icon } from './icons.js';
 import { escapeHtml } from './utils.js';
 
-export const APP_VERSION = 'v24';
+export const APP_VERSION = 'v25';
 const SEEN_KEY = 'mytube_vault_seen_version';
 
 /** Langkah mulai cepat dan statusnya (murni, mudah diuji). */
@@ -49,6 +49,10 @@ export function renderQuickstart(host, state, { installable = false } = {}) {
 }
 
 const CHANGES = [
+  ['translate', 'Bahasa Inggris', 'Setelan → Umum → Bahasa / Language (atau Ctrl+K). Judul lagu, nama playlist, dan lirik tetap seperti aslinya.'],
+  ['rain', 'Hujan & petir baru', 'Hujan lebih nyata (desis, tetes kecil, tetes besar di kusen) dan petir yang bergemuruh panjang dengan gema.'],
+  ['users', 'Suasana kafe & suara lain', 'Kafe ramai dengan orang mengobrol, Orang ngobrol, Ketikan keyboard, Jam dinding, Kereta, Kipas angin, Lalu lintas.'],
+  ['sliders', 'Pengaturan suara tidak berubah sendiri', 'Begitu kamu mengatur suara, “Ikuti suasana” otomatis dimatikan — racikanmu tetap seperti yang kamu atur.'],
   ['search', 'Cari & tempel link di satu kolom', 'Kolom atas sekarang serbaguna: ketik untuk mencari, tempel link YouTube untuk langsung menambah. Tombol Tambah (A) membuka opsi lengkap.'],
   ['sofa', 'Lobby minimalis', 'Cukup 4 ikon kecil: Suasana (pemandangan & suara), Timer (Fokus & tidur), Setelan, Tutup — semuanya menghilang saat diam.'],
   ['sparkle', 'Lukisan yang lebih manusiawi', 'Garis seperti digambar tangan, sapuan kuas meruncing, bayangan dingin & cahaya hangat, plus barang-barang kecil di kamar.'],

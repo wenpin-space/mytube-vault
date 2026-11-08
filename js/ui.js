@@ -46,16 +46,16 @@ export function renderSidebar(store) {
   const smart = [['all', 'grid'], ['mix', 'sparkle'], ['favorites', 'heart'], ['unwatched', 'clock'], ['history', 'history']];
   $('smart-nav').innerHTML = smart.map(([id, ic]) => navItem(id, VIEW_TITLES[id], ic, counts[id], v === id)).join('');
   $('playlist-nav').innerHTML = store.data.playlists
-    .map((p) => navItem(`pl:${p.id}`, p.name, 'music', p.items.length, v === `pl:${p.id}`))
+    .map((p) => navItem(`pl:${p.id}`, p.name, 'music', p.items.length, v === `pl:${p.id}`, true))
     .join('');
   const tags = store.allTags();
   $('tag-title').hidden = !tags.length;
-  $('tag-nav').innerHTML = tags.map((t) => navItem(`tag:${t.key}`, `#${t.name}`, 'tag', t.count, v === `tag:${t.key}`)).join('');
+  $('tag-nav').innerHTML = tags.map((t) => navItem(`tag:${t.key}`, `#${t.name}`, 'tag', t.count, v === `tag:${t.key}`, true)).join('');
 }
 
-function navItem(view, label, ic, count, active) {
+function navItem(view, label, ic, count, active, user = false) {
   return `<button type="button" class="nav-item${active ? ' active' : ''}" data-action="view" data-view="${escapeHtml(view)}"${active ? ' aria-current="page"' : ''}>
-    ${icon(ic)}<span class="nav-label">${escapeHtml(label)}</span><span class="nav-count">${count}</span></button>`;
+    ${icon(ic)}<span class="nav-label"${user ? ' translate="no"' : ''}>${escapeHtml(label)}</span><span class="nav-count">${count}</span></button>`;
 }
 
 export const DENSITIES = [['comfy', 'rows', 'Tampilan nyaman'], ['compact', 'list', 'Tampilan ringkas'], ['grid', 'grid', 'Tampilan kisi']];
@@ -76,7 +76,7 @@ export function renderViewHead(store, info) {
   $('view-head').innerHTML = `
     <div class="vh-text">
       <p class="eyebrow">${pl ? 'Playlist' : tagView ? 'Tag' : 'Koleksi otomatis'}</p>
-      <h1>${escapeHtml(title)}</h1>
+      <h1${pl || tagView ? ' translate="no"' : ''}>${escapeHtml(title)}</h1>
       <p class="muted">${countText}${dur ? ` · ±${dur}` : ''}</p>
     </div>
     <div class="vh-actions">
@@ -167,8 +167,8 @@ function row(e, i, opt) {
       </span>
     </div>
     <div class="meta" data-action="play">
-      ${loading ? '<div class="title"><span class="sk sk-line" style="width:70%"></span></div>' : `<div class="title${v.title ? '' : ' untitled'}" title="${escapeHtml(v.title || '')}">${highlight(title, opt.query)}</div>`}
-      <div class="sub">${v.channel ? `<span>${highlight(v.channel, opt.query)}</span>` : ''}<span class="when">${sub}</span>${v.duration ? `<span class="c-dur">${formatDuration(v.duration)}</span>` : ''}${v.unavailable ? `<span class="tag tag-warn" title="${v.unavailable === 'gone' ? 'Video dihapus, privat, atau tidak ditemukan di YouTube' : 'Pemilik video tidak mengizinkan diputar di luar YouTube'}">${v.unavailable === 'gone' ? 'tidak tersedia' : 'hanya di YouTube'}</span>` : ''}${v.watched ? '<span class="tag">ditonton</span>' : ''}${(v.tags || []).slice(0, 4).map((t) => `<button type="button" class="tag tag-user" data-action="tag-open" data-tag="${escapeHtml(t)}">#${escapeHtml(t)}</button>`).join('')}</div>
+      ${loading ? '<div class="title"><span class="sk sk-line" style="width:70%"></span></div>' : `<div class="title${v.title ? '' : ' untitled'}"${v.title ? ' translate="no"' : ''} title="${escapeHtml(v.title || '')}">${highlight(title, opt.query)}</div>`}
+      <div class="sub">${v.channel ? `<span translate="no">${highlight(v.channel, opt.query)}</span>` : ''}<span class="when">${sub}</span>${v.duration ? `<span class="c-dur">${formatDuration(v.duration)}</span>` : ''}${v.unavailable ? `<span class="tag tag-warn" title="${v.unavailable === 'gone' ? 'Video dihapus, privat, atau tidak ditemukan di YouTube' : 'Pemilik video tidak mengizinkan diputar di luar YouTube'}">${v.unavailable === 'gone' ? 'tidak tersedia' : 'hanya di YouTube'}</span>` : ''}${v.watched ? '<span class="tag">ditonton</span>' : ''}${(v.tags || []).slice(0, 4).map((t) => `<button type="button" class="tag tag-user" translate="no" data-action="tag-open" data-tag="${escapeHtml(t)}">#${escapeHtml(t)}</button>`).join('')}</div>
     </div>
     <div class="row-actions">
       <button type="button" class="icon-btn fav${v.favorite ? ' on' : ''}" data-action="fav" aria-label="Favorit" aria-pressed="${v.favorite}" title="Favorit">${icon('heart', v.favorite ? 'fill' : '')}</button>
@@ -362,7 +362,7 @@ export function renderQueue(player, store) {
       ${now ? '' : `<span class="q-grip" title="Geser untuk mengubah urutan" aria-hidden="true">${icon('grip')}</span>`}
       <button type="button" class="q-main" data-action="queue-jump" data-pos="${pos}">
         <img src="${thumbUrl(item.youtubeId, 'default')}" alt="" loading="lazy">
-        <span class="q-text"><span class="q-title">${escapeHtml((v && v.title) || 'Judul belum tersedia')}</span>${v && v.channel ? `<span class="q-sub">${escapeHtml(v.channel)}</span>` : ''}</span>
+        <span class="q-text" translate="no"><span class="q-title">${escapeHtml((v && v.title) || 'Judul belum tersedia')}</span>${v && v.channel ? `<span class="q-sub">${escapeHtml(v.channel)}</span>` : ''}</span>
       </button>
       ${now ? '' : `<button type="button" class="icon-btn sm" data-action="queue-remove" data-pos="${pos}" aria-label="Hapus dari antrean">${icon('x')}</button>`}
     </div>`;
@@ -402,7 +402,7 @@ export function renderUpNext(player, store) {
       return `<div class="q-row" data-pos="${u.pos}">
         <button type="button" class="q-main" data-action="queue-jump" data-pos="${u.pos}">
           <img src="${thumbUrl(u.item.youtubeId, 'default')}" alt="" loading="lazy">
-          <span class="q-text"><span class="q-title">${escapeHtml(title(u.item.youtubeId))}</span>${v && v.channel ? `<span class="q-sub">${escapeHtml(v.channel)}</span>` : ''}</span>
+          <span class="q-text" translate="no"><span class="q-title">${escapeHtml(title(u.item.youtubeId))}</span>${v && v.channel ? `<span class="q-sub">${escapeHtml(v.channel)}</span>` : ''}</span>
         </button>
         <button type="button" class="icon-btn sm" data-action="queue-remove" data-pos="${u.pos}" aria-label="Hapus dari antrean">${icon('x')}</button>
       </div>`;

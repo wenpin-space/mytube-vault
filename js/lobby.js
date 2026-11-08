@@ -8,6 +8,7 @@ import { putFile, getFile, deleteFile } from './idb.js';
 import { LOCATIONS, WEATHERS, TIMES, resolveTime, roomSoundMix } from './room.js';
 import { escapeHtml } from './utils.js';
 import { thumbUrl } from './metadata.js';
+import { locale, tr } from './i18n.js';
 
 /** Sapaan sesuai jam. */
 export function greeting(hour) {
@@ -53,6 +54,7 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
   let wakeLock = null;
   let customLoaded = false;
   const tabs = { scene: 'view', timer: 'focus' };
+  let lastAutoTime = resolveTime('auto');
   const pomo = { phase: 'work', remaining: 25 * 60, sessions: 0, running: false, timer: 0, active: false };
   const sleep = { end: 0, total: 0, baseVol: null };
 
@@ -81,7 +83,7 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
         <div class="lb-greet"></div>
         <div class="lb-clock" aria-live="off"></div>
         <div class="lb-date"><span class="lb-date-day"></span><button type="button" class="lb-place" data-lb="panel" data-id="scene"></button></div>
-        <div class="lb-lyric" aria-live="polite"></div>
+        <div class="lb-lyric" aria-live="polite" translate="no"></div>
         <div class="lb-widgets"><section class="lb-w lb-pomo" hidden></section><section class="lb-w lb-sleep" hidden></section></div>
         <button type="button" class="lb-unlock" data-lb="unlock" hidden>${icon('volume')}<span>Ketuk untuk menyalakan suara</span></button>
       </main>
@@ -300,11 +302,14 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
   function tickClock() {
     const now = new Date();
     const c = store.ui.lobby || cfg();
-    setClock(now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':'));
-    $('.lb-date-day').textContent = now.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' });
+    setClock(now.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit', hour12: false }).replace('.', ':'));
+    $('.lb-date-day').textContent = now.toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long' });
     $('.lb-greet').textContent = `${greeting(now.getHours())}${c.nickname ? `, ${c.nickname}` : ''}`;
     if (sleep.end) tickSleep();
-    if (roomCfg().time === 'auto' && now.getSeconds() === 0) syncRoom({ sound: true });
+    if (roomCfg().time === 'auto' && now.getSeconds() === 0) {
+      const cur = resolveTime('auto');
+      if (cur !== lastAutoTime) { lastAutoTime = cur; syncRoom({ sound: true }); }
+    }
   }
   function tickLyric() {
     const box = $('.lb-lyric');
@@ -341,7 +346,7 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
     const v = store.data.videos[cur.youtubeId] || {};
     box.innerHTML = `
       <img data-id="${escapeHtml(cur.youtubeId)}" data-q="mqdefault" src="${thumbUrl(cur.youtubeId, 'mqdefault')}" alt="">
-      <div class="lb-np-text"><b>${escapeHtml(v.title || 'Memuat judul…')}</b><span>${escapeHtml(v.channel || '')}</span></div>
+      <div class="lb-np-text" translate="no"><b>${escapeHtml(v.title || 'Memuat judul…')}</b><span>${escapeHtml(v.channel || '')}</span></div>
       <div class="lb-np-ctl">
         <button type="button" class="lb-ico sm" data-lb="prev" aria-label="Sebelumnya">${icon('prev')}</button>
         <button type="button" class="lb-ico lb-pp" data-lb="toggle" aria-label="${player.isPlaying ? 'Jeda' : 'Putar'}">${icon(player.isPlaying ? 'pause' : 'play', 'fill')}</button>
@@ -385,7 +390,7 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
       try { amb.chime(); } catch { /* abaikan */ }
       const msg = pomo.phase === 'work' ? 'Istirahat selesai — saatnya fokus lagi.' : `Sesi fokus selesai! Istirahat ${pomo.phase === 'long' ? pomoCfg().long : pomoCfg().brk} menit.`;
       toast(msg, 'success', 8000);
-      if ('Notification' in window && Notification.permission === 'granted' && document.hidden) { try { new Notification('MyTube Vault', { body: msg }); } catch { /* abaikan */ } }
+      if ('Notification' in window && Notification.permission === 'granted' && document.hidden) { try { new Notification('MyTube Vault', { body: tr(msg) }); } catch { /* abaikan */ } }
     }
     if (open) renderWidgets();
   }
@@ -456,7 +461,16 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
   }
 
   // ------------------------------------------------------------------ event
-  function setMixLevel(id, v) {
+  /** Pengguna mengatur suara sendiri → matikan "Ikuti suasana" supaya racikannya tidak ditimpa lagi. */
+  function manualSound() {
+    const r = roomCfg();
+    if (!r.autoSound) return;
+    r.autoSound = false; save();
+    toast('“Ikuti suasana” dimatikan supaya pengaturan suaramu tidak berubah sendiri.', 'info', 4500);
+    const sw = el && el.querySelector('[data-lb="room-auto"]'); if (sw) sw.checked = false;
+  }
+  function setMixLevel(id, v, manual = true) {
+    if (manual) manualSound();
     const c = cfg();
     c.mix = { ...(c.mix || {}) };
     if (v > 0) c.mix[id] = v; else delete c.mix[id];
@@ -490,12 +504,12 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
         save(); renderScenePanel();
         break;
       }
-      case 'mute-amb': amb.stopAll(); c.mix = {}; save(); renderNP(); syncMixSliders(); break;
+      case 'mute-amb': manualSound(); amb.stopAll(); c.mix = {}; save(); renderNP(); syncMixSliders(); break;
       case 'preset': {
         const del = e.target.closest('[data-lb="del-preset"]');
         if (del) { c.presets.splice(Number(del.dataset.i), 1); save(); renderScenePanel(); break; }
         const p = c.presets[Number(b.dataset.i)];
-        if (p) { c.mix = { ...p.mix }; save(); startMix(c.mix); setTimeout(syncMixSliders, 50); toast(`Racikan “${p.name}”`, 'info', 1500); }
+        if (p) { manualSound(); c.mix = { ...p.mix }; save(); startMix(c.mix); setTimeout(syncMixSliders, 50); toast(`Racikan “${p.name}”`, 'info', 1500); }
         break;
       }
       case 'save-preset': {

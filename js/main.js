@@ -26,6 +26,9 @@ import { libraryPicker, ytSearchDialog, youtubeAppUrl, ytPlaylistImportDialog, a
 import { buildSharePayload, encodeShare, decodeShare, shareUrl, takeShareFromUrl } from './share.js';
 import { logPlay, addListen, openStatsDialog } from './stats.js';
 import { createLyricsPanel, guessArtistTrack, rememberLyrics } from './lyrics.js';
+import { startTranslator, LANG, setLang } from './i18n.js';
+
+startTranslator();
 
 const PAGE = 200;
 const $ = (id) => document.getElementById(id);
@@ -1684,6 +1687,7 @@ function openCommandPalette() {
     ...store.data.playlists.map((p) => ({ group: 'Playlist', label: p.name, hint: `${p.items.length} lagu${`pl:${p.id}` === cur ? ' · dibuka' : ''}`, icon: 'music', run: go(`pl:${p.id}`) })),
     ...views.map(([v, l, ic]) => ({ group: 'Koleksi', label: l, icon: ic, hint: v === cur ? 'dibuka' : '', run: go(v) })),
     ...store.allTags().map((t) => ({ group: 'Tag', label: `#${t.name}`, hint: `${t.count} lagu`, icon: 'tag', hideEmpty: store.allTags().length > 6, run: go(`tag:${t.key}`) })),
+    { group: 'Aksi', label: LANG === 'en' ? 'Bahasa: Indonesia' : 'Language: English', icon: 'translate', keywords: 'bahasa language english indonesia inggris', run: () => setLang(LANG === 'en' ? 'id' : 'en') },
     { group: 'Lobby', label: 'Buka Lobby', icon: 'sofa', keywords: 'lobby santai lofi suasana ambient', run: () => lobby.open() },
     { group: 'Lobby', label: 'Suasana kamar (lokasi, cuaca, waktu)', icon: 'cloud', keywords: 'lobby suasana cuaca lokasi pemandangan', hideEmpty: true, run: () => lobby.openScene() },
     { group: 'Lobby', label: 'Fokus (Pomodoro)', icon: 'timer', keywords: 'lobby fokus pomodoro belajar kerja', hideEmpty: true, run: () => lobby.openFocus() },
@@ -1860,11 +1864,17 @@ function checkQuota() {
   }
 }
 
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-set-lang]');
+  if (b && b.dataset.setLang !== LANG) setLang(b.dataset.setLang);
+});
+
 // ---------- start ----------
 async function onboarding() {
   const choice = await modal({
     title: 'Selamat datang di MyTube Vault',
-    body: `<p>Playlist YouTube pribadi yang <b>tidak bergantung akun YouTube</b> — ganti akun sesering apa pun, playlist tetap ada.</p>
+    body: `<p class="lang-switch" translate="no">${icon('translate')}<button type="button" class="link-btn" data-set-lang="id" ${LANG === 'id' ? 'aria-pressed="true"' : ''}>Bahasa Indonesia</button><span>·</span><button type="button" class="link-btn" data-set-lang="en" ${LANG === 'en' ? 'aria-pressed="true"' : ''}>English</button></p>
+      <p>Playlist YouTube pribadi yang <b>tidak bergantung akun YouTube</b> — ganti akun sesering apa pun, playlist tetap ada.</p>
       <ul class="feature-list">
         <li>${icon('link')}<span>Tempel link YouTube (satu atau banyak sekaligus) untuk menambah video.</span></li>
         <li>${icon('music')}<span>Banyak playlist, urutan manual atau otomatis, player dengan shuffle, repeat, dan antrean.</span></li>

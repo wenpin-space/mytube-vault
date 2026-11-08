@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-title" content="MyTube Vault">
   <link rel="preload" href="fonts/poppins-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/poppins-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="css/style.css?v=24">
+  <link rel="stylesheet" href="css/style.css?v=25">
 </head>
 <body>
   <a class="skip-link" href="#main">Lewati ke daftar video</a>
@@ -77,7 +77,7 @@
             <textarea id="add-multi" rows="4" placeholder="Tempel banyak link sekaligus — satu per baris (Ctrl+Enter untuk menambahkan)" aria-label="Banyak link YouTube" hidden></textarea>
           </div>
           <label class="add-target-wrap"><span class="sr-only">Tambahkan ke playlist</span>
-            <select id="add-target" aria-label="Tambahkan ke playlist"></select></label>
+            <select id="add-target" aria-label="Tambahkan ke playlist" translate="no"></select></label>
           <button type="submit" class="btn btn-primary add-submit" data-icon="plus"><span>Tambah</span></button>
         </div>
         <div class="add-foot">
@@ -102,7 +102,7 @@
 
   <section class="stage" id="stage" hidden aria-label="Video yang sedang diputar">
     <div class="stage-bar">
-      <span class="stage-title" id="stage-title" title="Geser untuk memindahkan"></span>
+      <span class="stage-title" id="stage-title" translate="no" title="Geser untuk memindahkan"></span>
       <button type="button" class="icon-btn sm" id="stage-min" data-action="stage-min" aria-label="Minimize video"></button>
       <button type="button" class="icon-btn sm" id="stage-size" data-action="stage-toggle" aria-label="Ubah ukuran video"></button>
       <button type="button" class="icon-btn sm" data-action="stage-close" data-icon="x" aria-label="Tutup player"></button>
@@ -127,7 +127,7 @@
   <section class="lyrics-view" id="lyrics-panel" hidden aria-label="Lirik">
     <header class="lv-head">
       <img class="lv-thumb" id="lv-thumb" alt="">
-      <div class="lv-meta"><b id="lv-title"></b><span id="lv-sub"></span></div>
+      <div class="lv-meta" translate="no"><b id="lv-title"></b><span id="lv-sub"></span></div>
       <form class="lyrics-form" autocomplete="off" role="search">
         <input type="search" placeholder="Cari lirik: artis + judul" aria-label="Kata kunci lirik" enterkeyhint="search">
         <button type="submit" class="icon-btn" data-icon="search" aria-label="Cari lirik"></button>
@@ -152,8 +152,8 @@
     <div class="dock-track" data-action="np-open">
       <img id="dock-thumb" class="dock-thumb" alt="">
       <div class="dock-meta">
-        <div id="dock-title" class="dock-title"></div>
-        <div id="dock-sub" class="dock-sub"></div>
+        <div id="dock-title" class="dock-title" translate="no"></div>
+        <div id="dock-sub" class="dock-sub" translate="no"></div>
         <span id="dock-sleep" class="dock-badge" hidden></span>
         <button type="button" id="dock-next" class="dock-next" data-action="queue-toggle" hidden></button>
       </div>
@@ -194,6 +194,6 @@
   </nav>
 
   <noscript><p style="padding:24px">MyTube Vault butuh JavaScript.</p></noscript>
-  <script type="module" src="js/main.js?v=24"></script>
+  <script type="module" src="js/main.js?v=25"></script>
 </body>
 </html>

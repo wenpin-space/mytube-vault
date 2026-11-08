@@ -8,6 +8,7 @@ import { icon } from './icons.js';
 import { escapeHtml, formatDateTime, timeAgo, downloadText, todayStamp, copyText, formatBytes } from './utils.js';
 import { syncLabel } from './ui.js';
 import { getApiKey, setApiKey, testApiKey, siteReferrerPattern } from './sources.js';
+import { LANG, LANGUAGES, setLang } from './i18n.js';
 
 const TOKEN_URL = 'https://github.com/settings/tokens/new?scopes=gist&description=MyTube%20Vault';
 const TABS = [['cloud', 'Cloud Sync'], ['backup', 'Backup & Riwayat'], ['general', 'Umum']];
@@ -186,6 +187,8 @@ export async function openSettings(initialTab = 'cloud') {
             <h3>Tampilan</h3>
             <label class="field inline"><span>Tema</span>
               <select data-gen="theme"><option value="auto">Ikuti sistem</option><option value="light">Terang</option><option value="dark">Gelap</option></select></label>
+            <label class="field inline"><span>Bahasa / Language</span>
+              <select data-gen="lang" translate="no">${LANGUAGES.map(([k, l]) => `<option value="${k}"${k === LANG ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
           </section>
           <section class="card">
             <h3>Player</h3>
@@ -404,6 +407,7 @@ export async function openSettings(initialTab = 'cloud') {
         else if (t.dataset.set === 'debounceMs') store.setSyncSetting('debounceMs', Number(t.value));
         else if (t.dataset.player) store.setPlayerSetting(t.dataset.player, t.checked);
         else if (t.dataset.gen === 'theme') { store.ui.theme = t.value; store.saveUi(); }
+        else if (t.dataset.gen === 'lang' && t.value !== LANG) setLang(t.value);
         else if (t.id === 'import-file' && t.files && t.files[0]) {
           const file = t.files[0];
           t.value = '';

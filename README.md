@@ -81,6 +81,11 @@ Vanilla JavaScript (ES modules), tanpa build step, tanpa backend. Tinggal taruh 
 - **Kamar santai (v21)**: latar utama Lobby berupa ilustrasi kamar berlapis (rak buku, meja, laptop, kopi beruap, kucing tidur, tanaman yang bergoyang, lampu-lampu). Lewat tombol **Suasana**: 6 pemandangan di luar jendela (gunung & danau, kota, pantai, hutan pinus, pedesaan dengan kincir, sawah dengan gunung berasap), 6 cuaca (cerah, berawan, hujan, badai berkilat, salju, kabut) dan waktu (otomatis/pagi/siang/senja/malam) yang mengubah cahaya kamar. Suara alam otomatis ikut suasana (bisa dimatikan); ada tombol *Suasana acak*.
 - **Gaya lukisan lofi (v22)**: Kamar santai digambar ulang dengan palet teal keabuan + aksen hangat, atmospheric perspective (gunung jauh memudar ke kabut), sisi lereng terang/gelap, pantulan danau, kabut yang melayang, cahaya lampu yang tumpah ke dinding dan rim light di tepi benda, serat kayu, hujan tiga lapis dengan jejak tetes di kaca, burung sesekali, grain film halus, dan parallax pemandangan yang mengikuti mouse (dimatikan bila *reduced motion*).
 - **Lukisan sapuan kuas (v23)**: `js/paint.js` melukis ulang setiap suasana: underpainting buram → tiga lapis sapuan kuas (warna diambil dari gambar, arah mengikuti tepi benda) → tepi benda dirapikan kembali → bloom lembut + tekstur kanvas. Dikerjakan bertahap ±10 ms per frame sehingga terlihat "terlukis" dalam 1–3 detik tanpa membuat animasi tersendat. Tanaman, pot gantung, dan kucing dilukis sebagai sprite lalu digerakkan (bergoyang/bernapas).
+- **v25 — bahasa Inggris & suara baru**:
+  - **Pilihan bahasa**: Setelan → Umum → *Bahasa / Language*, `Ctrl+K` → “Language: English”, atau langsung di layar sambutan. Pengguna baru mengikuti bahasa browser; pengguna lama tetap bahasa Indonesia. Teks diterjemahkan oleh `js/i18n.js` dengan kamus di `js/i18n-en.js` (termasuk toast, dialog, menu yang muncul belakangan); judul lagu, nama playlist, tag, dan lirik ditandai `translate="no"` sehingga tidak ikut diubah. Tanggal & jam mengikuti bahasa, dan *Terjemahkan* lirik menerjemahkan ke bahasa yang dipilih.
+  - **Hujan & petir baru**: hujan berlapis (desis yang dibentuk, gemuruh jauh, tetes halus, "plink" gelembung, tetes besar di kusen, gema ruang, intensitas naik-turun); petir berupa retakan (sambaran dekat) lalu gemuruh bergulung dengan beberapa pantulan dan gema panjang.
+  - **Suara baru**: *Kafe ramai* (obrolan banyak orang yang disintesis dengan formant suara, dengung ruangan, denting cangkir, mesin espresso), *Orang ngobrol*, *Ketikan keyboard*, *Jam dinding*, *Kereta*, *Kipas angin*, *Lalu lintas* (kota sekarang memakai suara lalu lintas).
+  - **Perbaikan**: pengaturan suara alam tidak lagi kembali ke setelan awal tiap menit. Mengatur suara sendiri otomatis mematikan *Ikuti suasana*.
 - **v24 — lebih ringkas & bersih**:
   - **Font Poppins** di seluruh aplikasi (di-host sendiri di `fonts/`, lisensi SIL OFL).
   - **Kolom serbaguna**: kolom di bar atas untuk mencari *dan* menambah — tempel link YouTube (satu atau banyak) langsung masuk ke playlist yang sedang dibuka, ketik teks untuk mencari. Tombol **Tambah** (atau `A`) membuka panel lengkap (pilih playlist, cari di YouTube, dari library, import playlist, banyak link) sebagai kartu melayang, jadi daftar lagu tidak lagi terdorong ke bawah.
@@ -279,6 +284,8 @@ js/lobby.js         Lobby: jam, lirik, suasana, suara alam, Fokus, timer tidur
 js/scenes.js        penjalan animasi canvas Lobby
 js/room.js          scene Kamar santai: lokasi, cuaca, waktu + suara yang cocok
 js/paint.js         pelukis sapuan kuas untuk Kamar santai
+js/i18n.js          pilihan bahasa + penerjemah tampilan
+js/i18n-en.js       kamus Indonesia → Inggris
 fonts/              Poppins (woff2, SIL OFL)
 js/ambient.js       suara alam sintesis (Web Audio) + suara sendiri
 js/idb.js           penyimpanan file besar di perangkat (IndexedDB)

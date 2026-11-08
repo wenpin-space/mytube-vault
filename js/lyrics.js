@@ -3,6 +3,7 @@
 import { escapeHtml, skeletonRows } from './utils.js';
 import { icon } from './icons.js';
 import { thumbUrl } from './metadata.js';
+import { LANG } from './i18n.js';
 
 const API = 'https://lrclib.net/api';
 const PICK_KEY = 'mytube_vault_lyrics_v1'; // videoId → id lirik LRCLIB yang dipilih (atau 0 = tidak ada)
@@ -211,7 +212,7 @@ export function createLyricsPanel(host, { getTrack, seek, getTime = () => 0, onF
         <a class="btn sm" href="https://www.google.com/search?q=${encodeURIComponent(`${st.query} lirik`)}" target="_blank" rel="noopener">${icon('external')}Cari lirik di Google</a>`);
       return;
     }
-    const head = `<div class="lyrics-meta"><b>${escapeHtml(rec.trackName || '')}</b><span class="small">${escapeHtml(rec.artistName || '')}${rec.albumName ? ` · ${escapeHtml(rec.albumName)}` : ''}</span>
+    const head = `<div class="lyrics-meta"><b translate="no">${escapeHtml(rec.trackName || '')}</b><span class="small">${escapeHtml(rec.artistName || '')}${rec.albumName ? ` · ${escapeHtml(rec.albumName)}` : ''}</span>
       ${st.results.length > 1 ? '<button type="button" class="link-btn small" data-l-act="others">Bukan ini? Lihat hasil lain</button>' : ''}${note}
       ${rec.syncedLyrics || rec.plainLyrics ? `<button type="button" class="ls-btn ls-tr${st.trOn ? ' on-soft' : ''}" data-l-act="translate" aria-pressed="${!!st.trOn}">${icon('translate')}<span>${st.trOn ? 'Sembunyikan terjemahan' : 'Terjemahkan'}</span></button>` : ''}
       <span class="tr-note small"></span></div>`;
@@ -220,11 +221,11 @@ export function createLyricsPanel(host, { getTrack, seek, getTime = () => 0, onF
       st.lines = parseLrc(rec.syncedLyrics);
       st.syncMode = needsSync();
       body.innerHTML = `${head}<div class="lyrics-sync" role="group" aria-label="Sinkronkan lirik"></div>
-        <div class="lyrics-lines synced">${st.lines.map((l, i) => `<p data-i="${i}" data-t="${l.t}">${escapeHtml(l.text) || '♪'}</p>`).join('')}</div>
+        <div class="lyrics-lines synced" translate="no">${st.lines.map((l, i) => `<p data-i="${i}" data-t="${l.t}">${escapeHtml(l.text) || '♪'}</p>`).join('')}</div>
         <p class="hint">Ketuk baris lirik untuk melompat ke bagian itu.</p>`;
       renderSyncBar();
     } else {
-      body.innerHTML = `${head}<div class="lyrics-lines plain">${String(rec.plainLyrics).split(/\r?\n/).map((l) => `<p>${escapeHtml(l) || '&nbsp;'}</p>`).join('')}</div>
+      body.innerHTML = `${head}<div class="lyrics-lines plain" translate="no">${String(rec.plainLyrics).split(/\r?\n/).map((l) => `<p>${escapeHtml(l) || '&nbsp;'}</p>`).join('')}</div>
         <p class="hint">Lirik ini tidak tersinkron dengan waktu lagu.</p>`;
     }
     if (st.trOn) applyTranslation();
@@ -239,16 +240,18 @@ export function createLyricsPanel(host, { getTrack, seek, getTime = () => 0, onF
     if (!rec || !ps.length) return;
     const lines = ps.map((p) => p.textContent.replace(/^♪$/, '').trim());
     const src = detectLang(lines.join('\n'));
-    if (src === 'id') { if (note) note.textContent = 'Lirik ini sudah berbahasa Indonesia.'; return; }
-    let cached = trCacheGet(rec.id);
+    const tgt = LANG === 'en' ? 'en' : 'id';
+    if (src === tgt) { if (note) note.textContent = 'Lirik ini sudah berbahasa Indonesia.'; return; }
+    const ckey = tgt === 'id' ? rec.id : `${rec.id}:en`;
+    let cached = trCacheGet(ckey);
     if (!cached || cached.n !== lines.length) {
       if (note) note.innerHTML = '<span class="spinner"></span> Menerjemahkan…';
       try {
-        const tr = await translateLines(lines, src, 'id');
+        const tr = await translateLines(lines, src, tgt);
         cached = { n: lines.length, src, lines: tr };
-        trCacheSet(rec.id, cached);
+        trCacheSet(ckey, cached);
       } catch (e) {
-        if (note) note.innerHTML = `Terjemahan gagal (${escapeHtml(e.message || 'jaringan')}). <a href="https://translate.google.com/?sl=auto&tl=id&op=translate&text=${encodeURIComponent(lines.join('\n').slice(0, 4500))}" target="_blank" rel="noopener">Buka di Google Translate</a>`;
+        if (note) note.innerHTML = `Terjemahan gagal (${escapeHtml(e.message || 'jaringan')}). <a href="https://translate.google.com/?sl=auto&tl=${tgt}&op=translate&text=${encodeURIComponent(lines.join('\n').slice(0, 4500))}" target="_blank" rel="noopener">Buka di Google Translate</a>`;
         return;
       }
     }

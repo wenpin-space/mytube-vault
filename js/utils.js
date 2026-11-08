@@ -1,3 +1,4 @@
+import { locale } from './i18n.js';
 // Helper umum yang dipakai di seluruh aplikasi.
 
 export const uid = (prefix = 'id') =>
@@ -39,7 +40,7 @@ export function formatTotal(sec) {
 }
 
 const rtf = typeof Intl !== 'undefined' && Intl.RelativeTimeFormat
-  ? new Intl.RelativeTimeFormat('id', { numeric: 'auto' })
+  ? new Intl.RelativeTimeFormat(locale(), { numeric: 'auto' })
   : null;
 
 export function timeAgo(iso) {
@@ -58,7 +59,7 @@ export function timeAgo(iso) {
 export function formatDateTime(iso) {
   if (!iso) return '—';
   try {
-    return new Date(iso).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+    return new Date(iso).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' });
   } catch {
     return iso;
   }

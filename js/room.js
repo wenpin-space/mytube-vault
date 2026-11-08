@@ -44,7 +44,7 @@ export function roomSoundMix({ loc = 'mountain', weather = 'clear', time = 'nigh
   const nature = night ? { crickets: 0.25 } : { birds: 0.2 };
   switch (loc) {
     case 'mountain': Object.assign(m, { wind: 0.12 }, nature); break;
-    case 'city': Object.assign(m, { cafe: 0.14, brown: 0.08 }); break;
+    case 'city': Object.assign(m, { traffic: 0.22, cafe: 0.1 }); break;
     case 'beach': Object.assign(m, { waves: 0.55, wind: 0.1 }, night ? {} : { birds: 0.08 }); break;
     case 'forest': Object.assign(m, { stream: 0.18 }, night ? { crickets: 0.32 } : { birds: 0.3 }); break;
     case 'village': Object.assign(m, { wind: 0.08 }, night ? { crickets: 0.3 } : { birds: 0.22 }); break;

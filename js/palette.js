@@ -65,7 +65,7 @@ export function openPalette({ items, songs }) {
       const head = x.group !== group ? `<p class="pal-group">${escapeHtml((group = x.group))}</p>` : '';
       return `${head}<button type="button" class="pal-item${i === sel ? ' sel' : ''}" role="option" aria-selected="${i === sel}" data-i="${i}">
         ${x.thumb ? `<img src="${thumbUrl(x.thumb, 'default')}" alt="" loading="lazy">` : `<span class="pal-ic">${icon(x.icon || 'arrowRight')}</span>`}
-        <span class="pal-label">${escapeHtml(x.label)}</span>${x.hint ? `<span class="pal-hint">${escapeHtml(x.hint)}</span>` : ''}</button>`;
+        <span class="pal-label"${x.thumb ? ' translate="no"' : ''}>${escapeHtml(x.label)}</span>${x.hint ? `<span class="pal-hint">${escapeHtml(x.hint)}</span>` : ''}</button>`;
     }).join('');
   };
   const move = (d) => {

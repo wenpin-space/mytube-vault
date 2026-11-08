@@ -7,6 +7,8 @@
 // Token GitHub & passphrase disimpan di key terpisah dan TIDAK pernah ikut backup.
 
 import { recommend } from './recommend.js';
+import { LANG } from './i18n.js';
+const MAIN_NAME = () => (LANG === 'en' ? 'Main playlist' : 'Playlist Utama');
 import { uid, nowISO } from './utils.js';
 import { isValidId } from './parser.js';
 
@@ -50,7 +52,7 @@ function newPlaylist(name, t = nowISO()) {
 
 export function createDefaultData() {
   const t = nowISO();
-  return { version: 1, updatedAt: t, videos: {}, playlists: [newPlaylist('Playlist Utama', t)], settings: defaultSettings() };
+  return { version: 1, updatedAt: t, videos: {}, playlists: [newPlaylist(MAIN_NAME(), t)], settings: defaultSettings() };
 }
 
 export function defaultCloud() {
@@ -163,7 +165,7 @@ export function normalizeData(raw) {
     }
     d.playlists.push(pl);
   }
-  if (!d.playlists.length) d.playlists.push(newPlaylist('Playlist Utama', t));
+  if (!d.playlists.length) d.playlists.push(newPlaylist(MAIN_NAME(), t));
   return d;
 }
 
@@ -358,7 +360,7 @@ export const store = {
   },
   deletePlaylist(id) {
     this.data.playlists = this.data.playlists.filter((p) => p.id !== id);
-    if (!this.data.playlists.length) this.data.playlists.push(newPlaylist('Playlist Utama'));
+    if (!this.data.playlists.length) this.data.playlists.push(newPlaylist(MAIN_NAME()));
     this.ensureViewValid();
     this.commit('playlist-delete');
   },

@@ -11,6 +11,7 @@
     // modul menyimpan satu ctx; muat ulang modul dengan query unik
     const m = await import(`../js/ambient.js?x=${s.id}`);
     m.setLevel(s.id, 1);
+    await m.whenReady();
     const buf = await window.__ctx.startRendering();
     const d = buf.getChannelData(0);
     let sum = 0, peak = 0;

@@ -5,6 +5,7 @@ import { modal } from './dialogs.js';
 import { icon } from './icons.js';
 import { escapeHtml, formatTotal } from './utils.js';
 import { thumbUrl } from './metadata.js';
+import { locale } from './i18n.js';
 
 const KEY = 'mytube_vault_stats_v1';
 const MAX_PLAYS = 3000;
@@ -49,7 +50,7 @@ export function computeStats(data, raw = load(), now = new Date()) {
   for (let i = 13; i >= 0; i--) {
     const d = new Date(now); d.setDate(d.getDate() - i);
     const k = dayKey(d);
-    days.push({ key: k, label: d.toLocaleDateString('id-ID', { weekday: 'short' }).replace('.', ''), date: d.getDate(), seconds: raw.daily[k] || 0 });
+    days.push({ key: k, label: d.toLocaleDateString(locale(), { weekday: 'short' }).replace('.', ''), date: d.getDate(), seconds: raw.daily[k] || 0 });
   }
   const sumDays = (n) => {
     let t = 0;
@@ -93,7 +94,7 @@ export function openStatsDialog(store, { onPlay } = {}) {
       <div class="stat-grid">
         ${tile('Didengar 7 hari', formatTotal(s.week) || '0 menit')}
         ${tile('Didengar 30 hari', formatTotal(s.month) || '0 menit')}
-        ${tile('Total diputar', `${s.totalPlays.toLocaleString('id')}×`)}
+        ${tile('Total diputar', `${s.totalPlays.toLocaleString(locale())}×`)}
         ${tile('Library', `${s.videos} lagu`, `${s.playlists} playlist · ${s.favorites} favorit${s.libDuration ? ` · ±${formatTotal(s.libDuration)}` : ''}`)}
       </div>
       ${empty ? `<p class="muted pad">Belum ada data dengar. Putar beberapa lagu, statistik akan terisi otomatis.</p>` : ''}
