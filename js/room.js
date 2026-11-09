@@ -3,6 +3,7 @@
 // ke kanvas cadangan, bagian bergerak (hujan, awan, kucing, tanaman, uap, lampu) digambar tiap frame.
 
 import { createPainter } from './paint.js';
+import { putFile, getFile, deleteFile, listKeys } from './idb.js';
 
 export const LOCATIONS = [
   { id: 'mountain', name: 'Gunung & danau' },
@@ -730,10 +731,80 @@ function drawCat(c, L) {
 const SPRITE_DRAW = { hang: drawHang, plantA: (c, L) => drawPlant(c, L, 0), plantB: (c, L) => drawPlant(c, L, 1), cat: drawCat };
 
 // ------------------------------------------------------------------ scene
+// ------------------------------------------------------------------ cache lukisan
+// Lukisan dibuat pada ukuran kanvas virtual tetap (VW×VH × k) supaya hasilnya bisa dipakai ulang
+// walau ukuran jendela berubah, lalu disimpan: di memori (buka-tutup Lobby instan) dan di IndexedDB
+// (buka aplikasi berikutnya instan). Versi dinaikkan setiap gaya lukisan berubah.
+const PAINT_V = 'p4';
+const MEM_MAX = 2;
+const memCache = new Map(); // key → { outside, room, spr }
+const IDB_PREFIX = 'roompaint:';
+const IDB_MAX = 6;
+function memPut(k, layers) {
+  memCache.delete(k); memCache.set(k, layers);
+  while (memCache.size > MEM_MAX) memCache.delete(memCache.keys().next().value);
+}
+const toBlob = (cv) => new Promise((res) => {
+  try { cv.toBlob((b) => res(b), 'image/webp', 0.9); } catch { res(null); }
+});
+async function idbSave(k, layers) {
+  try {
+    const entry = { t: Date.now(), outside: await toBlob(layers.outside), room: await toBlob(layers.room), spr: {} };
+    for (const [id, cv] of Object.entries(layers.spr)) entry.spr[id] = await toBlob(cv);
+    if (!entry.outside || !entry.room || Object.values(entry.spr).some((x) => !x)) return;
+    await putFile(IDB_PREFIX + k, entry);
+    // simpan maksimal beberapa suasana terakhir; buang versi lama
+    const keys = (await listKeys()).filter((x) => typeof x === 'string' && x.startsWith(IDB_PREFIX));
+    const old = keys.filter((x) => !x.startsWith(`${IDB_PREFIX}${PAINT_V}|`));
+    for (const x of old) await deleteFile(x);
+    const cur = keys.filter((x) => x.startsWith(`${IDB_PREFIX}${PAINT_V}|`));
+    if (cur.length > IDB_MAX) {
+      const ages = await Promise.all(cur.map(async (x) => [x, ((await getFile(x)) || {}).t || 0]));
+      ages.sort((a2, b2) => a2[1] - b2[1]).slice(0, cur.length - IDB_MAX).forEach(([x]) => deleteFile(x));
+    }
+  } catch { /* penyimpanan penuh / tidak tersedia: tidak masalah */ }
+}
+async function idbLoad(k) {
+  try {
+    const e = await getFile(IDB_PREFIX + k);
+    if (!e || !e.outside || !e.room) return null;
+    const bmp = (b) => (typeof createImageBitmap === 'function' ? createImageBitmap(b) : Promise.reject(new Error('no bitmap')));
+    const layers = { outside: await bmp(e.outside), room: await bmp(e.room), spr: {} };
+    for (const id of Object.keys(SPRITES)) { if (!e.spr || !e.spr[id]) return null; layers.spr[id] = await bmp(e.spr[id]); }
+    return layers;
+  } catch { return null; }
+}
+
+// ------------------------------------------------------------------ siapkan lukisan di latar belakang
+// Beberapa detik setelah aplikasi dibuka (saat perangkat senggang), lukisan suasana Lobby saat ini
+// disiapkan supaya Lobby langsung tampil penuh begitu dibuka. Kalau Lobby dibuka saat persiapan
+// belum selesai, Lobby melanjutkan pekerjaan yang sama (tidak mulai dari nol).
+let warm = null; // { sc, ck, idle }
+export function prewarmRoom(roomState, w, h, dpr) {
+  if (warm || typeof document === 'undefined') return;
+  const sc = roomScene();
+  sc.warmStart(roomState, w, h, dpr);
+  const me = (warm = { sc, ck: sc.warmKey(), idle: true });
+  const ric = window.requestIdleCallback ? (fn) => window.requestIdleCallback(fn, { timeout: 1000 }) : (fn) => setTimeout(() => fn({ timeRemaining: () => 8 }), 40);
+  const loop = (dl) => {
+    if (warm !== me || !me.idle) return;
+    // pakai sisa waktu senggang di frame ini, sisakan sedikit untuk browser
+    do {
+      if (sc.warmStep(Math.max(3, Math.min(10, dl.timeRemaining() - 2)))) { warm = null; return; }
+    } while (dl.timeRemaining() > 6);
+    ric(loop);
+  };
+  ric(loop);
+}
+/** Lobby dibuka: hentikan kerja di waktu senggang (Lobby yang melanjutkan kalau suasananya sama). */
+export function pausePrewarm() { if (warm) warm.idle = false; }
+
 export function roomScene() {
   let outside = null; let room = null;
   let painters = []; let spr = {};
-  let key = '';
+  let key = ''; let cacheKey = '';
+  let job = null; // tahap pembuatan lukisan yang sedang berjalan
+  let isWarm = false; // instans khusus persiapan latar belakang
   let L = lighting('night', 'clear');
   let st = { loc: 'mountain', weather: 'rain', time: 'night' };
   let rainL = []; let snow = []; let clouds = []; let drops = []; let mist = []; let birds = [];
@@ -741,35 +812,7 @@ export function roomScene() {
   let tf = { s: 1, ox: 0, oy: 0, dpr: 1 };
   const par = { x: 0, y: 0 };
 
-  function prerender(w, h, dpr) {
-    const s = h > w ? Math.max(w / 1000, (h / VH) * 0.55) : Math.max(w / VW, h / VH);
-    tf = { s, ox: w / 2 - (VW / 2) * s, oy: (h - VH * s) / 2, dpr };
-    const mk = () => { const cv = document.createElement('canvas'); cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); const cx = cv.getContext('2d'); cx.setTransform(dpr * s, 0, 0, dpr * s, dpr * tf.ox, dpr * tf.oy); return [cv, cx]; };
-    L = lighting(st.time, st.weather);
-    curL = L; curP = palette(st.time, L);
-    let cx;
-    let baseOut; let baseRoom;
-    [baseOut, cx] = mk(); drawOutside(cx, st);
-    [baseRoom, cx] = mk(); drawRoom(cx, st, L);
-    if (tf.oy > 0) {
-      cx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      cx.fillStyle = C(M(H('1f1916'), H('0a161e'), L.indoorDark)); cx.fillRect(0, 0, w, tf.oy + 1);
-      cx.fillStyle = C(M(H('3b271e'), H('0a161e'), L.indoorDark)); cx.fillRect(0, tf.oy + VH * tf.s - 1, w, h);
-    }
-    // semuanya dilukis ulang dengan sapuan kuas (bertahap, mulai dari underpainting yang buram)
-    const unit = s * dpr;
-    const pOut = createPainter(baseOut, { unit, seed: 3, wobble: 1.4, scale: 1.2 });
-    const pRoom = createPainter(baseRoom, { unit, seed: 5, wobble: 2.4 });
-    outside = pOut.canvas; room = pRoom.canvas;
-    painters = [pOut, pRoom];
-    spr = {};
-    for (const [id, b] of Object.entries(SPRITES)) {
-      const cv = document.createElement('canvas'); cv.width = Math.ceil(b.w * unit); cv.height = Math.ceil(b.h * unit);
-      const sx = cv.getContext('2d'); sx.setTransform(unit, 0, 0, unit, -b.x * unit, -b.y * unit);
-      SPRITE_DRAW[id](sx, L);
-      const pp = createPainter(cv, { unit, seed: id.length * 13, softEdge: 0.7, scale: 0.6, wobble: 1.2 });
-      spr[id] = pp.canvas; painters.push(pp);
-    }
+  function setupDynamics() {
     const storm = st.weather === 'storm';
     // hujan tiga lapis: jauh (tipis, lambat), tengah, dekat (panjang, terang)
     rainL = [[0.45, 0.6, 150, 9, 0.18], [0.75, 1, 120, 16, 0.3], [1.1, 1.6, 60, 28, 0.45]].map(([v0, wd, n, len, a]) => ({
@@ -784,17 +827,111 @@ export function roomScene() {
     birds = [];
   }
 
+  /** Mulai (ulang) suasana: pakai cache kalau ada, kalau tidak lukis bertahap di beberapa frame. */
+  function prerender(w, h, dpr) {
+    const s = h > w ? Math.max(w / 1000, (h / VH) * 0.55) : Math.max(w / VW, h / VH);
+    tf = { s, ox: w / 2 - (VW / 2) * s, oy: (h - VH * s) / 2, dpr };
+    L = lighting(st.time, st.weather);
+    curL = L; curP = palette(st.time, L);
+    setupDynamics();
+    // skala lukisan dibulatkan supaya cache tetap terpakai walau jendela sedikit berubah ukuran
+    const k = Math.max(0.75, Math.min(1.5, Math.round(s * dpr * 4) / 4));
+    const ck = `${PAINT_V}|${st.loc}|${st.weather}|${st.time}|k${k}`;
+    if (ck === cacheKey && room) return; // lukisan sama, cuma ukuran layar yang berubah
+    cacheKey = ck;
+    const mine = (job = { k, ck, phase: 'lookup', steps: [] });
+    const hit = memCache.get(ck);
+    if (hit) { outside = hit.outside; room = hit.room; spr = hit.spr; painters = []; job = null; return; }
+    painters = [];
+    if (!isWarm && warm && warm.ck === ck) { mine.phase = 'adopt'; return; } // lanjutkan persiapan latar belakang
+    if (warm && !warm.idle) warm = null; // persiapan untuk suasana lain tidak dipakai lagi
+    idbLoad(ck).then((layers) => {
+      if (job !== mine) return;
+      if (layers) { outside = layers.outside; room = layers.room; spr = layers.spr; painters = []; memPut(ck, layers); job = null; return; }
+      buildSteps(mine);
+    });
+  }
+
+  function buildSteps(j) {
+    const { k } = j;
+    const mk = () => { const cv = document.createElement('canvas'); cv.width = Math.round(VW * k); cv.height = Math.round(VH * k); const cx = cv.getContext('2d'); cx.setTransform(k, 0, 0, k, 0, 0); return [cv, cx]; };
+    const stL = L; const stS = { ...st };
+    let baseOut = null; let baseRoom = null;
+    const local = { painters: [], spr: {} };
+    j.phase = 'build';
+    j.steps = [
+      () => { let cx; [baseOut, cx] = mk(); drawOutside(cx, stS); },
+      () => { let cx; [baseRoom, cx] = mk(); drawRoom(cx, stS, stL); },
+      () => {
+        const pOut = createPainter(baseOut, { unit: k, seed: 3, wobble: 1.4, scale: 1.2 });
+        const pRoom = createPainter(baseRoom, { unit: k, seed: 5, wobble: 2.4 });
+        local.painters.push(pOut, pRoom);
+        local.outside = pOut.canvas; local.room = pRoom.canvas;
+      },
+      ...Object.entries(SPRITES).map(([id, b]) => () => {
+        const cv = document.createElement('canvas'); cv.width = Math.ceil(b.w * k); cv.height = Math.ceil(b.h * k);
+        const sx = cv.getContext('2d'); sx.setTransform(k, 0, 0, k, -b.x * k, -b.y * k);
+        SPRITE_DRAW[id](sx, stL);
+        const pp = createPainter(cv, { unit: k, seed: id.length * 13, softEdge: 0.7, scale: 0.6, wobble: 1.2 });
+        local.spr[id] = pp.canvas; local.painters.push(pp);
+      }),
+      () => { outside = local.outside; room = local.room; spr = local.spr; painters = local.painters; j.phase = 'paint'; },
+    ];
+  }
+
+  /** Kerjakan sebagian pekerjaan melukis dalam batas waktu per frame. */
+  function work(budget) {
+    const j = job;
+    if (!j) { globalThis.__roomPainted = !!room; return; }
+    const t0 = performance.now();
+    if (j.phase === 'build') {
+      while (j.steps.length && performance.now() - t0 < budget) j.steps.shift()();
+      return;
+    }
+    if (j.phase === 'adopt') {
+      const wm = warm;
+      if (!wm || wm.ck !== j.ck) { cacheKey = ''; key = ''; job = null; return; } // mulai ulang sendiri
+      if (wm.sc.warmStep(budget)) {
+        warm = null;
+        const hit = memCache.get(j.ck);
+        if (hit) { outside = hit.outside; room = hit.room; spr = hit.spr; painters = []; job = null; globalThis.__roomPainted = true; }
+        else { cacheKey = ''; key = ''; job = null; }
+      } else { const pv = wm.sc.preview(); if (pv) { outside = pv.outside; room = pv.room; spr = pv.spr; } }
+      return;
+    }
+    if (j.phase !== 'paint') return;
+    for (const p of painters) {
+      if (p.done) continue;
+      p.step(Math.max(1, budget - (performance.now() - t0)));
+      if (performance.now() - t0 > budget) break;
+    }
+    if (painters.every((p) => p.done)) {
+      const layers = { outside, room, spr };
+      memPut(j.ck, layers);
+      job = null;
+      globalThis.__roomPainted = true;
+      setTimeout(() => idbSave(j.ck, layers), 400);
+    }
+  }
+
   return {
     init() { key = ''; },
+    warmStart(state, w, h, dpr) { st = { ...state }; key = 'warm'; isWarm = true; prerender(w, h, dpr); },
+    warmStep(ms) { if (job) work(ms); return !job; },
+    warmKey: () => cacheKey,
+    preview: () => (room ? { outside, room, spr } : null),
     draw(c, dt, t, w, h, state) {
       const want = state && state.room ? state.room : st;
       const dpr = c.getTransform().a || 1;
       const k = `${want.loc}|${want.weather}|${want.time}|${w}x${h}|${dpr}`;
       if (k !== key) { st = { ...want }; prerender(w, h, dpr); key = k; }
-      { // lanjutkan melukis (maks ±10 ms per frame)
-        const t0 = performance.now();
-        for (const p of painters) { if (p.done) continue; p.step(Math.max(1, 10 - (performance.now() - t0))); if (performance.now() - t0 > 10) break; }
-        globalThis.__roomPainted = painters.every((p) => p.done);
+      if (job) globalThis.__roomPainted = false;
+      work(job && job.phase === 'paint' ? 22 : 26); // melukis bertahap tanpa membuat animasi macet
+      if (!room) { // belum ada gambar sama sekali (sepersekian detik): latar gelap senada
+        c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
+        const g = c.createLinearGradient(0, 0, 0, c.canvas.height); g.addColorStop(0, '#1b262c'); g.addColorStop(1, '#0d1317');
+        c.fillStyle = g; c.fillRect(0, 0, c.canvas.width, c.canvas.height); c.restore();
+        return;
       }
       const ptr = (state && state.pointer) || { x: 0, y: 0 };
       par.x += (ptr.x - par.x) * Math.min(1, dt * 2.5);
@@ -808,7 +945,7 @@ export function roomScene() {
       c.translate(tf.ox, tf.oy); c.scale(tf.s, tf.s);
       c.beginPath(); c.rect(W.x - 8, W.y - 8, W.w + 16, W.h + 16); c.clip();
       c.translate(pdx, pdy);
-      c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(outside, pdx * tf.s * dpr, pdy * tf.s * dpr); c.restore();
+      c.drawImage(outside, 0, 0, VW, VH);
       // awan bergerak
       const cc = night ? M(curP.top, [70, 85, 110], 0.4) : M(curP.bot, [255, 255, 255], 0.4);
       for (const cl of clouds) { cl.x += cl.v * dt; if (cl.x > OW.x + OW.w + 300) cl.x = OW.x - 300; cloudMass(c, cl.x, cl.y, cl.s, cc, 0.3 + L.overcast * 0.35); }
@@ -895,7 +1032,20 @@ export function roomScene() {
       c.restore();
 
       // ---------- kamar (statis)
-      c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(room, 0, 0); c.restore();
+      if (tf.oy > 0) { // layar tegak: perpanjang plafon & meja
+        c.fillStyle = C(M(H('1f1916'), H('0a161e'), L.indoorDark)); c.fillRect(0, 0, w, tf.oy + 1);
+        c.fillStyle = C(M(H('3b271e'), H('0a161e'), L.indoorDark)); c.fillRect(0, tf.oy + VH * tf.s - 1, w, h);
+      }
+      c.save(); c.translate(tf.ox, tf.oy); c.scale(tf.s, tf.s); c.drawImage(room, 0, 0, VW, VH); c.restore();
+      if (tf.oy > 0) { // sambungan pita atas/bawah dibuat lembut (tanpa garis)
+        const fz = Math.min(tf.oy, 28);
+        const tc = M(H('1f1916'), H('0a161e'), L.indoorDark); const bc = M(H('3b271e'), H('0a161e'), L.indoorDark);
+        const y1 = tf.oy; const y2 = tf.oy + VH * tf.s;
+        let g = c.createLinearGradient(0, y1 - 1, 0, y1 + fz); g.addColorStop(0, C(tc)); g.addColorStop(1, C(tc, 0));
+        c.fillStyle = g; c.fillRect(0, y1 - 1, w, fz + 1);
+        g = c.createLinearGradient(0, y2 + 1, 0, y2 - fz); g.addColorStop(0, C(bc)); g.addColorStop(1, C(bc, 0));
+        c.fillStyle = g; c.fillRect(0, y2 - fz, w, fz + 1);
+      }
       c.save(); c.translate(tf.ox, tf.oy); c.scale(tf.s, tf.s);
       if (flash > 0) { c.fillStyle = `rgba(200,215,255,${flash * 0.12})`; c.fillRect(0, 0, VW, VH); }
 

@@ -29,10 +29,11 @@ function shapes() {
 }
 
 /** Goyangan "garis tangan": geser piksel sedikit dengan pola gelombang halus supaya tidak ada garis lurus sempurna. */
-function wobbleCanvas(src, amp, unit, seed) {
+function* wobbleCanvas(src, amp, unit, seed, over = () => false) {
   const w = src.width; const h = src.height;
   let srcData;
   try { srcData = src.getContext('2d').getImageData(0, 0, w, h); } catch { return src; }
+  yield;
   const r = seeded(seed * 7 + 3);
   const A = amp * unit;
   const tab = (n, period) => { const p = r() * 6.28; const f = 6.2832 / (period * unit); const t = new Float32Array(n); for (let i = 0; i < n; i++) t[i] = Math.sin(i * f + p); return t; };
@@ -49,7 +50,9 @@ function wobbleCanvas(src, amp, unit, seed) {
       if (syy < 0) syy = 0; else if (syy >= h) syy = h - 1;
       u32o[y * w + x] = u32s[syy * w + sx];
     }
+    if ((y & 15) === 0 && over()) yield;
   }
+  yield;
   const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
   cv.getContext('2d').putImageData(out, 0, 0);
   return cv;
@@ -79,34 +82,46 @@ function paper() {
  * @param {{unit?:number, seed?:number, softEdge?:number, scale?:number}} o
  *   unit = piksel perangkat per piksel virtual; scale = pengali ukuran kuas; softEdge = buram tepi siluet
  */
-export function createPainter(src0, { unit = 1, seed = 1, softEdge = 0, scale = 1, wobble = 0 } = {}) {
-  const src = wobble > 0 ? wobbleCanvas(src0, wobble, unit, seed) : src0;
-  const w = src.width; const h = src.height;
-  const out = document.createElement('canvas'); out.width = w; out.height = h;
+export function createPainter(src0, opts = {}) {
+  // ringan saat dibuat: gambar asli langsung tampil; pekerjaan berat dimulai di step() pertama
+  const out = document.createElement('canvas'); out.width = src0.width; out.height = src0.height;
+  out.getContext('2d').drawImage(src0, 0, 0);
+  let inner = null;
+  return {
+    canvas: out,
+    get done() { return inner ? inner.done : false; },
+    step(ms = 8) {
+      // persiapan dipecah ke beberapa frame: (1) warp kuas, (2) lapisan dasar + baca piksel, lalu sapuan
+      if (!inner) inner = startPainter(src0, opts, out);
+      return inner.step(ms);
+    },
+  };
+}
+
+function startPainter(src0, { unit = 1, seed = 1, softEdge = 0, scale = 1, wobble = 0 } = {}, out) {
+  // Seluruh pekerjaan dijalankan sebagai generator: setiap kali jatah waktu frame habis, pekerjaan
+  // berhenti sejenak (yield) dan dilanjutkan di frame berikutnya — tidak ada satu langkah pun yang
+  // membuat layar macet lama, termasuk di HP.
+  let src = src0;
+  const w = src0.width; const h = src0.height;
   const o = out.getContext('2d');
   const hasFilter = typeof o.filter === 'string';
   const blurDraw = (px) => { if (hasFilter && px > 0) o.filter = `blur(${px}px)`; o.drawImage(src, 0, 0); o.filter = 'none'; };
   const applyMask = () => { o.setTransform(1, 0, 0, 1, 0, 0); o.globalAlpha = 1; o.globalCompositeOperation = 'destination-in'; blurDraw(softEdge * unit); o.globalCompositeOperation = 'source-over'; };
-
-  blurDraw(Math.max(1, 2.4 * unit * scale)); // underpainting
-  applyMask();
-
-  let data = null;
-  try { data = src.getContext('2d').getImageData(0, 0, w, h).data; } catch { /* tanpa akses piksel → tampilkan apa adanya */ }
-  if (!data || w < 4 || h < 4) { o.drawImage(src, 0, 0); return { canvas: out, done: true, progress: 1, step() { return true; } }; }
-
   const r = seeded(seed);
   const d = Math.max(1, Math.round(unit * 1.3));
+  let data = null;
   const lum = (x, y) => { const i = (y * w + x) * 4; return data[i] * 0.3 + data[i + 1] * 0.59 + data[i + 2] * 0.11; };
   const flow = (x, y) => 0.32 * Math.sin((x / unit) * 0.0042 + (y / unit) * 0.0021) + 0.12 * Math.sin((y / unit) * 0.011);
 
-  let passIdx = -1; let list = null; let pos = 0; let pass = null;
+  let T0 = 0; let MS = 8;
+  const over = () => performance.now() - T0 > MS;
   let total = 0; let doneCount = 0; let finished = false;
+  for (const p of PASSES) total += ((w / (p[1] * unit * scale)) * (h / (p[1] * unit * scale))) * (p[2] ? 0.3 : 1);
 
-  function buildPass(p) {
-    const [rad, gap, thr, keep] = p;
+  function* buildPass(p, pts) {
+    const [, gap, thr, keep] = p;
     const step = gap * unit * scale;
-    const pts = [];
     for (let y = d + 1; y < h - d - 1; y += step) {
       for (let x = d + 1; x < w - d - 1; x += step) {
         const xi = Math.round(x + (r() - 0.5) * step * 0.9);
@@ -120,77 +135,24 @@ export function createPainter(src0, { unit = 1, seed = 1, softEdge = 0, scale = 
         const ang = mag > 3 ? Math.atan2(gy, gx) + Math.PI / 2 : flow(xi, yi);
         pts.push(xi, yi, ang + (r() - 0.5) * 0.3);
       }
+      if (over()) yield;
     }
     // acak urutan supaya tidak ada pola baris
     const n = pts.length / 3;
     for (let i = n - 1; i > 0; i--) {
       const j = Math.floor(r() * (i + 1));
       for (let k = 0; k < 3; k++) { const t = pts[i * 3 + k]; pts[i * 3 + k] = pts[j * 3 + k]; pts[j * 3 + k] = t; }
+      if ((i & 4095) === 0 && over()) yield;
     }
-    void rad;
-    return pts;
   }
 
-  // perkiraan jumlah total untuk progress
-  for (const p of PASSES) total += ((w / (p[1] * unit * scale)) * (h / (p[1] * unit * scale))) * (p[2] ? 0.3 : 1);
-
-  // tepi tegas: gambar asli dikembalikan hanya di tepi benda supaya bentuk tetap rapi,
-  // sedangkan bidang datar (dinding, langit, meja, air) tetap bertekstur sapuan kuas.
-  function edgeRestore() {
-    const mw = Math.max(2, Math.floor(w / 2)); const mh = Math.max(2, Math.floor(h / 2));
-    const mc = document.createElement('canvas'); mc.width = mw; mc.height = mh;
-    const mx = mc.getContext('2d'); const img = mx.createImageData(mw, mh); const md = img.data;
-    for (let y = 1; y < mh - 1; y++) {
-      const sy = y * 2;
-      for (let x = 1; x < mw - 1; x++) {
-        const sx = x * 2;
-        const gx = lum(Math.min(w - 1, sx + d), sy) - lum(Math.max(0, sx - d), sy);
-        const gy = lum(sx, Math.min(h - 1, sy + d)) - lum(sx, Math.max(0, sy - d));
-        const lc = lum(sx, sy);
-        const m = Math.min(255, Math.hypot(gx, gy) * 5.5 * (70 / (lc + 28))); // relatif: tepi di area gelap tetap terjaga
-        const i = (y * mw + x) * 4; md[i + 3] = m;
-      }
-    }
-    mx.putImageData(img, 0, 0);
-    const tmp = document.createElement('canvas'); tmp.width = w; tmp.height = h;
-    const tx = tmp.getContext('2d');
-    tx.drawImage(src, 0, 0);
-    tx.globalCompositeOperation = 'destination-in';
-    if (hasFilter) tx.filter = `blur(${Math.max(0.8, unit * 1.2)}px)`;
-    tx.drawImage(mc, 0, 0, w, h); tx.filter = 'none';
-    o.setTransform(1, 0, 0, 1, 0, 0); o.globalCompositeOperation = 'source-atop'; o.globalAlpha = 0.85;
-    o.drawImage(tmp, 0, 0); o.globalAlpha = 1;
-  }
-
-  function finish() {
-    edgeRestore();
-    o.setTransform(1, 0, 0, 1, 0, 0);
-    // sedikit "bloom" lembut ala ilustrasi lofi
-    if (hasFilter) { o.globalCompositeOperation = 'soft-light'; o.globalAlpha = 0.3; o.filter = `blur(${Math.max(2, 7 * unit)}px)`; o.drawImage(out, 0, 0); o.filter = 'none'; }
-    o.globalAlpha = 0.5; o.globalCompositeOperation = 'soft-light';
-    o.fillStyle = o.createPattern(paper(), 'repeat'); o.fillRect(0, 0, w, h);
-    o.globalAlpha = 1;
-    applyMask();
-    finished = true; data = null; list = null;
-  }
-
-  function step(ms = 8) {
-    if (finished) return true;
-    const t0 = performance.now();
-    o.globalCompositeOperation = 'source-atop';
-    while (performance.now() - t0 < ms) {
-      if (!list || pos >= list.length) {
-        passIdx++;
-        if (passIdx >= PASSES.length) { finish(); return true; }
-        pass = PASSES[passIdx]; list = buildPass(pass); pos = 0;
-        o.globalCompositeOperation = 'source-atop';
-        continue;
-      }
-      const [rad, , , , alpha, lmin, lmax] = pass;
-      const end = Math.min(list.length, pos + 3 * 400);
-      const SH = shapes();
-      const bristle = passIdx === 0;
-      o.globalAlpha = alpha;
+  function* paintPass(pass, list, passIdx) {
+    const [rad, , , , alpha, lmin, lmax] = pass;
+    const SH = shapes();
+    const bristle = passIdx === 0;
+    for (let pos = 0; pos < list.length;) {
+      o.globalCompositeOperation = 'source-atop'; o.globalAlpha = alpha;
+      const end = Math.min(list.length, pos + 3 * 200);
       for (; pos < end; pos += 3) {
         const x = list[pos]; const y = list[pos + 1]; const a = list[pos + 2] + (r() < 0.5 ? Math.PI : 0);
         const i = (y * w + x) * 4; const i2 = ((y + d) * w + x) * 4; const i3 = (y * w + x + d) * 4;
@@ -208,22 +170,97 @@ export function createPainter(src0, { unit = 1, seed = 1, softEdge = 0, scale = 
         o.fillStyle = `rgb(${R | 0},${G | 0},${B | 0})`;
         if (SH) o.fill(SH[(r() * SH.length) | 0]); else { o.beginPath(); o.arc(0, 0, 1, 0, TAU); o.fill(); }
         if (bristle && r() < 0.35) { // jejak bulu kuas kering
-          const ga = o.globalAlpha; o.globalAlpha = 0.22; o.lineWidth = 0.12;
+          o.globalAlpha = 0.22; o.lineWidth = 0.12;
           o.strokeStyle = `rgb(${Math.min(255, R + 22) | 0},${Math.min(255, G + 20) | 0},${Math.min(255, B + 16) | 0})`;
           o.beginPath(); o.moveTo(-0.85, -0.32); o.lineTo(0.9, -0.22); o.stroke();
           o.strokeStyle = `rgb(${Math.max(0, R - 26) | 0},${Math.max(0, G - 24) | 0},${Math.max(0, B - 20) | 0})`;
           o.beginPath(); o.moveTo(-0.8, 0.3); o.lineTo(0.85, 0.2); o.stroke();
-          o.globalAlpha = ga;
+          o.globalAlpha = alpha;
         }
         doneCount++;
       }
-      o.setTransform(1, 0, 0, 1, 0, 0);
+      o.setTransform(1, 0, 0, 1, 0, 0); o.globalAlpha = 1; o.globalCompositeOperation = 'source-over';
+      api.progress = Math.min(0.99, doneCount / (total || 1));
+      if (over()) yield;
     }
-    o.setTransform(1, 0, 0, 1, 0, 0); o.globalAlpha = 1; o.globalCompositeOperation = 'source-over';
-    api.progress = Math.min(0.99, doneCount / (total || 1));
-    return false;
   }
 
+  // tepi tegas: gambar asli dikembalikan hanya di tepi benda supaya bentuk tetap rapi,
+  // sedangkan bidang datar (dinding, langit, meja, air) tetap bertekstur sapuan kuas.
+  function* edgeRestore() {
+    const mw = Math.max(2, Math.floor(w / 2)); const mh = Math.max(2, Math.floor(h / 2));
+    const mc = document.createElement('canvas'); mc.width = mw; mc.height = mh;
+    const mx = mc.getContext('2d'); const img = mx.createImageData(mw, mh); const md = img.data;
+    for (let y = 1; y < mh - 1; y++) {
+      const sy = y * 2;
+      for (let x = 1; x < mw - 1; x++) {
+        const sx = x * 2;
+        const gx = lum(Math.min(w - 1, sx + d), sy) - lum(Math.max(0, sx - d), sy);
+        const gy = lum(sx, Math.min(h - 1, sy + d)) - lum(sx, Math.max(0, sy - d));
+        const lc = lum(sx, sy);
+        const m = Math.min(255, Math.hypot(gx, gy) * 5.5 * (70 / (lc + 28))); // relatif: tepi di area gelap tetap terjaga
+        const i = (y * mw + x) * 4; md[i + 3] = m;
+      }
+      if ((y & 7) === 0 && over()) yield;
+    }
+    mx.putImageData(img, 0, 0);
+    yield;
+    const tmp = document.createElement('canvas'); tmp.width = w; tmp.height = h;
+    const tx = tmp.getContext('2d');
+    tx.drawImage(src, 0, 0);
+    tx.globalCompositeOperation = 'destination-in';
+    if (hasFilter) tx.filter = `blur(${Math.max(0.8, unit * 1.2)}px)`;
+    tx.drawImage(mc, 0, 0, w, h); tx.filter = 'none';
+    o.setTransform(1, 0, 0, 1, 0, 0); o.globalCompositeOperation = 'source-atop'; o.globalAlpha = 0.85;
+    o.drawImage(tmp, 0, 0); o.globalAlpha = 1; o.globalCompositeOperation = 'source-over';
+  }
+
+  function* run() {
+    if (wobble > 0) src = yield* wobbleCanvas(src0, wobble, unit, seed, over); // goyangan garis tangan
+    o.clearRect(0, 0, w, h);
+    blurDraw(Math.max(1, 2.4 * unit * scale)); // lapisan dasar
+    applyMask();
+    yield;
+    // baca piksel per pita supaya tidak ada satu pembacaan besar yang lama
+    try {
+      const sctx = src.getContext('2d');
+      data = new Uint8ClampedArray(w * h * 4);
+      const band = Math.max(64, Math.ceil(h / 4));
+      for (let y = 0; y < h; y += band) {
+        const bh = Math.min(band, h - y);
+        data.set(sctx.getImageData(0, y, w, bh).data, y * w * 4);
+        if (over()) yield;
+      }
+    } catch { data = null; }
+    if (!data || w < 4 || h < 4) { o.drawImage(src, 0, 0); return; }
+    for (let pi = 0; pi < PASSES.length; pi++) {
+      const list = [];
+      yield* buildPass(PASSES[pi], list);
+      yield;
+      yield* paintPass(PASSES[pi], list, pi);
+    }
+    yield;
+    yield* edgeRestore();
+    yield;
+    o.setTransform(1, 0, 0, 1, 0, 0);
+    // sedikit "bloom" lembut ala ilustrasi lofi
+    if (hasFilter) { o.globalCompositeOperation = 'soft-light'; o.globalAlpha = 0.3; o.filter = `blur(${Math.max(2, 7 * unit)}px)`; o.drawImage(out, 0, 0); o.filter = 'none'; }
+    yield;
+    o.globalAlpha = 0.5; o.globalCompositeOperation = 'soft-light';
+    o.fillStyle = o.createPattern(paper(), 'repeat'); o.fillRect(0, 0, w, h);
+    o.globalAlpha = 1;
+    applyMask();
+  }
+
+  const it = run();
+  function step(ms = 8) {
+    if (finished) return true;
+    T0 = performance.now(); MS = ms;
+    const res = it.next();
+    o.setTransform(1, 0, 0, 1, 0, 0); o.globalAlpha = 1; o.globalCompositeOperation = 'source-over'; o.filter = 'none';
+    if (res.done) { finished = true; data = null; api.progress = 1; }
+    return finished;
+  }
   const api = { canvas: out, get done() { return finished; }, progress: 0, step, finishNow() { while (!step(50)); } };
   return api;
 }

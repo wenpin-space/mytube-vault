@@ -835,6 +835,8 @@ export const EN = {
   '±{0} dtk': '±{0} s',
   '+{0} dtk': '+{0} s',
   '−{0} dtk': '−{0} s',
+  'Lobby terbuka lebih cepat': 'Lobby opens faster',
+  'Lukisan kamar kini disimpan di perangkat: membuka Lobby lagi langsung tampil, dan saat aplikasi senggang lukisannya disiapkan lebih dulu. Melukis suasana baru tidak lagi membuat layar tersendat, dan Lobby yang dibuka ulang tidak lagi diam.': 'The room painting is now saved on your device: reopening the Lobby is instant, and it gets prepared ahead of time while the app is idle. Painting a new mood no longer makes the screen stutter, and a reopened Lobby no longer stays frozen.',
   'Dari Lobby langsung ke lirik': 'From the Lobby straight to lyrics',
   'Klik bar musik di Lobby → pindah ke halaman lirik dengan animasi (artwork & judul ikut berpindah). Tombol Back kembali ke daftar lagu.': 'Click the music bar in the Lobby → move to the lyrics page with an animation (artwork & title travel along). Back returns to the song list.',
   // waktu relatif & lain-lain

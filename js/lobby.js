@@ -5,7 +5,7 @@
 import * as amb from './ambient.js';
 import { createSceneRunner } from './scenes.js';
 import { putFile, getFile, deleteFile } from './idb.js';
-import { LOCATIONS, WEATHERS, TIMES, resolveTime, roomSoundMix } from './room.js';
+import { LOCATIONS, WEATHERS, TIMES, resolveTime, roomSoundMix, prewarmRoom, pausePrewarm } from './room.js';
 import { escapeHtml } from './utils.js';
 import { thumbUrl } from './metadata.js';
 import { locale, tr } from './i18n.js';
@@ -115,6 +115,7 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
     if (!el) build();
     if (open) return;
     open = true;
+    pausePrewarm();
     el.hidden = false;
     document.body.classList.add('lobby-open');
     const c = cfg();
@@ -629,6 +630,13 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
     /** Untuk Escape: tutup panel dulu, baru Lobby. */
     escape() { if (!open) return false; if (el.classList.contains('panel-open')) closePanels(); else hide(); return true; },
     ambientActive: () => amb.isPlaying(),
+    /** Siapkan lukisan suasana saat ini di latar belakang (dipanggil saat aplikasi senggang). */
+    prewarm() {
+      if (open) return;
+      const c = store.ui.lobby || {};
+      const dpr = c.lowPower ? 1 : Math.min(2, window.devicePixelRatio || 1);
+      prewarmRoom(roomResolved(), window.innerWidth, window.innerHeight, dpr);
+    },
     /** Pintasan khusus Lobby: S = suasana, T = timer. */
     key(k) {
       if (!open) return false;

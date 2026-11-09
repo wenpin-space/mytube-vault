@@ -4,7 +4,7 @@ import { modal } from './dialogs.js';
 import { icon } from './icons.js';
 import { escapeHtml } from './utils.js';
 
-export const APP_VERSION = 'v27';
+export const APP_VERSION = 'v28';
 const SEEN_KEY = 'mytube_vault_seen_version';
 
 /** Langkah mulai cepat dan statusnya (murni, mudah diuji). */
@@ -49,6 +49,7 @@ export function renderQuickstart(host, state, { installable = false } = {}) {
 }
 
 const CHANGES = [
+  ['bolt', 'Lobby terbuka lebih cepat', 'Lukisan kamar kini disimpan di perangkat: membuka Lobby lagi langsung tampil, dan saat aplikasi senggang lukisannya disiapkan lebih dulu. Melukis suasana baru tidak lagi membuat layar tersendat, dan Lobby yang dibuka ulang tidak lagi diam.'],
   ['mic', 'Dari Lobby langsung ke lirik', 'Klik bar musik di Lobby → pindah ke halaman lirik dengan animasi (artwork & judul ikut berpindah). Tombol Back kembali ke daftar lagu.'],
   ['volume', 'Suara alam pakai rekaman asli', 'Hujan, petir, jangkrik, kafe, keramaian orang, kipas angin, lalu lintas, dan lainnya kini rekaman asli (CC0/Pixabay), diputar berulang tanpa jeda. Baru: hujan deras, burung camar, burung hantu, restoran ramai, kucing mendengkur.'],
   ['translate', 'Bahasa Inggris', 'Setelan → Umum → Bahasa / Language (atau Ctrl+K). Judul lagu, nama playlist, dan lirik tetap seperti aslinya.'],

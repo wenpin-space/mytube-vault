@@ -1880,6 +1880,9 @@ document.addEventListener('click', (e) => {
   if (b && b.dataset.setLang !== LANG) setLang(b.dataset.setLang);
 });
 
+// Lobby pernah dipakai → siapkan lukisannya di latar belakang supaya langsung tampil saat dibuka
+setTimeout(() => { if (store.ui.lobby && !lobby.isOpen() && !document.hidden) lobby.prewarm(); }, 3500);
+
 // ---------- start ----------
 async function onboarding() {
   const choice = await modal({

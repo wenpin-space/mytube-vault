@@ -62,7 +62,7 @@ export function createSceneRunner(canvas) {
   document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); else if (canvas.isConnected && !canvas.closest('[hidden]')) start(); });
   return {
     setScene(next) {
-      if (next === id && scene) return;
+      if (next === id && scene) { start(); return; } // dibuka lagi: lanjutkan animasi
       id = next;
       scene = FACTORY[next] ? FACTORY[next]() : null;
       if (scene) { size(); start(); } else { stop(); c.clearRect(0, 0, canvas.width, canvas.height); }
