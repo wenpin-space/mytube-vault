@@ -224,6 +224,15 @@ export const store = {
     this.emit('change', { reason });
   },
   saveUi() { this.persist(); this.emit('ui'); },
+  /** Simpan setelan tampilan tanpa memicu render ulang (dipakai Lobby: slider, pilihan suasana). */
+  saveUiQuiet() {
+    clearTimeout(this._uiTimer);
+    this._uiTimer = setTimeout(() => { this._uiTimer = 0; this.persist(); }, 300);
+    if (!this._uiFlush && typeof window !== 'undefined') {
+      this._uiFlush = true;
+      window.addEventListener('pagehide', () => { if (this._uiTimer) { clearTimeout(this._uiTimer); this._uiTimer = 0; this.persist(); } });
+    }
+  },
   saveCloud() { this.persist(); this.emit('cloud'); },
 
   // ---------- snapshot (jaring pengaman sebelum data ditimpa) ----------

@@ -138,6 +138,31 @@ function highlight(text, q) {
   return out + escapeHtml(text.slice(i));
 }
 
+/**
+ * Tandai lagu yang sedang diputar tanpa membangun ulang daftar (dipanggil setiap play/jeda/ganti lagu).
+ * Hanya baris yang berubah yang disentuh.
+ */
+export function updatePlaying(playingId, isPlaying) {
+  const list = document.getElementById('video-list');
+  if (!list) return;
+  const set = (r, on) => {
+    const want = on ? `p${isPlaying ? 1 : 0}` : '';
+    if ((r.dataset.ps || '') === want) return;
+    r.dataset.ps = want;
+    r.classList.toggle('playing', on);
+    const idx = r.querySelector('.idx');
+    if (idx) idx.innerHTML = on ? icon('volume') : String(Number(r.dataset.i) + 1);
+    const b = r.querySelector('.thumb-play');
+    if (b) {
+      b.innerHTML = icon(on && isPlaying ? 'pause' : 'play', 'fill');
+      const lbl = b.getAttribute('aria-label') || '';
+      b.setAttribute('aria-label', lbl.replace(/^\S+/, on && isPlaying ? 'Jeda' : 'Putar'));
+    }
+  };
+  list.querySelectorAll('.vrow.playing').forEach((r) => { if (r.dataset.yt !== playingId) set(r, false); });
+  if (playingId) list.querySelectorAll('.vrow').forEach((r) => { if (r.dataset.yt === playingId) set(r, true); });
+}
+
 function row(e, i, opt) {
   const v = e.video;
   const playing = opt.playingId === e.youtubeId;
@@ -150,7 +175,7 @@ function row(e, i, opt) {
   const part = opt.progress ? opt.progress(v.youtubeId, v.duration) : 0;
   const prog = v.watched ? 1 : part > 0.02 ? part : 0;
   const sub = opt.view === 'mix' && e.reason ? e.reason : opt.view === 'history' && v.lastPlayedAt ? `diputar ${timeAgo(v.lastPlayedAt)}${v.playCount > 1 ? ` · ${v.playCount}×` : ''}` : timeAgo(e.addedAt);
-  return `<li class="vrow${playing ? ' playing' : ''}${v.watched ? ' watched' : ''}${picked ? ' selected' : ''}${fresh ? ' flash' : ''}" data-key="${escapeHtml(e.key)}"${reorder ? ' draggable="true"' : ''}${sel ? ` aria-selected="${picked}"` : ''}>
+  return `<li${playing ? ` data-ps="p${opt.isPlaying ? 1 : 0}"` : ''} class="vrow${playing ? ' playing' : ''}${v.watched ? ' watched' : ''}${picked ? ' selected' : ''}${fresh ? ' flash' : ''}" data-key="${escapeHtml(e.key)}" data-yt="${escapeHtml(v.youtubeId)}" data-i="${i}"${reorder ? ' draggable="true"' : ''}${sel ? ` aria-selected="${picked}"` : ''}>
     ${sel ? `<span class="pick" data-action="select-toggle" role="checkbox" aria-checked="${picked}" aria-label="Pilih">${icon(picked ? 'checkCircle' : 'circle')}</span>` : ''}
     ${reorder ? `<span class="grip" title="Geser untuk mengubah urutan">${icon('grip')}</span>` : ''}
     <span class="idx">${playing ? icon('volume') : i + 1}</span>

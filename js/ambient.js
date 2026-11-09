@@ -726,6 +726,19 @@ export function chime() {
   });
 }
 
+/** Efek suara pendek di Kafe: 'clink' (cangkir diletakkan) atau 'bell' (lonceng pintu).
+ *  Hanya berbunyi kalau suara alam sudah aktif (tidak membuat AudioContext baru). */
+export function sfx(kind) {
+  if (!ctx || ctx.state !== 'running' || masterLevel <= 0) return;
+  const now = ctx.currentTime;
+  const notes = kind === 'bell' ? [[1568, 0, 1.4, 0.07], [2093, 0.09, 1.2, 0.05], [2637, 0.18, 1.1, 0.04]] : [[2350, 0, 0.35, 0.05], [3520, 0.012, 0.25, 0.03], [2780, 0.11, 0.3, 0.03]];
+  notes.forEach(([f, d, len, a]) => {
+    const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f;
+    const e = ctx.createGain(); e.gain.setValueAtTime(0, now + d); e.gain.linearRampToValueAtTime(a, now + d + 0.005); e.gain.exponentialRampToValueAtTime(0.0001, now + d + len);
+    o.connect(e).connect(master); o.start(now + d); o.stop(now + d + len + 0.05);
+  });
+}
+
 /** Daftarkan suara sendiri dari ArrayBuffer file audio. */
 export async function addCustom(id, arrayBuffer) {
   const c = ensure();

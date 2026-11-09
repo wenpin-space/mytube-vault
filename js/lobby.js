@@ -3,12 +3,15 @@
 // satu bar musik tipis di bawah; semuanya menghilang saat tidak ada gerakan.
 
 import * as amb from './ambient.js';
-import { createSceneRunner } from './scenes.js';
+import { createSceneRunner, canvasDpr } from './scenes.js';
+import { SLEEP_PRESETS } from './sleep.js';
 import { putFile, getFile, deleteFile } from './idb.js';
 import { LOCATIONS, WEATHERS, TIMES, resolveTime, roomSoundMix, prewarmRoom, pausePrewarm } from './room.js';
 import { escapeHtml } from './utils.js';
+import { DRINKS, FOODS } from './cafe.js';
 import { thumbUrl } from './metadata.js';
-import { locale, tr } from './i18n.js';
+import { locale, tr, LANG } from './i18n.js';
+import { fetchWeather, searchCity, placeName, geolocate, liveScene, describeWmo, localMinutes, minutesToNextTime, STALE_MS } from './weather.js';
 
 /** Sapaan sesuai jam. */
 export function greeting(hour) {
@@ -30,21 +33,36 @@ export function pomodoroNext(state, cfg = { work: 25, brk: 5, long: 15, every: 4
 }
 
 export const FOCUS_PRESETS = [[25, 5, 15], [50, 10, 20], [15, 3, 10], [90, 15, 30]];
-export const SLEEP_PRESETS = [15, 30, 45, 60, 90];
+export { SLEEP_PRESETS };
 
-const DEFAULTS = { room: { loc: 'mountain', weather: 'rain', time: 'auto', autoSound: true }, mix: null, master: 0.8, presets: [], lowPower: false, autoHide: true, startup: false, nickname: '', showLyrics: true, wake: true, customSounds: [], pomo: { work: 25, brk: 5, long: 15 } };
+const DEFAULTS = { room: { spot: 'room', loc: 'mountain', weather: 'rain', time: 'auto', autoSound: true, live: false, place: null }, wx: null, cafe: null, mix: null, master: 0.8, presets: [], autoHide: true, startup: false, nickname: '', showLyrics: true, wake: true, customSounds: [], pomo: { work: 25, brk: 5, long: 15 } };
 const PHASE = { work: 'Fokus', break: 'Istirahat', long: 'Istirahat panjang' };
 
-export function createLobby({ store, player, icon, toast, getLyric, playSomething, onOpenChange, isPhone, openLyrics }) {
+/** Satu ubin noise kecil untuk grain film (dibuat sekali, dipakai CSS). */
+let grainUrl = '';
+function grainTile() {
+  if (grainUrl) return grainUrl;
+  try {
+    const n = 160; const cv = document.createElement('canvas'); cv.width = n; cv.height = n;
+    const x = cv.getContext('2d'); const img = x.createImageData(n, n);
+    for (let i = 0; i < img.data.length; i += 4) { const v = Math.random() < 0.5 ? 0 : 255; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = Math.random() * 34; }
+    x.putImageData(img, 0, 0);
+    grainUrl = cv.toDataURL('image/png');
+  } catch { grainUrl = ''; }
+  return grainUrl;
+}
+
+export function createLobby({ store, player, icon, toast, sleepTimer, getLyric, playSomething, onOpenChange, isPhone, openLyrics }) {
   const cfg = () => {
     const c = { ...DEFAULTS, ...(store.ui.lobby || {}) };
     // bersihkan sisa versi lama (mode/latar lain sudah dihapus)
     if (c.hasBg) { deleteFile('lobby-bg').catch(() => {}); }
-    delete c.mode; delete c.scene; delete c.hasBg;
+    delete c.mode; delete c.scene; delete c.hasBg; delete c.lowPower;
     store.ui.lobby = c;
     return c;
   };
-  const save = () => store.saveUi();
+  // setelan Lobby tidak mengubah tampilan aplikasi di belakangnya → simpan tanpa render ulang
+  const save = () => store.saveUiQuiet();
   let el = null;
   let runner = null;
   let open = false;
@@ -54,9 +72,13 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
   let wakeLock = null;
   let customLoaded = false;
   const tabs = { scene: 'view', timer: 'focus' };
-  let lastAutoTime = resolveTime('auto');
+  let lastSceneKey = '';
+  let editingLoc = false;
+  let cityResults = [];
+  let wxBusy = null;
+  let warmedNext = '';
   const pomo = { phase: 'work', remaining: 25 * 60, sessions: 0, running: false, timer: 0, active: false };
-  const sleep = { end: 0, total: 0, baseVol: null };
+  let busyTimer = 0;
 
   // ------------------------------------------------------------------ DOM
   function build() {
@@ -70,7 +92,9 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
     const ico = (id, ic, title, extra = '') => `<button type="button" class="lb-ico" data-lb="${id === 'close' ? 'close' : 'panel'}" data-id="${id}" title="${title}" aria-label="${title}" ${extra}>${icon(ic)}</button>`;
     el.innerHTML = `
       <canvas class="lb-canvas" aria-hidden="true"></canvas>
+      <div class="lb-grain" aria-hidden="true"></div>
       <div class="lb-vignette" aria-hidden="true"></div>
+      <div class="lb-dim" aria-hidden="true"></div>
       <header class="lb-top lb-chrome">
         <nav class="lb-tools" aria-label="Alat Lobby">
           ${ico('scene', 'cloud', 'Suasana & suara (S)')}
@@ -93,10 +117,12 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
       <aside class="lb-panel" data-panel="settings" hidden></aside>
       <input type="file" class="lb-file-snd" accept="audio/*" hidden>`;
     document.body.appendChild(el);
+    el.querySelector('.lb-grain').style.backgroundImage = `url(${grainTile()})`;
     runner = createSceneRunner(el.querySelector('.lb-canvas'));
     el.addEventListener('click', onClick);
     el.addEventListener('input', onInput);
     el.addEventListener('change', onChange);
+    el.addEventListener('submit', onSubmit);
     ['pointermove', 'pointerdown', 'keydown', 'wheel', 'touchstart'].forEach((ev) => el.addEventListener(ev, wake, { passive: true }));
     el.addEventListener('pointerdown', () => { if (needsUnlock()) unlockAudio(); }, { capture: true });
     // parallax halus: pemandangan di luar jendela sedikit bergeser mengikuti mouse
@@ -105,6 +131,7 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
       runner.setState({ pointer: { x: (e.clientX / innerWidth) * 2 - 1, y: (e.clientY / innerHeight) * 2 - 1 } });
     }, { passive: true });
     amb.onChange(() => { if (open) { renderNP(); syncMixSliders(); } });
+    if (sleepTimer) sleepTimer.onChange(() => { if (open) { renderWidgets(); if (!panel('timer').hidden && tabs.timer === 'sleep') renderTimerPanel(); } });
     document.addEventListener('visibilitychange', () => { if (open && !document.hidden) requestWake(); });
   }
   const $ = (sel) => el.querySelector(sel);
@@ -119,15 +146,16 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
     el.hidden = false;
     document.body.classList.add('lobby-open');
     const c = cfg();
-    runner.setLowPower(c.lowPower);
     runner.setScene('room');
     syncRoom();
+    pushCafe();
+    refreshWeather();
     if (!c.mix) c.mix = roomCfg().autoSound ? roomSoundMix(roomResolved()) : {};
     startMix(c.mix);
     save();
     tickClock();
     clockTimer = setInterval(tickClock, 1000);
-    lyricTimer = setInterval(tickLyric, 300);
+    lyricTimer = setInterval(tickLyric, 350);
     renderNP();
     renderWidgets();
     wake();
@@ -186,16 +214,155 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
 
   // ------------------------------------------------------------------ kamar santai: lokasi, cuaca, waktu
   const roomCfg = () => { const c = store.ui.lobby || cfg(); c.room = { ...DEFAULTS.room, ...(c.room || {}) }; return c.room; };
-  const roomResolved = () => { const r = roomCfg(); return { loc: r.loc, weather: r.weather, time: resolveTime(r.time) }; };
+  /** Suasana yang dipakai: pilihan manual, atau cuaca & waktu nyata di lokasi yang dipilih. */
+  const roomResolved = (now = Date.now()) => {
+    const r = roomCfg();
+    const out = { place: r.spot === 'cafe' ? 'cafe' : 'room', loc: r.loc, weather: r.weather, time: resolveTime(r.time, new Date(now).getHours()) };
+    if (r.live) {
+      const ls = liveScene((store.ui.lobby || {}).wx, now);
+      if (ls) { out.weather = ls.weather; if (ls.time) out.time = ls.time; }
+    }
+    return out;
+  };
+  const sceneKey = (rs) => `${rs.place}|${rs.loc}|${rs.weather}|${rs.time}`;
+  const SPOTS = [{ id: 'room', name: 'Kamar santai', icon: 'sofa' }, { id: 'cafe', name: 'Kafe', icon: 'coffee' }];
   const nameOf = (list, id) => (list.find((x) => x.id === id) || list[0]).name;
+  /** Label di samping tanggal: "Batam · 28° · hujan ringan" (nyata) atau "Gunung & danau · hujan" (manual). */
+  function placeLabel() {
+    const r = roomCfg(); const wx = cfg().wx;
+    if (r.live && r.place) return wx ? `${r.place.name} · ${wx.temp}° · ${describeWmo(wx.code)}` : `${r.place.name} · memuat cuaca…`;
+    const rs = roomResolved();
+    return `${r.spot === 'cafe' ? 'Kafe · ' : ''}${nameOf(LOCATIONS, r.loc)} · ${nameOf(WEATHERS, rs.weather).toLowerCase()}`;
+  }
   function syncRoom({ sound = false } = {}) {
     const rs = roomResolved();
     runner.setState({ room: rs });
     el.dataset.time = rs.time;
-    if (sound && roomCfg().autoSound) { cfg().mix = roomSoundMix(rs); save(); startMix(cfg().mix); }
+    const changed = sceneKey(rs) !== lastSceneKey;
+    lastSceneKey = sceneKey(rs);
+    if (sound && changed && roomCfg().autoSound) { cfg().mix = roomSoundMix(rs); save(); startMix(cfg().mix); }
+    $('.lb-place').textContent = placeLabel();
+    updateScenePanel();
+    if (changed) watchBusy();
+  }
+
+  // ------------------------------------------------------------------ kafe: pesanan di meja kita
+  // Minuman & roti berkurang pelan-pelan selama Lobby terbuka di Kafe. Tanpa Fokus: minuman ±20 menit,
+  // roti ±14 menit, lalu ±1 menit setelah habis pelayan mengantar pesanan baru. Dengan Fokus: habis tepat
+  // di akhir sesi fokus, dan pesanan baru datang saat istirahat dimulai.
+  const DRINK_MIN = 20; const FOOD_MIN = 14;
+  let cafeSaveTick = 0;
+  const pickOther = (list, prev) => { const xs = list.filter((x) => x.id !== prev); return xs[Math.floor(Math.random() * xs.length)].id; };
+  function cafeOrder() {
+    const c = cfg();
+    if (!c.cafe || !c.cafe.drink) c.cafe = { serial: 1, drink: pickOther(DRINKS, null), food: pickOther(FOODS, null), used: 0, fused: 0, emptyAt: 0 };
+    return c.cafe;
+  }
+  function newOrder() {
+    const cur = cafeOrder();
+    cfg().cafe = { serial: cur.serial + 1, drink: pickOther(DRINKS, cur.drink), food: pickOther(FOODS, cur.food), used: 0, fused: 0, emptyAt: 0 };
+    save(); pushCafe();
+  }
+  function pushCafe() {
+    if (!runner) return;
+    const k = cafeOrder();
+    runner.setState({ cafe: { serial: k.serial, drink: k.drink, food: k.food, drinkLeft: 1 - k.used, foodLeft: 1 - k.fused } });
+  }
+  function tickCafe() {
+    if (roomCfg().spot !== 'cafe') return;
+    const k = cafeOrder();
+    const focus = pomo.active;
+    if (!focus || (pomo.running && pomo.phase === 'work')) {
+      const dMin = focus ? pomoCfg().work : DRINK_MIN; const fMin = focus ? pomoCfg().work : FOOD_MIN;
+      k.used = Math.min(1, k.used + 1 / (dMin * 60)); k.fused = Math.min(1, k.fused + 1 / (fMin * 60));
+    }
+    if (k.used >= 1 && k.fused >= 1) {
+      if (!k.emptyAt) k.emptyAt = Date.now();
+      if (!focus && Date.now() - k.emptyAt > 60000) { newOrder(); return; }
+    }
+    pushCafe();
+    if (++cafeSaveTick % 15 === 0) save();
+  }
+  window.addEventListener('cafe-sfx', (e) => { if (open) amb.sfx(e.detail); });
+
+  // ------------------------------------------------------------------ cuaca & waktu nyata
+  /** Ambil cuaca terbaru kalau datanya sudah basi (±25 menit) atau lokasinya baru. */
+  function refreshWeather({ force = false } = {}) {
+    const r = roomCfg(); const c = cfg();
+    if (!r.live || !r.place) return Promise.resolve(false);
+    const fresh = c.wx && c.wx.lat === r.place.lat && c.wx.lon === r.place.lon && Date.now() - c.wx.at < STALE_MS;
+    if (fresh && !force) return Promise.resolve(false);
+    if (wxBusy) return wxBusy;
+    const place = r.place;
+    wxBusy = fetchWeather(place.lat, place.lon)
+      .then((wx) => {
+        if (roomCfg().place !== place) return false;
+        cfg().wx = { ...wx, lat: place.lat, lon: place.lon };
+        save();
+        if (open) { syncRoom({ sound: true }); renderLiveInfo(); }
+        return true;
+      })
+      .catch((e) => { if (force && open) toast(`Cuaca tidak bisa diambil (${e.message}). Memakai data terakhir.`, 'error', 5000); return false; })
+      .finally(() => { wxBusy = null; if (open) renderLiveInfo(); });
+    if (open) renderLiveInfo();
+    return wxBusy;
+  }
+  function setPlace(p) {
     const r = roomCfg();
-    $('.lb-place').textContent = `${nameOf(LOCATIONS, r.loc)} · ${nameOf(WEATHERS, r.weather).toLowerCase()}`;
-    if (!panel('scene').hidden) renderScenePanel();
+    r.place = { name: String(p.name || 'Lokasimu').slice(0, 40), lat: p.lat, lon: p.lon };
+    r.live = true;
+    editingLoc = false; cityResults = [];
+    cfg().wx = null;
+    save();
+    renderScenePanel();
+    syncRoom({ sound: true });
+    refreshWeather({ force: true });
+  }
+  /** Siapkan lukisan untuk waktu berikutnya (mis. senja) ±20 menit sebelumnya, supaya pergantiannya mulus. */
+  function prepareNext() {
+    const r = roomCfg(); const wx = cfg().wx;
+    let mins = Infinity;
+    if (r.live && wx) mins = minutesToNextTime(localMinutes(wx.offset), wx.sunrise, wx.sunset);
+    else if (r.time === 'auto') {
+      const d = new Date(); const cur = resolveTime('auto', d.getHours());
+      for (let h = 1; h <= 24; h++) if (resolveTime('auto', (d.getHours() + h) % 24) !== cur) { mins = h * 60 - d.getMinutes(); break; }
+    }
+    if (mins > 20) return;
+    const next = roomResolved(Date.now() + (mins + 1) * 60000);
+    const k = sceneKey(next);
+    if (k === warmedNext || k === lastSceneKey) return;
+    warmedNext = k;
+    prewarmRoom(next, window.innerWidth, window.innerHeight, canvasDpr());
+  }
+  /** Info kecil di bawah switch "Ikuti cuaca & waktu nyata". */
+  function liveInfoText() {
+    const r = roomCfg(); const wx = cfg().wx;
+    if (!r.live) return 'Cuaca, pagi/siang/senja/malam mengikuti lokasimu.';
+    if (!r.place) return 'Pilih lokasi dulu.';
+    if (wxBusy && !wx) return 'Mengambil cuaca…';
+    if (!wx) return 'Cuaca belum tersedia (offline?). Memakai pilihan manual.';
+    const rs = roomResolved();
+    const at = new Date(wx.at).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
+    return `${describeWmo(wx.code)}, ${wx.temp}° · ${nameOf(TIMES, rs.time).toLowerCase()} · diperbarui ${at}`;
+  }
+  function renderLiveInfo() {
+    const n = el && el.querySelector('.lb-live-info');
+    if (n) n.textContent = liveInfoText();
+    const pl = el && el.querySelector('.lb-place');
+    if (pl) pl.textContent = placeLabel();
+  }
+
+  /** Status kecil "Menyiapkan suasana…" selama lukisan baru dibuat (lukisan lama tetap tampil). */
+  function watchBusy() {
+    clearInterval(busyTimer);
+    const tick = () => {
+      const st = el && el.querySelector('.lb-status');
+      const busy = open && runner.busy;
+      if (st) st.textContent = busy ? 'Menyiapkan suasana baru…' : '';
+      if (!busy) { clearInterval(busyTimer); busyTimer = 0; }
+    };
+    setTimeout(tick, 60);
+    busyTimer = setInterval(tick, 400);
   }
 
   // ------------------------------------------------------------------ suara
@@ -251,31 +418,70 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
     const head = tabBar('scene', [['view', 'Pemandangan'], ['sound', 'Suara alam']]);
     if (tabs.scene === 'view') {
       const r = roomCfg();
+      const pl = r.place;
+      const showEdit = r.live && (!pl || editingLoc);
+      const loc = `<div class="lb-loc">
+          <div class="lb-loc-row">${icon('pin')}<b translate="no">${pl ? escapeHtml(pl.name) : 'Belum ada lokasi'}</b>
+            ${pl ? `<button type="button" class="lb-link" data-lb="loc-edit" aria-expanded="${showEdit}">${showEdit ? 'Batal' : 'Ganti'}</button>` : ''}</div>
+          ${showEdit ? `<div class="lb-loc-edit">
+            <button type="button" class="lb-btn" data-lb="gps">${icon('locate')}<span>Pakai lokasiku sekarang</span></button>
+            <form class="lb-city" data-lb-form="city" role="search"><input type="search" placeholder="Atau cari kota, mis. Batam" aria-label="Cari kota" enterkeyhint="search"><button type="submit" class="lb-ico sm" aria-label="Cari kota">${icon('search')}</button></form>
+            <div class="lb-loc-results">${cityResults.map((c, i) => `<button type="button" class="lb-res" data-lb="loc-pick" data-i="${i}" translate="no">${icon('pin')}<span>${escapeHtml(c.label)}</span></button>`).join('')}</div>
+          </div>` : ''}
+        </div>`;
       p.innerHTML = `${head}
+        <div class="lb-spots" role="radiogroup" aria-label="Tempat">${SPOTS.map((x) => `<button type="button" class="lb-spot" role="radio" data-lb="spot" data-id="${x.id}" aria-checked="${(r.spot || 'room') === x.id}">${icon(x.icon)}<span>${x.name}</span></button>`).join('')}</div>
+        <label class="lb-switch lb-live"><input type="checkbox" data-lb="live" ${r.live ? 'checked' : ''}><span><b>Ikuti cuaca & waktu nyata</b><small class="lb-live-info">${escapeHtml(liveInfoText())}</small></span></label>
+        ${r.live ? loc : `<h4 class="lb-sub">Cuaca</h4>${chips(WEATHERS, 'weather', r.weather, true)}
+        <h4 class="lb-sub">Waktu</h4>${chips(TIMES, 'time', r.time)}`}
         <h4 class="lb-sub">Di luar jendela</h4>${chips(LOCATIONS, 'loc', r.loc)}
-        <h4 class="lb-sub">Cuaca</h4>${chips(WEATHERS, 'weather', r.weather, true)}
-        <h4 class="lb-sub">Waktu</h4>${chips(TIMES, 'time', r.time)}
-        <div class="lb-row"><button type="button" class="lb-btn" data-lb="room-random">${icon('shuffle')}<span>Acak</span></button></div>`;
+        <p class="lb-status" aria-live="polite"></p>
+        ${r.live ? '<p class="lb-credit">Data cuaca: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a></p>' : ''}`;
+      watchBusy();
       return;
     }
+    renderSoundTab(p, head);
+  }
+  /** Pilihan suasana berubah → cukup tandai tombol yang aktif (panel tidak dibangun ulang). */
+  function updateScenePanel() {
+    const p = panel('scene');
+    if (!p || p.hidden || tabs.scene !== 'view') return;
+    const r = roomCfg();
+    p.querySelectorAll('[data-lb="room-set"]').forEach((b) => b.setAttribute('aria-pressed', String(r[b.dataset.key] === b.dataset.id)));
+    p.querySelectorAll('[data-lb="spot"]').forEach((b) => b.setAttribute('aria-checked', String((r.spot || 'room') === b.dataset.id)));
+    renderLiveInfo();
+  }
+
+  /** Tab suara: yang sedang berbunyi (dengan slider) di atas, sisanya kisi ikon — ketuk untuk menyalakan. */
+  function renderSoundTab(p = panel('scene'), head = tabBar('scene', [['view', 'Pemandangan'], ['sound', 'Suara alam']])) {
     const c = cfg();
     const mix = c.mix || {};
+    const all = [...amb.SOUNDS.map((x) => ({ ...x, custom: false })), ...c.customSounds.map((x) => ({ id: x.id, name: x.name, icon: 'music', custom: true }))];
+    const isOn = (x) => (mix[x.id] || 0) > 0;
+    const on = all.filter(isOn);
+    const off = all.filter((x) => !isOn(x));
+    const keep = p.scrollTop;
     p.innerHTML = `${head}
       ${amb.isSupported() ? '' : '<p class="lb-hint">Browser ini tidak mendukung Web Audio.</p>'}
       <label class="lb-switch"><input type="checkbox" data-lb="room-auto" ${roomCfg().autoSound ? 'checked' : ''}><span><b>Ikuti suasana</b><small>Suara menyesuaikan pemandangan, cuaca & waktu.</small></span></label>
       <div class="lb-master">${icon('volume')}<input type="range" min="0" max="100" value="${Math.round(c.master * 100)}" data-lb="master" aria-label="Volume suara alam"></div>
       ${c.presets.length ? `<div class="lb-chips lb-presets">${c.presets.map((pr, i) => `<button type="button" class="chip" data-lb="preset" data-i="${i}">${escapeHtml(pr.name)} <span class="count" data-lb="del-preset" data-i="${i}" title="Hapus racikan">✕</span></button>`).join('')}</div>` : ''}
-      <div class="lb-mix">${amb.SOUNDS.map((s) => sliderRow(s.id, s.name, s.icon, mix[s.id] || 0)).join('')}
-        ${c.customSounds.map((s) => sliderRow(s.id, s.name, 'music', mix[s.id] || 0, true)).join('')}</div>
-      <div class="lb-row">
-        <button type="button" class="lb-btn" data-lb="save-preset">${icon('plus')}<span>Simpan racikan</span></button>
-        <button type="button" class="lb-btn" data-lb="upload-snd">${icon('upload')}<span>Suara sendiri</span></button>
-        <button type="button" class="lb-btn" data-lb="mute-amb">${icon('volumeX')}<span>Matikan</span></button>
-      </div>`;
+      <h4 class="lb-sub">Sedang berbunyi</h4>
+      <div class="lb-mix">${on.length ? on.map((x) => sliderRow(x.id, x.name, x.icon, mix[x.id], x.custom)).join('') : '<p class="lb-hint lb-empty">Belum ada suara. Ketuk salah satu di bawah.</p>'}</div>
+      <h4 class="lb-sub">Tambah suara</h4>
+      <div class="lb-grid">${off.map((x) => `<button type="button" class="lb-gbtn" data-lb="add-snd" data-id="${escapeHtml(x.id)}" title="Nyalakan ${escapeHtml(x.name)}">${icon(x.icon)}<span>${escapeHtml(x.name)}</span></button>`).join('')}</div>
+      <form class="lb-save" data-lb-form="preset" hidden><input type="text" maxlength="24" placeholder="Nama racikan, mis. Hujan sore" aria-label="Nama racikan"><button type="submit" class="lb-btn primary">Simpan</button></form>
+      <details class="lb-more"><summary class="lb-btn">${icon('more')}<span>Lainnya</span></summary>
+        <div class="lb-more-menu">
+          <button type="button" data-lb="save-preset">${icon('plus')}<span>Simpan racikan ini</span></button>
+          <button type="button" data-lb="upload-snd">${icon('upload')}<span>Tambah suara sendiri</span></button>
+          <button type="button" data-lb="mute-amb">${icon('volumeX')}<span>Matikan semua suara</span></button>
+        </div></details>`;
+    p.scrollTop = keep;
   }
   function sliderRow(id, name, ic, val, removable = false) {
-    return `<div class="lb-mix-row${val > 0 ? ' on' : ''}" data-id="${escapeHtml(id)}">
-      <button type="button" class="lb-mix-ic" data-lb="toggle-snd" data-id="${escapeHtml(id)}" aria-pressed="${val > 0}" title="${val > 0 ? 'Matikan' : 'Nyalakan'} ${escapeHtml(name)}">${icon(ic)}</button>
+    return `<div class="lb-mix-row on" data-id="${escapeHtml(id)}">
+      <button type="button" class="lb-mix-ic" data-lb="toggle-snd" data-id="${escapeHtml(id)}" aria-pressed="true" title="Matikan ${escapeHtml(name)}">${icon(ic)}</button>
       <label><span>${escapeHtml(name)}</span><input type="range" min="0" max="100" value="${Math.round(val * 100)}" data-lb="vol" data-id="${escapeHtml(id)}" aria-label="Volume ${escapeHtml(name)}"></label>
       ${removable ? `<button type="button" class="lb-ico sm" data-lb="del-snd" data-id="${escapeHtml(id)}" aria-label="Hapus suara ${escapeHtml(name)}">${icon('trash')}</button>` : ''}
     </div>`;
@@ -286,7 +492,6 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
     p.querySelectorAll('.lb-mix-row').forEach((row) => {
       const v = amb.level(row.dataset.id);
       row.classList.toggle('on', v > 0);
-      row.querySelector('.lb-mix-ic').setAttribute('aria-pressed', String(v > 0));
       const r = row.querySelector('input');
       if (document.activeElement !== r) r.value = Math.round(v * 100);
     });
@@ -297,6 +502,7 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
     const head = tabBar('timer', [['focus', 'Fokus'], ['sleep', 'Timer tidur']]);
     if (tabs.timer === 'focus') {
       const pc = cfg().pomo;
+      const today = todaySessions();
       p.innerHTML = `${head}
         <p class="lb-lead">Kerja fokus, lalu istirahat singkat. Setiap 4 sesi ada istirahat panjang.</p>
         <h4 class="lb-sub">Durasi fokus / istirahat</h4>
@@ -304,13 +510,15 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
         <div class="lb-row">${pomo.active
           ? `<button type="button" class="lb-btn primary" data-lb="pomo-toggle">${icon(pomo.running ? 'pause' : 'play', 'fill')}<span>${pomo.running ? 'Jeda' : 'Lanjutkan'}</span></button><button type="button" class="lb-btn" data-lb="pomo-stop">${icon('x')}<span>Hentikan</span></button>`
           : `<button type="button" class="lb-btn primary" data-lb="pomo-start">${icon('play', 'fill')}<span>Mulai fokus</span></button>`}</div>
-        ${pomo.sessions ? `<p class="lb-hint">Sesi selesai hari ini: <b>${pomo.sessions}</b></p>` : ''}`;
+        ${today ? `<p class="lb-hint">Sesi selesai hari ini: <b>${today}</b></p>` : ''}`;
       return;
     }
+    const on = sleepTimer && sleepTimer.active;
     p.innerHTML = `${head}
       <p class="lb-lead">Musik & suara alam memelan perlahan lalu berhenti, layar ikut meredup.</p>
-      <div class="lb-chips">${SLEEP_PRESETS.map((m) => `<button type="button" class="chip" data-lb="sleep-set" data-min="${m}">${m} menit</button>`).join('')}</div>
-      ${sleep.end ? `<div class="lb-row"><button type="button" class="lb-btn" data-lb="sleep-add">+15 menit</button><button type="button" class="lb-btn" data-lb="sleep-cancel">${icon('x')}<span>Batalkan</span></button></div>` : ''}`;
+      <div class="lb-chips">${SLEEP_PRESETS.map((m) => `<button type="button" class="chip" data-lb="sleep-set" data-min="${m}">${m} menit</button>`).join('')}
+        <button type="button" class="chip" data-lb="sleep-set" data-min="track" aria-pressed="${!!(sleepTimer && sleepTimer.endOfTrack)}">Akhir lagu ini</button></div>
+      ${on ? `<div class="lb-row">${sleepTimer.endOfTrack ? '' : '<button type="button" class="lb-btn" data-lb="sleep-add">+15 menit</button>'}<button type="button" class="lb-btn" data-lb="sleep-cancel">${icon('x')}<span>Batalkan</span></button></div>` : ''}`;
   }
 
   function renderSettingsPanel() {
@@ -320,7 +528,6 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
       <label class="lb-field"><span>Nama panggilan</span><input type="text" maxlength="24" value="${escapeHtml(c.nickname)}" data-lb="nickname" placeholder="mis. Vinz"></label>
       ${tog('showLyrics', 'Tampilkan lirik', 'Baris yang sedang dinyanyikan muncul di bawah jam.')}
       ${tog('autoHide', 'Sembunyikan tombol otomatis', 'Setelah 3 detik tanpa gerakan.')}
-      ${tog('lowPower', 'Hemat baterai', 'Animasi lebih ringan (24 fps, resolusi lebih rendah).')}
       ${tog('wake', 'Layar tetap menyala', 'Selama Lobby terbuka (kalau browser mendukung).')}
       ${tog('startup', 'Buka Lobby saat aplikasi dibuka', '')}
       <p class="lb-hint"><kbd>B</kbd> buka/tutup · <kbd>S</kbd> suasana · <kbd>T</kbd> timer · <kbd>Spasi</kbd> putar/jeda · <kbd>N</kbd> berikutnya · <kbd>Esc</kbd> keluar</p>`;
@@ -341,15 +548,21 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
     setClock(now.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit', hour12: false }).replace('.', ':'));
     $('.lb-date-day').textContent = now.toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long' });
     $('.lb-greet').textContent = `${greeting(now.getHours())}${c.nickname ? `, ${c.nickname}` : ''}`;
-    if (sleep.end) tickSleep();
-    if (roomCfg().time === 'auto' && now.getSeconds() === 0) {
-      const cur = resolveTime('auto');
-      if (cur !== lastAutoTime) { lastAutoTime = cur; syncRoom({ sound: true }); }
+    tickDim();
+    tickCafe();
+    if (now.getSeconds() === 0) { // tiap menit: waktu/cuaca berganti? siapkan lukisan berikutnya?
+      const r = roomCfg();
+      if (r.live) refreshWeather();
+      if (r.live || r.time === 'auto') {
+        if (sceneKey(roomResolved()) !== lastSceneKey) syncRoom({ sound: true });
+        prepareNext();
+      }
     }
   }
   function tickLyric() {
     const box = $('.lb-lyric');
-    if (!(store.ui.lobby || {}).showLyrics || !player.current) { box.textContent = ''; box.dataset.line = ''; return; }
+    if (!(store.ui.lobby || {}).showLyrics || !player.current) { if (box.dataset.line) { box.textContent = ''; box.dataset.line = ''; } return; }
+    if (!player.isPlaying) return; // lagu dijeda: baris lirik tidak berubah
     const line = getLyric() || '';
     if (box.dataset.line !== line) {
       box.dataset.line = line;
@@ -401,18 +614,26 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
         <button type="button" class="lb-ico sm" data-lb="pomo-skip" aria-label="Lewati fase" title="Lewati fase">${icon('next')}</button>
         <button type="button" class="lb-ico sm" data-lb="pomo-stop" aria-label="Hentikan fokus" title="Hentikan">${icon('x')}</button>`;
     }
-    ws.hidden = !sleep.end;
-    if (sleep.end) {
-      const left = Math.max(0, (sleep.end - Date.now()) / 1000);
-      ws.innerHTML = `<span class="lb-w-ic">${icon('moon')}</span><div class="lb-w-text"><b>${fmt(left)}</b><span>Timer tidur</span></div>
-        <button type="button" class="lb-ico sm" data-lb="sleep-add" aria-label="Tambah 15 menit" title="+15 menit">${icon('plus')}</button>
+    const on = !!(sleepTimer && sleepTimer.active);
+    ws.hidden = !on;
+    if (on) {
+      const track = sleepTimer.endOfTrack;
+      const text = `<span class="lb-w-ic">${icon('moon')}</span><div class="lb-w-text"><b>${track ? 'Akhir lagu' : fmt(sleepTimer.remaining())}</b><span>Timer tidur</span></div>`;
+      const btns = `${track ? '' : `<button type="button" class="lb-ico sm" data-lb="sleep-add" aria-label="Tambah 15 menit" title="+15 menit">${icon('plus')}</button>`}
         <button type="button" class="lb-ico sm" data-lb="sleep-cancel" aria-label="Batalkan timer tidur" title="Batalkan">${icon('x')}</button>`;
-    }
+      // ganti angka saja tiap detik; tombol dibuat ulang hanya saat jenisnya berubah
+      if (ws.dataset.kind !== String(track)) { ws.dataset.kind = String(track); ws.innerHTML = text + btns; } else ws.querySelector('.lb-w-text b').textContent = track ? 'Akhir lagu' : fmt(sleepTimer.remaining());
+    } else ws.dataset.kind = '';
   }
+  /** Sesi fokus selesai hari ini (disimpan, mulai dari 0 setiap hari). */
+  const dayKey = () => new Date().toDateString();
+  function todaySessions() { const d = cfg().pomoDay; return d && d.day === dayKey() ? d.n : 0; }
+  function countSession() { cfg().pomoDay = { day: dayKey(), n: todaySessions() + 1 }; save(); }
   function pomoStep() {
     if (!pomo.running) return;
     pomo.remaining -= 1;
     if (pomo.remaining <= 0) {
+      if (pomo.phase === 'work') { countSession(); if (roomCfg().spot === 'cafe') { const k = cafeOrder(); if (k.used > 0.25 || k.fused > 0.25) newOrder(); } }
       Object.assign(pomo, pomodoroNext(pomo, pomoCfg()));
       try { amb.chime(); } catch { /* abaikan */ }
       const msg = pomo.phase === 'work' ? 'Istirahat selesai — saatnya fokus lagi.' : `Sesi fokus selesai! Istirahat ${pomo.phase === 'long' ? pomoCfg().long : pomoCfg().brk} menit.`;
@@ -429,38 +650,12 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
   }
   function stopPomo() { Object.assign(pomo, { running: false, active: false }); clearInterval(pomo.timer); pomo.timer = 0; }
 
-  // ------------------------------------------------------------------ Timer tidur
-  function setSleepTimer(min) {
-    sleep.total = min * 60;
-    sleep.end = Date.now() + min * 60000;
-    sleep.baseVol = null;
-    toast(`Timer tidur ${min} menit dimulai. Selamat beristirahat.`, 'info');
-  }
-  function cancelSleep(restore = true) {
-    if (restore && sleep.baseVol != null) player.setVolume(sleep.baseVol);
-    if (restore) amb.setMaster(cfg().master, 0.5);
-    sleep.end = 0; sleep.baseVol = null;
-    runner.setState({ dim: 0 });
-  }
-  function tickSleep() {
-    const left = (sleep.end - Date.now()) / 1000;
-    const FADE = 90;
-    if (left <= FADE && left > 0) {
-      if (sleep.baseVol == null) sleep.baseVol = player.volume();
-      const f = left / FADE;
-      if (player.isPlaying) player.setVolume(Math.round(sleep.baseVol * f));
-      amb.setMaster(cfg().master * f, 0.9);
-    }
-    runner.setState({ dim: Math.max(0, Math.min(0.6, (600 - left) / 1000)) });
-    if (left <= 0) {
-      player.pause();
-      amb.stopAll();
-      const base = sleep.baseVol;
-      setTimeout(() => { if (base != null) player.setVolume(base); amb.setMaster(cfg().master, 0.1); }, 1500);
-      sleep.end = 0; sleep.baseVol = null;
-      toast('Timer tidur selesai. Selamat tidur 🌙', 'info', 6000);
-    }
-    if (open) renderWidgets();
+  // ------------------------------------------------------------------ Timer tidur: layar ikut meredup di 10 menit terakhir
+  function tickDim() {
+    const left = sleepTimer && sleepTimer.active && !sleepTimer.endOfTrack ? sleepTimer.remaining() : Infinity;
+    const dim = left === Infinity ? 0 : Math.max(0, Math.min(0.6, (600 - left) / 1000));
+    const d = el.querySelector('.lb-dim');
+    if (d.dataset.v !== String(dim)) { d.dataset.v = String(dim); d.style.opacity = String(dim); }
   }
 
   // ------------------------------------------------------------------ auto-hide & wake lock
@@ -520,39 +715,54 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
       case 'tab': tabs[b.dataset.panel] = b.dataset.id; renderPanel(b.dataset.panel); break;
       case 'close-panel': closePanels(); break;
       case 'unlock': unlockAudio(); break;
-      case 'upload-snd': $('.lb-file-snd').click(); break;
-      case 'toggle-snd': { const id = b.dataset.id; setMixLevel(id, amb.level(id) > 0 ? 0 : 0.5); break; }
+      case 'upload-snd': closeMore(); $('.lb-file-snd').click(); break;
+      case 'toggle-snd': { const id = b.dataset.id; setMixLevel(id, 0); renderSoundTab(); break; }
+      case 'add-snd': { setMixLevel(b.dataset.id, 0.5); renderSoundTab(); break; }
       case 'del-snd': {
         const id = b.dataset.id;
         amb.removeCustom(id);
         await deleteFile(`snd:${id}`).catch(() => {});
         c.customSounds = c.customSounds.filter((s) => s.id !== id);
         if (c.mix) delete c.mix[id];
-        save(); renderScenePanel();
+        save(); renderSoundTab();
         break;
       }
-      case 'mute-amb': manualSound(); amb.stopAll(); c.mix = {}; save(); renderNP(); syncMixSliders(); break;
+      case 'mute-amb': manualSound(); amb.stopAll(); c.mix = {}; save(); renderNP(); renderSoundTab(); break;
       case 'preset': {
         const del = e.target.closest('[data-lb="del-preset"]');
-        if (del) { c.presets.splice(Number(del.dataset.i), 1); save(); renderScenePanel(); break; }
+        if (del) { c.presets.splice(Number(del.dataset.i), 1); save(); renderSoundTab(); break; }
         const p = c.presets[Number(b.dataset.i)];
-        if (p) { manualSound(); c.mix = { ...p.mix }; save(); startMix(c.mix); setTimeout(syncMixSliders, 50); toast(`Racikan “${p.name}”`, 'info', 1500); }
+        if (p) { manualSound(); c.mix = { ...p.mix }; save(); startMix(c.mix); setTimeout(() => renderSoundTab(), 60); toast(`Racikan “${p.name}”`, 'info', 1500); }
         break;
       }
       case 'save-preset': {
-        const mix = amb.currentMix();
-        if (!Object.keys(mix).length) { toast('Nyalakan beberapa suara dulu.', 'info'); break; }
-        const name = prompt('Nama racikan:', 'Racikanku') || '';
-        if (!name.trim()) break;
-        c.presets.push({ name: name.trim().slice(0, 24), mix });
-        save(); renderScenePanel();
+        closeMore();
+        if (!Object.keys(amb.currentMix()).length) { toast('Nyalakan beberapa suara dulu.', 'info'); break; }
+        const f = el.querySelector('[data-lb-form="preset"]');
+        f.hidden = false; const inp = f.querySelector('input'); inp.value = ''; inp.focus();
         break;
       }
-      case 'room-set': roomCfg()[b.dataset.key] = b.dataset.id; save(); syncRoom({ sound: true }); break;
-      case 'room-random': {
-        const pick = (arr) => arr[Math.floor(Math.random() * arr.length)].id;
-        Object.assign(roomCfg(), { loc: pick(LOCATIONS), weather: pick(WEATHERS) });
-        save(); syncRoom({ sound: true });
+      case 'spot': {
+        const r = roomCfg();
+        if ((r.spot || 'room') === b.dataset.id) break;
+        r.spot = b.dataset.id; save(); syncRoom({ sound: true }); if (r.spot === 'cafe') pushCafe();
+        break;
+      }
+      case 'loc-edit': editingLoc = !editingLoc; cityResults = []; renderScenePanel(); focusCity(); break;
+      case 'gps': {
+        const lbl = b.querySelector('span'); lbl.textContent = 'Mencari lokasi…'; b.disabled = true;
+        try {
+          const pos = await geolocate();
+          const name = await placeName(pos.lat, pos.lon, LANG);
+          setPlace({ name: name || 'Lokasimu', ...pos });
+        } catch (err) { toast(err.message, 'error', 6000); lbl.textContent = 'Pakai lokasiku sekarang'; b.disabled = false; focusCity(); }
+        break;
+      }
+      case 'loc-pick': { const p = cityResults[Number(b.dataset.i)]; if (p) setPlace(p); break; }
+      case 'room-set': {
+        const r = roomCfg();
+        if (r[b.dataset.key] === b.dataset.id) break;
+        r[b.dataset.key] = b.dataset.id; save(); syncRoom({ sound: true });
         break;
       }
       case 'play-something': playSomething(); break;
@@ -575,11 +785,39 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
         break;
       case 'pomo-skip': pomo.remaining = 1; pomo.running = true; if (!pomo.timer) pomo.timer = setInterval(pomoStep, 1000); pomoStep(); break;
       case 'pomo-stop': stopPomo(); renderWidgets(); if (!panel('timer').hidden) renderTimerPanel(); break;
-      case 'sleep-set': setSleepTimer(Number(b.dataset.min)); renderWidgets(); closePanels(); break;
-      case 'sleep-add': sleep.end += 15 * 60000; renderWidgets(); break;
-      case 'sleep-cancel': cancelSleep(); renderWidgets(); if (!panel('timer').hidden) renderTimerPanel(); toast('Timer tidur dibatalkan.'); break;
+      case 'sleep-set': sleepTimer.set(b.dataset.min === 'track' ? 'track' : Number(b.dataset.min)); closePanels(); break;
+      case 'sleep-add': sleepTimer.add(15); break;
+      case 'sleep-cancel': sleepTimer.set(0); tickDim(); break;
       default: break;
     }
+  }
+  function closeMore() { const d = el.querySelector('.lb-more[open]'); if (d) d.open = false; }
+  const focusCity = () => setTimeout(() => { const i = el.querySelector('.lb-city input'); if (i) i.focus(); }, 30);
+  async function onSubmit(e) {
+    const city = e.target.closest('[data-lb-form="city"]');
+    if (city) {
+      e.preventDefault();
+      const q = city.querySelector('input').value.trim();
+      if (q.length < 2) return;
+      const box = el.querySelector('.lb-loc-results');
+      box.innerHTML = '<p class="lb-hint">Mencari…</p>';
+      try {
+        cityResults = await searchCity(q, LANG);
+        box.innerHTML = cityResults.length
+          ? cityResults.map((c, i) => `<button type="button" class="lb-res" data-lb="loc-pick" data-i="${i}" translate="no">${icon('pin')}<span>${escapeHtml(c.label)}</span></button>`).join('')
+          : `<p class="lb-hint">Kota “${escapeHtml(q)}” tidak ditemukan.</p>`;
+      } catch (err) { box.innerHTML = `<p class="lb-hint">Tidak bisa mencari kota (${escapeHtml(err.message)}).</p>`; }
+      return;
+    }
+    const f = e.target.closest('[data-lb-form="preset"]');
+    if (!f) return;
+    e.preventDefault();
+    const name = f.querySelector('input').value.trim();
+    const mix = amb.currentMix();
+    if (!name || !Object.keys(mix).length) { f.hidden = true; return; }
+    cfg().presets.push({ name: name.slice(0, 24), mix });
+    save(); renderSoundTab();
+    toast(`Racikan “${name.slice(0, 24)}” disimpan.`, 'success', 2000);
   }
   function onInput(e) {
     const t = e.target;
@@ -590,10 +828,17 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
   async function onChange(e) {
     const t = e.target;
     const c = cfg();
+    if (t.dataset.lb === 'live') {
+      const r = roomCfg();
+      r.live = t.checked;
+      if (r.live && !r.place) editingLoc = true;
+      save(); renderScenePanel(); syncRoom({ sound: true });
+      if (r.live) { if (r.place) refreshWeather(); else focusCity(); }
+      return;
+    }
     if (t.dataset.lb === 'room-auto') { roomCfg().autoSound = t.checked; save(); if (t.checked) syncRoom({ sound: true }); return; }
     if (t.dataset.lb === 'set') {
       c[t.dataset.key] = t.checked; save();
-      if (t.dataset.key === 'lowPower') runner.setLowPower(t.checked);
       if (t.dataset.key === 'wake') { if (t.checked) requestWake(); else releaseWake(); }
       if (t.dataset.key === 'autoHide') wake();
       return;
@@ -610,7 +855,7 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
         c.customSounds.push({ id, name: f.name.replace(/\.[^.]+$/, '').slice(0, 28) });
         save();
         setMixLevel(id, 0.5);
-        renderScenePanel();
+        renderSoundTab();
         toast('Suara ditambahkan dan diputar berulang.', 'success');
       } catch (err) { toast(`Tidak bisa memakai file ini (${err.message || 'format tidak didukung'}).`, 'error'); }
     }
@@ -633,9 +878,8 @@ export function createLobby({ store, player, icon, toast, getLyric, playSomethin
     /** Siapkan lukisan suasana saat ini di latar belakang (dipanggil saat aplikasi senggang). */
     prewarm() {
       if (open) return;
-      const c = store.ui.lobby || {};
-      const dpr = c.lowPower ? 1 : Math.min(2, window.devicePixelRatio || 1);
-      prewarmRoom(roomResolved(), window.innerWidth, window.innerHeight, dpr);
+      // cuaca nyata: ambil cuaca terbaru dulu, supaya lukisan yang disiapkan sudah sesuai
+      refreshWeather().finally(() => { if (!open) prewarmRoom(roomResolved(), window.innerWidth, window.innerHeight, canvasDpr()); });
     },
     /** Pintasan khusus Lobby: S = suasana, T = timer. */
     key(k) {

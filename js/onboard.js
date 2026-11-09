@@ -4,7 +4,7 @@ import { modal } from './dialogs.js';
 import { icon } from './icons.js';
 import { escapeHtml } from './utils.js';
 
-export const APP_VERSION = 'v28';
+export const APP_VERSION = 'v32';
 const SEEN_KEY = 'mytube_vault_seen_version';
 
 /** Langkah mulai cepat dan statusnya (murni, mudah diuji). */
@@ -49,26 +49,20 @@ export function renderQuickstart(host, state, { installable = false } = {}) {
 }
 
 const CHANGES = [
+  ['users', 'Kafe yang hidup', 'Pengunjung datang lewat pintu (lonceng berbunyi), antre & memesan di konter, membawa minumannya ke bangku bar atau berdua ke meja bundar untuk minum & mengobrol bergantian, lalu pulang. Ramai pagi sampai sore, sepi di malam hari; saat hujan mereka membawa payung.'],
+  ['coffee', 'Tempat baru: Kafe', 'Lobby → Suasana → Tempat → Kafe. Kafe Jepang modern yang hangat: lampu kertas, barista yang membuat kopi, noren di pintu, jam dinding sungguhan, dan pemandangan & cuaca di jendela besar.'],
+  ['sparkle', 'Kopi & roti di meja kita', 'Minuman berkurang seteguk demi seteguk dan roti tergigit pelan-pelan; setelah habis, pelayan mengantar pesanan baru (latte, matcha, kopi susu, ocha; croissant, melon pan, sando). Saat Fokus aktif, satu porsi habis tepat di akhir sesi dan pesanan baru datang saat istirahat.'],
+  ['cloud', 'Cuaca & waktu nyata di Lobby', 'Suasana → Pemandangan → "Ikuti cuaca & waktu nyata". Pakai GPS atau cari kota: hujan, cerah, kabut, atau badai di luar jendela mengikuti cuaca di sana, dan pagi/senja mengikuti jam matahari terbit & terbenam. Diperbarui tiap ±30 menit.'],
+  ['sparkle', 'Cuaca berganti tanpa melukis ulang', 'Berawan, hujan, badai, dan kabut memakai satu lukisan; bedanya digambar bergerak di atasnya. Lukisan untuk waktu berikutnya (mis. senja) disiapkan ±20 menit sebelumnya.'],
+  ['bolt', 'Lobby jauh lebih mulus', 'Animasi Lobby di HP dua kali lebih lancar dan lukisan pertama selesai ±2× lebih cepat. Ganti suasana tidak lagi "melukis dari nol": lukisan lama tetap tampil lalu memudar ke yang baru, lampu menyala & padam perlahan.'],
+  ['sliders', 'Panel suara lebih ringkas', 'Suara yang sedang berbunyi tampil di atas dengan slider; suara lain berupa ikon, ketuk untuk menyalakan. Simpan racikan, suara sendiri & matikan semua ada di menu Lainnya.'],
+  ['moon', 'Satu timer tidur untuk semua', 'Timer tidur di player dan di Lobby kini sama: musik & suara alam memelan di menit terakhir, layar Lobby ikut meredup. Pilihan "Akhir lagu ini" ada di keduanya.'],
+  ['sparkle', 'Lebih ringan & lebih bersih', 'Putar/jeda tidak lagi menggambar ulang seluruh daftar lagu. Tombol tema pindah ke Setelan → Umum (atau Ctrl+K); HP otomatis memakai mode hemat di Lobby.'],
   ['bolt', 'Lobby terbuka lebih cepat', 'Lukisan kamar kini disimpan di perangkat: membuka Lobby lagi langsung tampil, dan saat aplikasi senggang lukisannya disiapkan lebih dulu. Melukis suasana baru tidak lagi membuat layar tersendat, dan Lobby yang dibuka ulang tidak lagi diam.'],
   ['mic', 'Dari Lobby langsung ke lirik', 'Klik bar musik di Lobby → pindah ke halaman lirik dengan animasi (artwork & judul ikut berpindah). Tombol Back kembali ke daftar lagu.'],
   ['volume', 'Suara alam pakai rekaman asli', 'Hujan, petir, jangkrik, kafe, keramaian orang, kipas angin, lalu lintas, dan lainnya kini rekaman asli (CC0/Pixabay), diputar berulang tanpa jeda. Baru: hujan deras, burung camar, burung hantu, restoran ramai, kucing mendengkur.'],
   ['translate', 'Bahasa Inggris', 'Setelan → Umum → Bahasa / Language (atau Ctrl+K). Judul lagu, nama playlist, dan lirik tetap seperti aslinya.'],
   ['rain', 'Hujan & petir baru', 'Hujan lebih nyata (desis, tetes kecil, tetes besar di kusen) dan petir yang bergemuruh panjang dengan gema.'],
-  ['users', 'Suasana kafe & suara lain', 'Kafe ramai dengan orang mengobrol, Orang ngobrol, Ketikan keyboard, Jam dinding, Kereta, Kipas angin, Lalu lintas.'],
-  ['sliders', 'Pengaturan suara tidak berubah sendiri', 'Begitu kamu mengatur suara, “Ikuti suasana” otomatis dimatikan — racikanmu tetap seperti yang kamu atur.'],
-  ['search', 'Cari & tempel link di satu kolom', 'Kolom atas sekarang serbaguna: ketik untuk mencari, tempel link YouTube untuk langsung menambah. Tombol Tambah (A) membuka opsi lengkap.'],
-  ['sofa', 'Lobby minimalis', 'Cukup 4 ikon kecil: Suasana (pemandangan & suara), Timer (Fokus & tidur), Setelan, Tutup — semuanya menghilang saat diam.'],
-  ['sparkle', 'Lukisan yang lebih manusiawi', 'Garis seperti digambar tangan, sapuan kuas meruncing, bayangan dingin & cahaya hangat, plus barang-barang kecil di kamar.'],
-  ['type', 'Font Poppins', 'Tampilan lebih bersih dan modern di seluruh aplikasi.'],
-  ['sort', 'Header playlist lebih ringkas', 'Urutan & tampilan digabung ke satu tombol; baris lagu cukup ♥ dan ⋮.'],
-  ['sliders', 'Suara alam', 'Hujan, petir, ombak, api unggun, kafe, dan lainnya — racik sendiri lalu simpan.'],
-  ['sparkle', 'Mix untukmu', 'Koleksi baru di sidebar: rekomendasi dari library-mu sendiri, berganti tiap hari.'],
-  ['heartPulse', 'Periksa video rusak', 'Menu ⋮ playlist → temukan video yang sudah dihapus/privat, lalu hapus sekaligus.'],
-  ['translate', 'Terjemahan lirik', 'Tombol Terjemahkan di layar lirik — terjemahan Indonesia di bawah tiap baris.'],
-  ['volume', 'Transisi halus antar lagu', 'Volume turun pelan di akhir lagu dan naik di awal lagu berikutnya (⋮ player).'],
-  ['upload', 'Export untuk Spotify / Apple Music', 'Menu ⋮ playlist → daftar “Artis - Judul” / CSV untuk TuneMyMusic atau Soundiiz.'],
-  ['video', 'Video tersembunyi secara bawaan', 'Cukup player di bawah; tekan 🎥 atau V untuk menampilkan video.'],
-  ['music', 'Ganti ke versi audio', 'Lirik langsung pas: tukar MV dengan versi Topic/Official Audio.'],
 ];
 
 /** Tampilkan "Apa yang baru" sekali setelah update (bukan untuk pengguna baru). */

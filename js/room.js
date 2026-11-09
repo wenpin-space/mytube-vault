@@ -4,6 +4,9 @@
 
 import { createPainter } from './paint.js';
 import { putFile, getFile, deleteFile, listKeys } from './idb.js';
+import { createCrowd, drawPerson } from './visitors.js';
+import { drawCafe, CAFE_SPRITES, CAFE_SPRITE_DRAW, createCafeAnimator, drawDrink, biteClip, drinkOf, LANTERNS, CUP, PLATE } from './cafe.js';
+import { VW, VH, W, OW, HZ, BT, TAU, rnd, seeded, H, M, C, LI, DA, mix, css, ridgeLine, rr, lin, glow, softShadow, WARM, lighting, palette, woodGrain, shade, rimOf, leaf } from './paintkit.js';
 
 export const LOCATIONS = [
   { id: 'mountain', name: 'Gunung & danau' },
@@ -38,8 +41,27 @@ export function resolveTime(t, hour = new Date().getHours()) {
   return 'night';
 }
 
+/**
+ * Lukisan dibuat per kelompok cuaca, bukan per cuaca: cerah, mendung (berawan/hujan/badai/kabut), salju.
+ * Beda antar-cuaca dalam satu kelompok (hujan, kilat, kabut, gelapnya langit) digambar bergerak di atasnya,
+ * jadi cuaca yang berubah-ubah tidak membuat Lobby melukis ulang.
+ */
+export function paintWeather(w) { return w === 'clear' || w === 'snow' ? w : 'grey'; }
+/** Seberapa gelap suasana di atas lukisan "mendung" (0 = sama dengan lukisannya). */
+const WX_DIM = { clear: 0, cloudy: 0, fog: 0.02, rain: 0.06, storm: 0.17, snow: 0, grey: 0 };
+const hasRain = (w) => w === 'rain' || w === 'storm';
+const BAR_TOP = 568; // meja bar kafe (untuk cahaya lampu)
+
 /** Racikan suara alam yang cocok untuk lokasi + cuaca + waktu (murni, mudah diuji). */
-export function roomSoundMix({ loc = 'mountain', weather = 'clear', time = 'night' } = {}) {
+export function roomSoundMix({ place = 'room', loc = 'mountain', weather = 'clear', time = 'night' } = {}) {
+  if (place === 'cafe') { // di dalam kafe: obrolan & denting cangkir, cuaca luar terdengar lebih pelan
+    const k = { cafe: 0.42 };
+    if (weather === 'rain') k.rain = 0.32;
+    if (weather === 'storm') Object.assign(k, { heavyrain: 0.38, thunder: 0.35 });
+    if (weather === 'snow' || weather === 'fog') k.wind = 0.1;
+    if (time === 'night') k.cafe = 0.3;
+    return k;
+  }
   const night = time === 'night';
   const m = {};
   const nature = night ? { crickets: 0.25 } : { birds: 0.2 };
@@ -64,75 +86,6 @@ export function roomSoundMix({ loc = 'mountain', weather = 'clear', time = 'nigh
 // Gaya "painted lofi": palet dingin (teal/biru keabuan) dengan aksen hangat, atmospheric perspective
 // (yang jauh memudar ke kabut), bayangan & cahaya lembut, rim light, serat kayu, dan grain film.
 // ==================================================================================================
-const VW = 1600;
-const VH = 900;
-const W = { x: 300, y: 110, w: 1000, h: 450 }; // kaca jendela (ruang virtual)
-const OW = { x: W.x - 30, y: W.y - 24, w: W.w + 60, h: W.h + 40 }; // area pemandangan (lebih lebar untuk parallax)
-const HZ = W.y + W.h * 0.56; // cakrawala
-const BT = OW.y + OW.h; // dasar pemandangan
-const TAU = Math.PI * 2;
-const rnd = (a, b) => a + Math.random() * (b - a);
-function seeded(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
-
-// ---------- warna (array [r,g,b])
-const H = (h) => h.match(/\w\w/g).map((x) => parseInt(x, 16));
-const M = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
-const C = (a, al = 1) => `rgba(${a[0]},${a[1]},${a[2]},${al})`;
-const LI = (a, t) => M(a, [255, 255, 255], t);
-const DA = (a, t) => M(a, [0, 0, 0], t);
-// kompatibel dengan kode lama
-const mix = (a, b, t) => M(H(a), H(b), t);
-const css = C;
-
-function ridgeLine(n, rough, r) {
-  const size = 2 ** Math.ceil(Math.log2(n - 1));
-  const h = new Array(size + 1).fill(0);
-  h[0] = r(); h[size] = r();
-  for (let step = size, amp = 0.5; step > 1; step /= 2, amp *= rough) {
-    for (let i = step / 2; i < size; i += step) h[i] = (h[i - step / 2] + h[i + step / 2]) / 2 + (r() - 0.5) * amp;
-  }
-  const mn = Math.min(...h); const mx = Math.max(...h);
-  return h.slice(0, n).map((x) => (x - mn) / (mx - mn || 1));
-}
-function rr(c, x, y, w, h, r) {
-  c.beginPath();
-  c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r);
-  c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
-}
-function lin(c, x0, y0, x1, y1, stops) { const g = c.createLinearGradient(x0, y0, x1, y1); stops.forEach(([o, col]) => g.addColorStop(o, col)); return g; }
-function glow(c, x, y, rad, col, a) {
-  const g = c.createRadialGradient(x, y, 0, x, y, rad);
-  g.addColorStop(0, C(col, a)); g.addColorStop(1, C(col, 0));
-  c.fillStyle = g; c.fillRect(x - rad, y - rad, rad * 2, rad * 2);
-}
-function softShadow(c, x, y, rx, ry, a = 0.35) {
-  c.save(); c.translate(x, y); c.scale(1, ry / rx);
-  const g = c.createRadialGradient(0, 0, 0, 0, 0, rx);
-  g.addColorStop(0, `rgba(0,0,0,${a})`); g.addColorStop(1, 'rgba(0,0,0,0)');
-  c.fillStyle = g; c.fillRect(-rx, -rx, rx * 2, rx * 2); c.restore();
-}
-const WARM = [255, 172, 112];
-
-/** Cahaya & warna sesuai waktu dan cuaca. */
-function lighting(time, weather) {
-  const dark = { morning: 0.12, day: 0.03, dusk: 0.4, night: 0.68 }[time];
-  const overcast = { clear: 0, cloudy: 0.3, rain: 0.55, storm: 0.7, snow: 0.35, fog: 0.5 }[weather];
-  const warm = { morning: 0.1, day: 0, dusk: 0.22, night: 0 }[time];
-  const indoorDark = Math.min(0.8, dark + overcast * 0.25);
-  return { dark, overcast, warm, indoorDark, lampsOn: indoorDark > 0.28 };
-}
-const SKY = {
-  morning: ['93b6cf', 'f0cdb0'],
-  day: ['5d9ccc', 'c4dfec'],
-  dusk: ['3b4170', 'e99877'],
-  night: ['070d1c', '1b2a44'],
-};
-function palette(time, L) {
-  const grey = H(time === 'night' ? '1a2731' : time === 'dusk' ? '6f7783' : '93a7b0'); // kelabu kebiruan saat mendung
-  const top = M(H(SKY[time][0]), grey, L.overcast * 0.85);
-  const bot = M(H(SKY[time][1]), grey, L.overcast * 0.85);
-  return { top, bot, haze: M(bot, top, 0.25) };
-}
 /** Warna benda di luar: gelap saat malam, kelabu saat mendung, hangat saat senja. */
 function outCol(base, L, P, depth = 0) {
   let c = H(base);
@@ -391,24 +344,6 @@ function drawOutside(c, s) {
 }
 
 // ------------------------------------------------------------------ interior (statis)
-function woodGrain(c, x, y, w, h, base, { vertical = false, planks = 0, a = 0.08 } = {}) {
-  c.fillStyle = C(base); c.fillRect(x, y, w, h);
-  const r = seeded(Math.round(x * 7 + y * 13 + w));
-  c.strokeStyle = `rgba(0,0,0,${a})`; c.lineWidth = 1;
-  const n = Math.round((vertical ? w : h) / 7);
-  for (let i = 0; i < n; i++) {
-    c.beginPath();
-    if (vertical) { const xx = x + r() * w; c.moveTo(xx, y); c.bezierCurveTo(xx + (r() - 0.5) * 8, y + h * 0.3, xx + (r() - 0.5) * 8, y + h * 0.7, xx + (r() - 0.5) * 6, y + h); }
-    else { const yy = y + r() * h; c.moveTo(x, yy); c.bezierCurveTo(x + w * 0.3, yy + (r() - 0.5) * 6, x + w * 0.7, yy + (r() - 0.5) * 6, x + w, yy + (r() - 0.5) * 4); }
-    c.stroke();
-  }
-  if (planks) {
-    c.strokeStyle = 'rgba(0,0,0,0.28)'; c.lineWidth = 2;
-    for (let i = 1; i < planks; i++) { c.beginPath(); if (vertical) { c.moveTo(x + (w * i) / planks, y); c.lineTo(x + (w * i) / planks, y + h); } else { c.moveTo(x, y + (h * i) / planks); c.lineTo(x + w, y + (h * i) / planks); } c.stroke(); }
-    c.strokeStyle = 'rgba(255,255,255,0.05)';
-    for (let i = 1; i < planks; i++) { c.beginPath(); if (vertical) { c.moveTo(x + (w * i) / planks + 2, y); c.lineTo(x + (w * i) / planks + 2, y + h); } else { c.moveTo(x, y + (h * i) / planks + 2); c.lineTo(x + w, y + (h * i) / planks + 2); } c.stroke(); }
-  }
-}
 
 function drawRoom(c, s, L) {
   const r = seeded(9);
@@ -642,19 +577,6 @@ function drawRoom(c, s, L) {
   c.globalCompositeOperation = 'source-over';
 }
 
-// ------------------------------------------------------------------ grain film
-let grainPattern = null;
-function grain(c) {
-  if (!grainPattern) {
-    const g = document.createElement('canvas'); g.width = 160; g.height = 160;
-    const gx = g.getContext('2d'); const img = gx.createImageData(160, 160);
-    for (let i = 0; i < img.data.length; i += 4) { const v = 110 + Math.random() * 145; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255; }
-    gx.putImageData(img, 0, 0);
-    grainPattern = c.createPattern(g, 'repeat');
-  }
-  return grainPattern;
-}
-
 // ------------------------------------------------------------------ sprite bergerak (dilukis sekali, digerakkan dengan transformasi)
 const SILL = W.y + W.h + 8;
 const SPRITES = {
@@ -663,18 +585,6 @@ const SPRITES = {
   plantB: { x: 1140, y: 140, w: 600, h: 616, px: 1431, py: 744 },
   cat: { x: 1030, y: SILL - 70, w: 210, h: 76, px: 1150, py: SILL },
 };
-const shade = (L, h) => M(H(h), [8, 18, 34], Math.min(0.9, L.indoorDark * 0.76));
-const rimOf = (L) => (L.lampsOn ? Math.min(1, (L.indoorDark - 0.2) * 1.6) : 0);
-function leaf(c, x, y, len, wid, ang, col, rim) {
-  c.save(); c.translate(x, y); c.rotate(ang);
-  const g = c.createLinearGradient(0, -wid, 0, wid);
-  g.addColorStop(0, C(LI(col, 0.14))); g.addColorStop(1, C(DA(col, 0.28)));
-  c.fillStyle = g;
-  c.beginPath(); c.moveTo(0, 0); c.bezierCurveTo(len * 0.25, -wid * 1.1, len * 0.75, -wid, len, 0); c.bezierCurveTo(len * 0.75, wid, len * 0.25, wid * 1.1, 0, 0); c.fill();
-  c.strokeStyle = C(DA(col, 0.35), 0.6); c.lineWidth = 1.4; c.beginPath(); c.moveTo(0, 0); c.lineTo(len * 0.92, 0); c.stroke();
-  if (rim) { c.strokeStyle = C(WARM, rim); c.lineWidth = 2.4; c.beginPath(); c.moveTo(len * 0.1, wid * 0.7); c.bezierCurveTo(len * 0.35, wid * 1.05, len * 0.75, wid * 0.9, len, 0); c.stroke(); }
-  c.restore();
-}
 function drawHang(c, L) {
   c.save(); c.translate(1150, 44);
   c.strokeStyle = C(shade(L, '1d1612')); c.lineWidth = 2; c.beginPath(); c.moveTo(0, 0); c.lineTo(-18, 148); c.moveTo(0, 0); c.lineTo(18, 148); c.stroke();
@@ -728,6 +638,12 @@ function drawCat(c, L) {
   const rim = rimOf(L);
   if (rim) { c.strokeStyle = C(WARM, 0.5 * rim); c.lineWidth = 2.5; c.beginPath(); c.ellipse(1150, sill - 22, 58, 24, 0, -0.9, 0.4); c.stroke(); }
 }
+/** Tempat: Kamar santai atau Kafe — masing-masing punya lukisan interior & sprite sendiri. */
+const PLACES = {
+  room: { draw: (c, s, L) => drawRoom(c, s, L), sprites: () => SPRITES, spriteDraw: () => SPRITE_DRAW },
+  cafe: { draw: drawCafe, sprites: () => CAFE_SPRITES, spriteDraw: () => CAFE_SPRITE_DRAW },
+};
+const placeOf = (s) => PLACES[s && s.place] ? s.place : 'room';
 const SPRITE_DRAW = { hang: drawHang, plantA: (c, L) => drawPlant(c, L, 0), plantB: (c, L) => drawPlant(c, L, 1), cat: drawCat };
 
 // ------------------------------------------------------------------ scene
@@ -735,11 +651,11 @@ const SPRITE_DRAW = { hang: drawHang, plantA: (c, L) => drawPlant(c, L, 0), plan
 // Lukisan dibuat pada ukuran kanvas virtual tetap (VW×VH × k) supaya hasilnya bisa dipakai ulang
 // walau ukuran jendela berubah, lalu disimpan: di memori (buka-tutup Lobby instan) dan di IndexedDB
 // (buka aplikasi berikutnya instan). Versi dinaikkan setiap gaya lukisan berubah.
-const PAINT_V = 'p4';
+const PAINT_V = 'p6';
 const MEM_MAX = 2;
 const memCache = new Map(); // key → { outside, room, spr }
 const IDB_PREFIX = 'roompaint:';
-const IDB_MAX = 6;
+const IDB_MAX = 8;
 function memPut(k, layers) {
   memCache.delete(k); memCache.set(k, layers);
   while (memCache.size > MEM_MAX) memCache.delete(memCache.keys().next().value);
@@ -764,13 +680,13 @@ async function idbSave(k, layers) {
     }
   } catch { /* penyimpanan penuh / tidak tersedia: tidak masalah */ }
 }
-async function idbLoad(k) {
+async function idbLoad(k, ids) {
   try {
     const e = await getFile(IDB_PREFIX + k);
     if (!e || !e.outside || !e.room) return null;
     const bmp = (b) => (typeof createImageBitmap === 'function' ? createImageBitmap(b) : Promise.reject(new Error('no bitmap')));
     const layers = { outside: await bmp(e.outside), room: await bmp(e.room), spr: {} };
-    for (const id of Object.keys(SPRITES)) { if (!e.spr || !e.spr[id]) return null; layers.spr[id] = await bmp(e.spr[id]); }
+    for (const id of ids) { if (!e.spr || !e.spr[id]) return null; layers.spr[id] = await bmp(e.spr[id]); }
     return layers;
   } catch { return null; }
 }
@@ -800,11 +716,12 @@ export function prewarmRoom(roomState, w, h, dpr) {
 export function pausePrewarm() { if (warm) warm.idle = false; }
 
 export function roomScene() {
-  let outside = null; let room = null;
-  let painters = []; let spr = {};
+  let outside = null; let room = null; let spr = {};
   let key = ''; let cacheKey = '';
   let job = null; // tahap pembuatan lukisan yang sedang berjalan
   let isWarm = false; // instans khusus persiapan latar belakang
+  let fade = null; // { prev: {outside, room, spr, L}, t0 } → lukisan lama memudar ke lukisan baru
+  let wfx = null; // { dim, rain, t0 } → cuaca berganti dalam kelompok yang sama: efeknya memudar
   let L = lighting('night', 'clear');
   let st = { loc: 'mountain', weather: 'rain', time: 'night' };
   let rainL = []; let snow = []; let clouds = []; let drops = []; let mist = []; let birds = [];
@@ -826,28 +743,147 @@ export function roomScene() {
     mist = Array.from({ length: 4 }, (_, i) => ({ x: OW.x + rnd(0, OW.w), y: HZ - 50 + i * 34, rx: rnd(260, 420), v: rnd(4, 10) * (i % 2 ? 1 : -1) }));
     birds = [];
   }
-
-  /** Mulai (ulang) suasana: pakai cache kalau ada, kalau tidak lukis bertahap di beberapa frame. */
-  function prerender(w, h, dpr) {
-    const s = h > w ? Math.max(w / 1000, (h / VH) * 0.55) : Math.max(w / VW, h / VH);
-    tf = { s, ox: w / 2 - (VW / 2) * s, oy: (h - VH * s) / 2, dpr };
-    L = lighting(st.time, st.weather);
+  const same = (a, b) => placeOf(a) === placeOf(b) && a.loc === b.loc && a.weather === b.weather && a.time === b.time;
+  const sfx = (kind) => { try { window.dispatchEvent(new CustomEvent('cafe-sfx', { detail: kind })); } catch { /* */ } };
+  const crowd = createCrowd({ onBell: () => sfx('bell') });
+  const phone = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+  const cafeAnim = createCafeAnimator({ onClink: () => { try { window.dispatchEvent(new CustomEvent('cafe-sfx', { detail: 'clink' })); } catch { /* */ } } });
+  /** Suasana yang tampil (cahaya, hujan, awan) — diganti tepat saat lukisannya ikut berganti. */
+  function applyState(s) {
+    const first = !rainL.length;
+    if (!first && same(st, s)) return;
+    if (!first && st.weather !== s.weather) wfx = { dim: WX_DIM[st.weather] || 0, rain: hasRain(st.weather), t0: performance.now() };
+    st = { ...s };
+    L = lighting(st.time, paintWeather(st.weather));
     curL = L; curP = palette(st.time, L);
     setupDynamics();
+  }
+  /** Pasang lukisan yang sudah jadi; kalau sebelumnya ada lukisan lain, pudarkan perlahan. */
+  function swapIn(layers, s) {
+    const prev = room && !isWarm && room !== layers.room ? { outside, room, spr, L } : null;
+    outside = layers.outside; room = layers.room; spr = layers.spr;
+    if (s) applyState(s);
+    fade = prev ? { prev, t0: performance.now() } : null;
+  }
+
+  /** Gelapnya langit sesuai cuaca (di atas lukisan "mendung"), memudar saat cuaca berganti. */
+  function weatherDim(c) {
+    let dimV = WX_DIM[st.weather] || 0;
+    if (wfx) { const q = Math.min(1, (performance.now() - wfx.t0) / 1500); dimV = wfx.dim + (dimV - wfx.dim) * q; if (q >= 1) wfx = null; }
+    if (dimV > 0.004) { c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = `rgba(6,12,24,${dimV.toFixed(3)})`; c.fillRect(0, 0, c.canvas.width, c.canvas.height); c.restore(); }
+  }
+
+  /** Bagian bergerak di Kafe: lampu kertas, barista, tanaman, meja kita (kopi & roti), pelayan. */
+  function drawCafeInterior(c, o, state) {
+    const { t, dt, w, h, lf, idk, pv, ff, layer } = o;
+    const tc = M(H('c9a77c'), H('0a161e'), idk * 0.85); const bc = M(H('8c5f3e'), H('0a161e'), idk * 0.85);
+    if (tf.oy > 0) { c.fillStyle = C(tc); c.fillRect(0, 0, w, tf.oy + 1); c.fillStyle = C(bc); c.fillRect(0, tf.oy + VH * tf.s - 1, w, h); }
+    c.save(); c.translate(tf.ox, tf.oy); c.scale(tf.s, tf.s); layer(room, pv && pv.room, 0, 0, VW, VH); c.restore();
+    if (tf.oy > 0) {
+      const fz = Math.min(tf.oy, 28); const y1 = tf.oy; const y2 = tf.oy + VH * tf.s;
+      let g = c.createLinearGradient(0, y1 - 1, 0, y1 + fz); g.addColorStop(0, C(tc)); g.addColorStop(1, C(tc, 0)); c.fillStyle = g; c.fillRect(0, y1 - 1, w, fz + 1);
+      g = c.createLinearGradient(0, y2 + 1, 0, y2 - fz); g.addColorStop(0, C(bc)); g.addColorStop(1, C(bc, 0)); c.fillStyle = g; c.fillRect(0, y2 - fz, w, fz + 1);
+    }
+    c.save(); c.translate(tf.ox, tf.oy); c.scale(tf.s, tf.s);
+    if (flash > 0) { c.fillStyle = `rgba(200,215,255,${flash * 0.1})`; c.fillRect(0, 0, VW, VH); }
+    const sp = (id, { dx = 0, dy = 0, rot = 0, sc = 1, alpha = 1 } = {}) => {
+      const b = CAFE_SPRITES[id]; const img = spr[id];
+      if (!img) return;
+      c.save(); c.translate(b.px + dx, b.py + dy); c.rotate(rot); c.scale(sc, sc);
+      const old = pv && pv.spr[id];
+      if (old && old !== img) { c.globalAlpha = alpha * (1 - ff); c.drawImage(old, b.x - b.px, b.y - b.py, b.w, b.h); c.globalAlpha = alpha * ff; } else c.globalAlpha = alpha;
+      c.drawImage(img, b.x - b.px, b.y - b.py, b.w, b.h); c.restore();
+    };
+    // jam dinding: jarum mengikuti jam sebenarnya
+    const now = new Date(); const hA = ((now.getHours() % 12) + now.getMinutes() / 60) / 12 * TAU - Math.PI / 2; const mA = (now.getMinutes() + now.getSeconds() / 60) / 60 * TAU - Math.PI / 2;
+    c.strokeStyle = C(M(H('2a1e16'), H('0a161e'), idk * 0.5)); c.lineCap = 'round';
+    c.lineWidth = 3.5; c.beginPath(); c.moveTo(1412, 112); c.lineTo(1412 + Math.cos(hA) * 14, 112 + Math.sin(hA) * 14); c.stroke();
+    c.lineWidth = 2.2; c.beginPath(); c.moveTo(1412, 112); c.lineTo(1412 + Math.cos(mA) * 21, 112 + Math.sin(mA) * 21); c.stroke();
+    // lampu kertas berayun pelan
+    LANTERNS.forEach((x, i) => sp('lantern', { dx: x - 800, rot: Math.sin(t * 0.45 + i * 1.7) * 0.018 }));
+    // barista: membuat kopi (uap dari mesin), membawanya ke depan, lalu kembali
+    cafeAnim.stepBarista(dt);
+    const bar = cafeAnim.barista; const walking = bar.mode === 'toFront' || bar.mode === 'toBack';
+    sp('barista', { dx: bar.x, dy: walking ? -Math.abs(Math.sin(t * 7)) * 2.5 : Math.sin(t * 1.3) * 0.8 });
+    if (bar.mode === 'brew') {
+      for (let i = 0; i < 4; i++) { const p = (t * 0.5 + i / 4) % 1; c.fillStyle = `rgba(245,245,245,${0.28 * (1 - p)})`; c.beginPath(); c.arc(126 + Math.sin(t * 2 + i) * 6 + p * 10, 382 - p * 70, 6 + p * 16, 0, TAU); c.fill(); }
+    }
+    sp('doorPlant', { rot: Math.sin(t * 0.5) * 0.012 });
+    // pengunjung: masuk, memesan, duduk, minum & mengobrol, lalu pulang (urut dari yang terjauh)
+    crowd.step(dt, { time: st.time, weather: st.weather, phone });
+    for (const pp of crowd.people()) drawPerson(c, pp, L, t);
+    // meja kita: piring & roti (berkurang dengan gigitan), cangkir & minuman (berkurang per teguk)
+    cafeAnim.update(state && state.cafe, t);
+    const tb = cafeAnim.tableState(t);
+    const drawFood = (food, left, dx) => {
+      if (!food) return;
+      sp('plate', { dx });
+      if (left <= 0.02) { // tinggal remah
+        c.fillStyle = 'rgba(200,150,90,0.8)'; for (let i = 0; i < 9; i++) { c.beginPath(); c.arc(PLATE.x + dx - 30 + ((i * 37) % 60), PLATE.y - 6 + ((i * 13) % 7), 1.6 + (i % 3), 0, TAU); c.fill(); }
+        return;
+      }
+      c.save(); biteClip(c, food, left, PLATE.x + dx, PLATE.y); sp(food, { dx }); c.restore();
+    };
+    const drawCup = (id, level, { dx = 0, dy = 0, sc = 1, alpha = 1 } = {}) => {
+      if (!id) return;
+      const d = drinkOf(id);
+      c.save(); c.translate(CUP.x + dx, CUP.y + dy); c.scale(sc, sc); c.translate(-CUP.x, -CUP.y);
+      sp(d.vessel, { alpha });
+      c.globalAlpha = alpha; drawDrink(c, id, level, CUP.x, CUP.y, L, t);
+      if (alpha > 0.9 && level > 0.15 && sc === 1) { // uap minuman hangat
+        c.lineCap = 'round';
+        for (let i = 0; i < 2; i++) {
+          c.beginPath();
+          for (let y = 0; y < 70; y += 5) { const x = CUP.x - 8 + i * 16 + Math.sin(y * 0.08 + t * 1.6 + i * 2) * (3 + y * 0.08); if (y === 0) c.moveTo(x, CUP.y - 66 - y); else c.lineTo(x, CUP.y - 66 - y); }
+          c.strokeStyle = `rgba(250,250,250,${(0.1 + 0.05 * Math.sin(t + i)) * Math.min(1, level * 2)})`; c.lineWidth = 6 - i * 1.5; c.stroke();
+        }
+      }
+      c.restore();
+    };
+    drawFood(tb.food, tb.foodLeft, tb.plateDx);
+    drawCup(tb.drink, tb.level, { dx: tb.cupDx, dy: tb.cupDy, sc: tb.cupScale, alpha: tb.cupAlpha });
+    if (tb.carry) {
+      if (tb.carry.kind === 'cup') drawCup(tb.carry.id, tb.carry.level, { dx: tb.carry.dx });
+      else drawFood(tb.carry.id, tb.carry.left, tb.carry.dx);
+    }
+    if (tb.arm) sp('arm', { dx: tb.arm.x - 1010, dy: tb.arm.y - 700 });
+    c.restore();
+    weatherDim(c);
+    // cahaya lampu kertas (selalu menyala, lebih terasa saat gelap)
+    c.save(); c.translate(tf.ox, tf.oy); c.scale(tf.s, tf.s);
+    c.globalCompositeOperation = 'lighter';
+    const la = 0.35 + 0.65 * lf; const flick = 0.95 + 0.05 * Math.sin(t * 7) * Math.sin(t * 2.3);
+    LANTERNS.forEach((x, i) => { const sx = x + Math.sin(t * 0.45 + i * 1.7) * 2.6; glow(c, sx, 222, 110, WARM, 0.32 * la * flick); glow(c, sx, 222, 40, [255, 226, 180], 0.35 * la); });
+    c.save(); c.translate(800, BAR_TOP); c.scale(1, 0.18); glow(c, 0, 0, 520, WARM, 0.22 * la); c.restore();
+    glow(c, 160, 360, 120, WARM, 0.12 * la);
+    c.globalCompositeOperation = 'source-over';
+    c.restore();
+  }
+
+  /** Mulai (ulang) suasana: pakai cache kalau ada, kalau tidak lukis bertahap di beberapa frame.
+   *  Selama lukisan baru dibuat, lukisan lama tetap tampil (tidak ada layar "melukis dari nol"). */
+  function prerender(w, h, dpr, want) {
+    const s = h > w ? Math.max(w / 1000, (h / VH) * 0.55) : Math.max(w / VW, h / VH);
+    tf = { s, ox: w / 2 - (VW / 2) * s, oy: (h - VH * s) / 2, dpr };
     // skala lukisan dibulatkan supaya cache tetap terpakai walau jendela sedikit berubah ukuran
     const k = Math.max(0.75, Math.min(1.5, Math.round(s * dpr * 4) / 4));
-    const ck = `${PAINT_V}|${st.loc}|${st.weather}|${st.time}|k${k}`;
-    if (ck === cacheKey && room) return; // lukisan sama, cuma ukuran layar yang berubah
+    const ck = `${PAINT_V}|${placeOf(want)}|${want.loc}|${paintWeather(want.weather)}|${want.time}|k${k}`;
+    if (ck === cacheKey && (room || job)) { // lukisannya sama: cuma ukuran layar atau cuaca dalam kelompok yang sama berubah
+      if (!job || job.live) applyState(want);
+      if (job) job.want = { ...want };
+      return;
+    }
     cacheKey = ck;
-    const mine = (job = { k, ck, phase: 'lookup', steps: [] });
+    const live = !room || isWarm; // belum ada lukisan sama sekali: tampilkan proses melukisnya
+    if (live) applyState(want);
+    const mine = (job = { k, ck, want: { ...want }, live, phase: 'lookup', steps: [], painters: [] });
     const hit = memCache.get(ck);
-    if (hit) { outside = hit.outside; room = hit.room; spr = hit.spr; painters = []; job = null; return; }
-    painters = [];
+    if (hit) { job = null; swapIn(hit, want); return; }
     if (!isWarm && warm && warm.ck === ck) { mine.phase = 'adopt'; return; } // lanjutkan persiapan latar belakang
     if (warm && !warm.idle) warm = null; // persiapan untuk suasana lain tidak dipakai lagi
-    idbLoad(ck).then((layers) => {
+    idbLoad(ck, Object.keys(PLACES[placeOf(want)].sprites())).then((layers) => {
       if (job !== mine) return;
-      if (layers) { outside = layers.outside; room = layers.room; spr = layers.spr; painters = []; memPut(ck, layers); job = null; return; }
+      if (layers) { memPut(ck, layers); job = null; swapIn(layers, mine.want); return; }
       buildSteps(mine);
     });
   }
@@ -855,27 +891,31 @@ export function roomScene() {
   function buildSteps(j) {
     const { k } = j;
     const mk = () => { const cv = document.createElement('canvas'); cv.width = Math.round(VW * k); cv.height = Math.round(VH * k); const cx = cv.getContext('2d'); cx.setTransform(k, 0, 0, k, 0, 0); return [cv, cx]; };
-    const stL = L; const stS = { ...st };
+    const stS = { ...j.want, weather: paintWeather(j.want.weather) }; const stL = lighting(stS.time, stS.weather);
     let baseOut = null; let baseRoom = null;
-    const local = { painters: [], spr: {} };
+    const local = { spr: {} };
     j.phase = 'build';
     j.steps = [
       () => { let cx; [baseOut, cx] = mk(); drawOutside(cx, stS); },
-      () => { let cx; [baseRoom, cx] = mk(); drawRoom(cx, stS, stL); },
+      () => { let cx; [baseRoom, cx] = mk(); PLACES[placeOf(stS)].draw(cx, stS, stL); },
       () => {
         const pOut = createPainter(baseOut, { unit: k, seed: 3, wobble: 1.4, scale: 1.2 });
         const pRoom = createPainter(baseRoom, { unit: k, seed: 5, wobble: 2.4 });
-        local.painters.push(pOut, pRoom);
+        j.painters.push(pOut, pRoom);
         local.outside = pOut.canvas; local.room = pRoom.canvas;
       },
-      ...Object.entries(SPRITES).map(([id, b]) => () => {
+      ...Object.entries(PLACES[placeOf(stS)].sprites()).map(([id, b]) => () => {
         const cv = document.createElement('canvas'); cv.width = Math.ceil(b.w * k); cv.height = Math.ceil(b.h * k);
         const sx = cv.getContext('2d'); sx.setTransform(k, 0, 0, k, -b.x * k, -b.y * k);
-        SPRITE_DRAW[id](sx, stL);
+        PLACES[placeOf(stS)].spriteDraw()[id](sx, stL);
         const pp = createPainter(cv, { unit: k, seed: id.length * 13, softEdge: 0.7, scale: 0.6, wobble: 1.2 });
-        local.spr[id] = pp.canvas; local.painters.push(pp);
+        local.spr[id] = pp.canvas; j.painters.push(pp);
       }),
-      () => { outside = local.outside; room = local.room; spr = local.spr; painters = local.painters; j.phase = 'paint'; },
+      () => {
+        j.local = local;
+        if (j.live) { outside = local.outside; room = local.room; spr = local.spr; }
+        j.phase = 'paint';
+      },
     ];
   }
 
@@ -894,21 +934,22 @@ export function roomScene() {
       if (wm.sc.warmStep(budget)) {
         warm = null;
         const hit = memCache.get(j.ck);
-        if (hit) { outside = hit.outside; room = hit.room; spr = hit.spr; painters = []; job = null; globalThis.__roomPainted = true; }
-        else { cacheKey = ''; key = ''; job = null; }
-      } else { const pv = wm.sc.preview(); if (pv) { outside = pv.outside; room = pv.room; spr = pv.spr; } }
+        job = null;
+        if (hit) { swapIn(hit, j.want); globalThis.__roomPainted = true; } else { cacheKey = ''; key = ''; }
+      } else if (j.live) { const pv = wm.sc.preview(); if (pv) { outside = pv.outside; room = pv.room; spr = pv.spr; } }
       return;
     }
     if (j.phase !== 'paint') return;
-    for (const p of painters) {
+    for (const p of j.painters) {
       if (p.done) continue;
       p.step(Math.max(1, budget - (performance.now() - t0)));
       if (performance.now() - t0 > budget) break;
     }
-    if (painters.every((p) => p.done)) {
-      const layers = { outside, room, spr };
+    if (j.painters.every((p) => p.done)) {
+      const layers = { outside: j.local.outside, room: j.local.room, spr: j.local.spr };
       memPut(j.ck, layers);
       job = null;
+      if (!j.live) swapIn(layers, j.want);
       globalThis.__roomPainted = true;
       setTimeout(() => idbSave(j.ck, layers), 400);
     }
@@ -916,23 +957,36 @@ export function roomScene() {
 
   return {
     init() { key = ''; },
-    warmStart(state, w, h, dpr) { st = { ...state }; key = 'warm'; isWarm = true; prerender(w, h, dpr); },
+    warmStart(state, w, h, dpr) { key = 'warm'; isWarm = true; prerender(w, h, dpr, state); },
     warmStep(ms) { if (job) work(ms); return !job; },
     warmKey: () => cacheKey,
     preview: () => (room ? { outside, room, spr } : null),
+    /** Sedang menyiapkan lukisan suasana baru (lukisan lama masih tampil). */
+    get busy() { return !!job && !job.live; },
     draw(c, dt, t, w, h, state) {
       const want = state && state.room ? state.room : st;
       const dpr = c.getTransform().a || 1;
-      const k = `${want.loc}|${want.weather}|${want.time}|${w}x${h}|${dpr}`;
-      if (k !== key) { st = { ...want }; prerender(w, h, dpr); key = k; }
+      const k = `${placeOf(want)}|${want.loc}|${want.weather}|${want.time}|${w}x${h}|${dpr}`;
+      if (k !== key) { key = k; prerender(w, h, dpr, want); }
       if (job) globalThis.__roomPainted = false;
-      work(job && job.phase === 'paint' ? 22 : 26); // melukis bertahap tanpa membuat animasi macet
+      work(job && job.phase === 'paint' ? (job.live ? 22 : 12) : 26); // melukis bertahap tanpa membuat animasi macet
       if (!room) { // belum ada gambar sama sekali (sepersekian detik): latar gelap senada
         c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
         const g = c.createLinearGradient(0, 0, 0, c.canvas.height); g.addColorStop(0, '#1b262c'); g.addColorStop(1, '#0d1317');
         c.fillStyle = g; c.fillRect(0, 0, c.canvas.width, c.canvas.height); c.restore();
         return;
       }
+      // pudar antar-lukisan (smoothstep ±0,9 detik)
+      let ff = 1;
+      if (fade) { ff = Math.min(1, (performance.now() - fade.t0) / 900); ff = ff * ff * (3 - 2 * ff); if (ff >= 1) fade = null; }
+      const pv = fade ? fade.prev : null;
+      const lampOf = (x) => (x.lampsOn ? 1 : 0);
+      const lf = pv ? lampOf(pv.L) + (lampOf(L) - lampOf(pv.L)) * ff : lampOf(L); // lampu menyala/padam perlahan
+      const idk = pv ? pv.L.indoorDark + (L.indoorDark - pv.L.indoorDark) * ff : L.indoorDark;
+      const layer = (img, old, x, y, wd, ht) => {
+        if (old && old !== img) { c.drawImage(old, x, y, wd, ht); c.globalAlpha = ff; }
+        c.drawImage(img, x, y, wd, ht); c.globalAlpha = 1;
+      };
       const ptr = (state && state.pointer) || { x: 0, y: 0 };
       par.x += (ptr.x - par.x) * Math.min(1, dt * 2.5);
       par.y += (ptr.y - par.y) * Math.min(1, dt * 2.5);
@@ -945,7 +999,7 @@ export function roomScene() {
       c.translate(tf.ox, tf.oy); c.scale(tf.s, tf.s);
       c.beginPath(); c.rect(W.x - 8, W.y - 8, W.w + 16, W.h + 16); c.clip();
       c.translate(pdx, pdy);
-      c.drawImage(outside, 0, 0, VW, VH);
+      layer(outside, pv && pv.outside, 0, 0, VW, VH);
       // awan bergerak
       const cc = night ? M(curP.top, [70, 85, 110], 0.4) : M(curP.bot, [255, 255, 255], 0.4);
       for (const cl of clouds) { cl.x += cl.v * dt; if (cl.x > OW.x + OW.w + 300) cl.x = OW.x - 300; cloudMass(c, cl.x, cl.y, cl.s, cc, 0.3 + L.overcast * 0.35); }
@@ -986,8 +1040,9 @@ export function roomScene() {
       if (st.weather === 'rain' || st.weather === 'storm') {
         const slant = st.weather === 'storm' ? 0.32 : 0.14;
         const rc = night ? '175,195,215' : '220,232,240';
+        const rin = wfx && !wfx.rain ? Math.min(1, (performance.now() - wfx.t0) / 1500) : 1; // hujan mulai turun perlahan
         for (const layer of rainL) {
-          c.strokeStyle = `rgba(${rc},${layer.a})`; c.lineWidth = layer.wd;
+          c.strokeStyle = `rgba(${rc},${layer.a * rin})`; c.lineWidth = layer.wd;
           c.beginPath();
           for (const d of layer.drops) { d.y += d.v * dt; d.x -= d.v * dt * slant; if (d.y > BT) { d.y = OW.y - layer.len; d.x = OW.x + Math.random() * (OW.w + 200); } c.moveTo(d.x, d.y); c.lineTo(d.x + layer.len * slant, d.y - layer.len); }
           c.stroke();
@@ -1023,23 +1078,24 @@ export function roomScene() {
       }
       if (st.weather === 'snow') [[W.x, W.y], [W.x + W.w, W.y], [W.x, W.y + W.h], [W.x + W.w, W.y + W.h]].forEach(([x, y]) => glow(c, x, y, 150, [232, 240, 250], 0.45));
       c.fillStyle = lin(c, 0, W.y, 0, W.y + 40, [[0, 'rgba(0,0,0,0.25)'], [1, 'rgba(0,0,0,0)']]); c.fillRect(W.x, W.y, W.w, 40);
-      if (L.lampsOn) { // pantulan kamar di kaca
+      if (lf > 0.01) { // pantulan kamar di kaca
         const g = c.createLinearGradient(W.x, W.y, W.x + W.w, W.y + W.h);
-        g.addColorStop(0.25, 'rgba(255,190,140,0)'); g.addColorStop(0.45, `rgba(255,190,140,${0.05 * L.indoorDark})`); g.addColorStop(0.6, 'rgba(255,190,140,0)');
+        g.addColorStop(0.25, 'rgba(255,190,140,0)'); g.addColorStop(0.45, `rgba(255,190,140,${0.05 * idk * lf})`); g.addColorStop(0.6, 'rgba(255,190,140,0)');
         c.fillStyle = g; c.fillRect(W.x, W.y, W.w, W.h);
-        glow(c, W.x + W.w - 40, W.y + 260, 120, WARM, 0.06 * L.indoorDark);
+        glow(c, W.x + W.w - 40, W.y + 260, 120, WARM, 0.06 * idk * lf);
       }
       c.restore();
 
+      if (placeOf(st) === 'cafe') { drawCafeInterior(c, { t, dt, w, h, lf, idk, pv, ff, layer }, state); return; }
       // ---------- kamar (statis)
       if (tf.oy > 0) { // layar tegak: perpanjang plafon & meja
-        c.fillStyle = C(M(H('1f1916'), H('0a161e'), L.indoorDark)); c.fillRect(0, 0, w, tf.oy + 1);
-        c.fillStyle = C(M(H('3b271e'), H('0a161e'), L.indoorDark)); c.fillRect(0, tf.oy + VH * tf.s - 1, w, h);
+        c.fillStyle = C(M(H('1f1916'), H('0a161e'), idk)); c.fillRect(0, 0, w, tf.oy + 1);
+        c.fillStyle = C(M(H('3b271e'), H('0a161e'), idk)); c.fillRect(0, tf.oy + VH * tf.s - 1, w, h);
       }
-      c.save(); c.translate(tf.ox, tf.oy); c.scale(tf.s, tf.s); c.drawImage(room, 0, 0, VW, VH); c.restore();
+      c.save(); c.translate(tf.ox, tf.oy); c.scale(tf.s, tf.s); layer(room, pv && pv.room, 0, 0, VW, VH); c.restore();
       if (tf.oy > 0) { // sambungan pita atas/bawah dibuat lembut (tanpa garis)
         const fz = Math.min(tf.oy, 28);
-        const tc = M(H('1f1916'), H('0a161e'), L.indoorDark); const bc = M(H('3b271e'), H('0a161e'), L.indoorDark);
+        const tc = M(H('1f1916'), H('0a161e'), idk); const bc = M(H('3b271e'), H('0a161e'), idk);
         const y1 = tf.oy; const y2 = tf.oy + VH * tf.s;
         let g = c.createLinearGradient(0, y1 - 1, 0, y1 + fz); g.addColorStop(0, C(tc)); g.addColorStop(1, C(tc, 0));
         c.fillStyle = g; c.fillRect(0, y1 - 1, w, fz + 1);
@@ -1050,9 +1106,9 @@ export function roomScene() {
       if (flash > 0) { c.fillStyle = `rgba(200,215,255,${flash * 0.12})`; c.fillRect(0, 0, VW, VH); }
 
       // berkas cahaya matahari (cerah/berawan, siang)
-      if (!L.lampsOn && (st.weather === 'clear' || st.weather === 'cloudy')) {
+      if (lf < 0.99 && (st.weather === 'clear' || st.weather === 'cloudy')) {
         c.globalCompositeOperation = 'lighter';
-        const a = (st.weather === 'clear' ? 0.065 : 0.03) * (1 + 0.15 * Math.sin(t * 0.7));
+        const a = (st.weather === 'clear' ? 0.065 : 0.03) * (1 + 0.15 * Math.sin(t * 0.7)) * (1 - lf) * (pv ? ff : 1);
         [[W.x + 120, 380], [W.x + 470, 330], [W.x + 800, 290]].forEach(([x, wdt]) => {
           c.fillStyle = lin(c, x, W.y, x - 220, 880, [[0, `rgba(255,238,205,${a})`], [1, 'rgba(255,238,205,0)']]);
           c.beginPath(); c.moveTo(x, W.y); c.lineTo(x + wdt * 0.6, W.y); c.lineTo(x + wdt * 0.4 - 220, 880); c.lineTo(x - 260, 880); c.fill();
@@ -1065,7 +1121,9 @@ export function roomScene() {
       const sprite = (id, rot = 0, sy = 1) => {
         const b = SPRITES[id];
         c.save(); c.translate(b.px, b.py); c.rotate(rot); c.scale(1, sy);
-        c.drawImage(spr[id], b.x - b.px, b.y - b.py, b.w, b.h); c.restore();
+        const old = pv && pv.spr[id];
+        if (old && old !== spr[id]) { c.globalAlpha = 1 - ff; c.drawImage(old, b.x - b.px, b.y - b.py, b.w, b.h); c.globalAlpha = ff; }
+        c.drawImage(spr[id], b.x - b.px, b.y - b.py, b.w, b.h); c.globalAlpha = 1; c.restore();
       };
       sprite('hang', Math.sin(t * 0.55) * 0.035);
       sprite('plantA', Math.sin(t * 0.6) * 0.014);
@@ -1073,6 +1131,8 @@ export function roomScene() {
       const sill = SILL;
       softShadow(c, 1150, sill + 2, 70, 7, 0.45);
       sprite('cat', 0, 1 + Math.sin(t * 1.6) * 0.03);
+
+      weatherDim(c);
 
       // uap kopi
       c.lineCap = 'round';
@@ -1090,11 +1150,12 @@ export function roomScene() {
         const x = W.x + (W.w * i) / 26; const y = W.y - 4 + Math.sin((i / 26) * Math.PI) * 30;
         const tw = 0.65 + 0.35 * Math.sin(t * 1.6 + i * 1.7);
         const col = [[255, 186, 110], [255, 150, 118], [255, 218, 150]][i % 3];
-        c.fillStyle = C(col, (L.lampsOn ? 0.95 : 0.5) * tw); c.beginPath(); c.arc(x, y, 3.2, 0, TAU); c.fill();
-        if (L.lampsOn) glow(c, x, y, 26, col, 0.3 * tw);
+        c.fillStyle = C(col, (0.5 + 0.45 * lf) * tw); c.beginPath(); c.arc(x, y, 3.2, 0, TAU); c.fill();
+        if (lf > 0.01) glow(c, x, y, 26, col, 0.3 * tw * lf);
       }
-      glow(c, 510, 684, 220, [110, 170, 220], 0.06 + L.indoorDark * 0.1);
-      if (L.lampsOn) {
+      glow(c, 510, 684, 220, [110, 170, 220], 0.06 + idk * 0.1);
+      if (lf > 0.01) {
+        c.globalAlpha = lf;
         glow(c, 1540, 330, 280, WARM, 0.4 * flick);
         c.fillStyle = lin(c, 0, 362, 0, 870, [[0, C(WARM, 0.14 * flick)], [1, C(WARM, 0)]]); c.beginPath(); c.moveTo(1498, 362); c.lineTo(1582, 362); c.lineTo(1700, 870); c.lineTo(1380, 870); c.fill();
         for (let i = 0; i < 14; i++) { const p = ((t * 0.03 + i * 0.13) % 1); const dx = 1500 + Math.sin(i * 3.1 + t * 0.3) * 60 * p + i * 4; const dy = 380 + p * 420; c.fillStyle = C(WARM, 0.4 * (1 - p)); c.fillRect(dx, dy, 2, 2); }
@@ -1103,16 +1164,11 @@ export function roomScene() {
         const cf = 0.8 + 0.2 * Math.sin(t * 13) * Math.sin(t * 5.3);
         glow(c, 573, sill - 26, 70, WARM, 0.5 * cf);
         c.fillStyle = `rgba(255,222,155,${cf})`; c.beginPath(); c.ellipse(573, sill - 28, 3.5, 8, 0, 0, TAU); c.fill();
+        c.globalAlpha = 1;
       }
       c.globalCompositeOperation = 'source-over';
       c.restore();
-
-      // grain film halus di atas semuanya
-      c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
-      c.globalCompositeOperation = 'overlay'; c.globalAlpha = 0.1;
-      c.translate(Math.floor(Math.random() * 160), Math.floor(Math.random() * 160));
-      c.fillStyle = grain(c); c.fillRect(-160, -160, c.canvas.width + 160, c.canvas.height + 160);
-      c.restore();
+      // grain film: lapisan CSS terpisah (.lb-grain), tidak digambar ulang tiap frame
     },
   };
 }

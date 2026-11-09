@@ -16,6 +16,7 @@ import { applyTint } from './tint.js';
 import { openPalette } from './palette.js';
 import { healthCheckDialog } from './health.js';
 import { createLobby } from './lobby.js';
+import { createSleepTimer, SLEEP_PRESETS } from './sleep.js';
 import * as ambient from './ambient.js';
 import { renderQuickstart, toggleQuickstart, maybeShowWhatsNew, showWhatsNew } from './onboard.js';
 import { sortEntries, filterEntries, quickFilter, QUICK_FILTERS, animateOut, copyText, downloadText, escapeHtml, slugify, formatDuration } from './utils.js';
@@ -38,9 +39,11 @@ const local = {
   query: '', qf: '', limit: PAGE, multi: false, lastView: null,
   selecting: false, selected: new Set(), // mode pilih banyak
   flash: new Set(),                      // video yang baru ditambahkan (disorot sebentar)
-  sleep: { timer: null, endAt: 0, endOfTrack: false },
   playedTrack: null,                     // untuk mencatat riwayat sekali per lagu
 };
+
+// Timer tidur bersama (menu player & Lobby)
+const sleepTimer = createSleepTimer({ player, amb: ambient, toast, getMaster: () => { const m = ((store.ui && store.ui.lobby) || {}).master; return m == null ? 0.8 : m; } });
 
 const metaQueue = createMetaQueue((id, meta) => {
   const v = store.data.videos[id];
@@ -102,7 +105,6 @@ function render() {
   renderAddTarget();
   renderMain();
   renderQS();
-  renderThemeBtn();
   ui.renderBanner(store, sync);
   ui.renderSyncBadge(sync, store);
   ui.renderDock(player, store, dockOpts());
@@ -124,19 +126,8 @@ function renderQS() {
   }, { installable: local.installable });
 }
 
-function renderThemeBtn() {
-  const t = store.ui.theme || 'auto';
-  const b = $('theme-btn');
-  b.innerHTML = icon({ auto: 'contrast', light: 'sun', dark: 'moon' }[t] || 'contrast');
-  b.title = `Tema: ${{ auto: 'ikuti sistem', light: 'terang', dark: 'gelap' }[t] || 'ikuti sistem'} — klik untuk ganti`;
-}
-
 function dockOpts() {
-  const s = local.sleep;
-  let sleepLabel = '';
-  if (s.endOfTrack) sleepLabel = '⏾ akhir lagu';
-  else if (s.endAt) sleepLabel = `⏾ ${Math.max(1, Math.ceil((s.endAt - Date.now()) / 60000))} mnt`;
-  return { sleepLabel };
+  return { sleepLabel: sleepTimer.label() };
 }
 
 function renderBottomNav() {
@@ -888,37 +879,12 @@ async function selectionAction(act) {
 })();
 
 // ---------- timer tidur & kecepatan ----------
-function setSleep(minutes) {
-  const s = local.sleep;
-  clearTimeout(s.timer);
-  s.timer = null; s.endAt = 0; s.endOfTrack = false;
-  player.stopAfterCurrent = false;
-  if (minutes === 'track') {
-    s.endOfTrack = true;
-    player.stopAfterCurrent = true;
-    toast('Musik berhenti setelah lagu ini selesai.', 'success');
-  } else if (minutes > 0) {
-    s.endAt = Date.now() + minutes * 60000;
-    s.timer = setTimeout(() => {
-      s.timer = null; s.endAt = 0;
-      player.pause();
-      toast('Timer tidur: musik dijeda. Selamat istirahat 🌙', 'info', 6000);
-      ui.renderDock(player, store, dockOpts());
-    }, minutes * 60000);
-    toast(`Musik dijeda dalam ${minutes} menit.`, 'success');
-  } else {
-    toast('Timer tidur dimatikan.');
-  }
-  ui.renderDock(player, store, dockOpts());
-}
-
 function openPlayerMenu(anchor) {
-  const s = local.sleep;
-  const sleepOn = s.endAt || s.endOfTrack;
+  const sleepOn = sleepTimer.active;
   openMenu(anchor, [
     { label: 'Lirik', icon: 'mic', action: () => toggleLyrics(true) },
     { label: `Kecepatan: ${player.rate}×`, icon: 'gauge', action: () => setTimeout(() => openRateMenu(anchor), 0) },
-    { label: sleepOn ? `Timer tidur: ${dockOpts().sleepLabel.replace('⏾ ', '')}` : 'Timer tidur…', icon: 'moon', action: () => setTimeout(() => openSleepMenu(anchor), 0) },
+    { label: sleepOn ? `Timer tidur: ${sleepTimer.label().replace('⏾ ', '')}` : 'Timer tidur…', icon: 'moon', action: () => setTimeout(() => openSleepMenu(anchor), 0) },
     'sep',
     player.current && { label: 'Tambah ke playlist…', icon: 'plus', action: () => addToOther({ youtubeId: player.current.youtubeId, playlistId: null }) },
     { label: 'Putar di aplikasi YouTube', icon: 'external', action: () => playInYouTubeApp(currentQueueIds()) },
@@ -945,14 +911,20 @@ function openRateMenu(anchor) {
   })));
 }
 function openSleepMenu(anchor) {
-  const s = local.sleep;
+  const on = sleepTimer.active;
   openMenu(anchor, [
-    ...[15, 30, 45, 60, 90].map((m) => ({ label: `${m} menit`, icon: 'moon', action: () => setSleep(m) })),
-    { label: 'Akhir lagu ini', icon: 'moon', action: () => setSleep('track') },
-    (s.endAt || s.endOfTrack) && 'sep',
-    (s.endAt || s.endOfTrack) && { label: 'Matikan timer', icon: 'x', action: () => setSleep(0) },
+    ...SLEEP_PRESETS.map((m) => ({ label: `${m} menit`, icon: 'moon', action: () => sleepTimer.set(m) })),
+    { label: 'Akhir lagu ini', icon: 'moon', action: () => sleepTimer.set('track') },
+    on && 'sep',
+    on && { label: 'Matikan timer', icon: 'x', action: () => sleepTimer.set(0) },
   ]);
 }
+// label hitung mundur di player bawah: render ulang hanya saat teksnya berubah (±1× per menit)
+let lastSleepLabel = '';
+sleepTimer.onChange(() => {
+  const l = sleepTimer.label();
+  if (l !== lastSleepLabel) { lastSleepLabel = l; ui.renderDock(player, store, dockOpts()); }
+});
 
 // ---------- shortcut keyboard ----------
 function showShortcuts() {
@@ -1137,13 +1109,6 @@ document.addEventListener('click', async (e) => {
       toast('Panduan disembunyikan. Buka lagi lewat Ctrl+K → “Panduan mulai cepat”.', 'info', 6000);
       break;
     case 'whats-new': closeSidebar(); showWhatsNew(); break;
-    case 'theme-cycle': {
-      const nx = { auto: 'dark', dark: 'light', light: 'auto' };
-      store.ui.theme = nx[store.ui.theme || 'auto'] || 'dark';
-      store.saveUi();
-      toast({ auto: 'Tema: ikuti sistem', dark: 'Tema: gelap', light: 'Tema: terang' }[store.ui.theme], 'info', 1800);
-      break;
-    }
     case 'palette': openCommandPalette(); break;
     case 'qf':
       local.qf = local.qf === el.dataset.qf ? '' : el.dataset.qf;
@@ -1562,7 +1527,11 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ---------- event dari store / player / sync ----------
-store.on((type) => {
+store.on((type, detail) => {
+  if (type === 'change' && detail && detail.reason === 'play' && !['history', 'mix'].includes(store.ui.view)) {
+    ui.renderSidebar(store); // jumlah putar berubah: daftar lagu di view ini tidak perlu digambar ulang
+    return;
+  }
   if (type === 'storage-error') {
     toast('Gagal menyimpan ke browser (penyimpanan penuh?). Segera export backup.', 'error', 8000, { label: 'Backup', fn: () => openSettings('backup') });
     return;
@@ -1615,10 +1584,7 @@ player.on((type, data) => {
   }
   if (type === 'ended' && data) store.setPosition(data.youtubeId, 0);
   if (type === 'state' && player.state === 'paused') savePosition(player.current && player.current.youtubeId);
-  if (type === 'sleep') {
-    local.sleep.endOfTrack = false;
-    toast('Timer tidur: musik berhenti setelah lagu selesai. 🌙', 'info', 6000);
-  }
+  if (type === 'sleep') sleepTimer.trackEnded();
   if (type === 'track' && !data) openNowPlaying(false);
   if (type === 'track') applyTint(player.current ? player.current.youtubeId : null, store.ui.tint !== false);
   if ((type === 'track' || type === 'playing') && !$('lyrics-panel').hidden) lyricsPanel.load();
@@ -1626,9 +1592,10 @@ player.on((type, data) => {
     store.setAvailability({ [data.id]: data.code === 100 ? 'gone' : 'embed' });
   }
   if (type === 'error') toast(data && data.skipping ? `${player.error} Melewati ke video berikutnya…` : player.error, 'error', 5000);
-  ui.renderDock(player, store);
+  ui.renderDock(player, store, dockOpts());
   ui.renderQueue(player, store);
-  if (type === 'track' || type === 'state' || type === 'playing') renderMain();
+  // cukup tandai baris yang diputar (daftar tidak dibangun ulang setiap play/jeda)
+  if (type === 'track' || type === 'state' || type === 'playing') ui.updatePlaying(player.current ? player.current.youtubeId : null, player.isPlaying);
 });
 
 sync.on(() => {
@@ -1668,7 +1635,6 @@ setInterval(() => {
   }
   tick++;
   if (tick % 20 === 0 && player.isPlaying) savePosition(player.current.youtubeId); // tiap ±10 detik
-  if (tick % 60 === 0 && local.sleep.endAt) ui.renderDock(player, store, dockOpts()); // hitung mundur timer
 }, 500);
 
 let listenBuf = 0;
@@ -1810,7 +1776,7 @@ function currentLyricLine() {
   return clone.textContent.trim();
 }
 const lobby = createLobby({
-  store, player, icon, toast,
+  store, player, icon, toast, sleepTimer,
   openLyrics: lyricsFromLobby,
   getLyric: currentLyricLine,
   playSomething: () => {

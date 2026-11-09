@@ -652,3 +652,118 @@ test('Kamar santai: waktu otomatis & suara ikut suasana', async () => {
     assert.ok(Object.values(m).every((v) => v > 0 && v <= 1));
   }
 });
+
+test('v29: timer tidur bersama (label, akhir lagu, tambah waktu, memelan, batal)', async () => {
+  const { createSleepTimer, sleepLabel, SLEEP_PRESETS } = await import('../js/sleep.js');
+  assert.equal(sleepLabel({}), '');
+  assert.equal(sleepLabel({ track: true }), '⏾ akhir lagu');
+  assert.equal(sleepLabel({ end: 1000 + 14.2 * 60000 }, 1000), '⏾ 15 mnt');
+  assert.deepEqual(SLEEP_PRESETS, [15, 30, 45, 60, 90]);
+  const player = { vol: 80, isPlaying: true, stopAfterCurrent: false, paused: false, volume() { return this.vol; }, setVolume(v) { this.vol = v; }, pause() { this.paused = true; this.isPlaying = false; } };
+  const amb = { master: 0.8, stopped: false, setMaster(v) { this.master = v; }, stopAll() { this.stopped = true; } };
+  const toasts = [];
+  const t = createSleepTimer({ player, amb, getMaster: () => 0.8, toast: (m) => toasts.push(m) });
+  let changes = 0; t.onChange(() => changes++);
+  t.set('track');
+  assert.ok(t.active && t.endOfTrack && player.stopAfterCurrent);
+  t.trackEnded();
+  assert.ok(!t.active && amb.stopped);
+  t.set(15);
+  assert.ok(t.active && !t.endOfTrack && t.remaining() > 14 * 60);
+  t.add(15);
+  assert.ok(t.remaining() > 29 * 60);
+  t.set(0);
+  assert.ok(!t.active && !player.stopAfterCurrent);
+  assert.ok(changes >= 4 && toasts.some((m) => /dimatikan/.test(m)));
+});
+
+test('v30: cuaca nyata — kode WMO, waktu dari matahari, kelompok lukisan', async () => {
+  const w = await import('../js/weather.js');
+  const { paintWeather } = await import('../js/room.js');
+  assert.deepEqual([0, 1, 2, 3, 45, 51, 61, 65, 80, 71, 86, 95, 99].map(w.wmoToWeather),
+    ['clear', 'clear', 'cloudy', 'cloudy', 'fog', 'rain', 'rain', 'rain', 'rain', 'snow', 'snow', 'storm', 'storm']);
+  assert.equal(w.describeWmo(61), 'hujan ringan');
+  assert.equal(w.describeWmo(95), 'badai petir');
+  // terbit 05:58 (358), terbenam 18:02 (1082)
+  const t = (h, m) => w.timeFromSun(h * 60 + m, 358, 1082);
+  assert.deepEqual([t(4, 0), t(5, 30), t(8, 0), t(12, 0), t(16, 40), t(18, 30), t(19, 0), t(23, 0)],
+    ['night', 'morning', 'morning', 'day', 'dusk', 'dusk', 'night', 'night']);
+  assert.equal(w.timeFromSun(600, null, null), null);
+  assert.equal(w.minutesToNextTime(12 * 60, 358, 1082), 1082 - 90 - 720);
+  assert.equal(w.minutesToNextTime(23 * 60, 358, 1082), 1440 - 1380 + 318);
+  // jam lokal dari selisih zona waktu: 05:00 UTC + 7 jam = 12:00
+  assert.equal(w.localMinutes(25200, Date.UTC(2026, 10, 9, 5, 0)), 720);
+  const wx = w.parseForecast({ utc_offset_seconds: 25200, current: { temperature_2m: 27.6, weather_code: 63 }, daily: { sunrise: ['2026-11-09T05:58'], sunset: ['2026-11-09T18:02'] } }, 1);
+  assert.deepEqual(wx, { at: 1, code: 63, temp: 28, offset: 25200, sunrise: 358, sunset: 1082 });
+  assert.deepEqual(w.liveScene(wx, Date.UTC(2026, 10, 9, 5, 0)), { weather: 'rain', time: 'day' });
+  assert.equal(w.liveScene(null), null);
+  assert.throws(() => w.parseForecast({}));
+  assert.equal(w.round2(1.13014), 1.13);
+  // berawan/hujan/badai/kabut memakai satu lukisan "mendung" (tidak melukis ulang saat cuaca berganti)
+  assert.deepEqual(['clear', 'cloudy', 'rain', 'storm', 'fog', 'snow'].map(paintWeather), ['clear', 'grey', 'grey', 'grey', 'grey', 'snow']);
+});
+
+test('v31: kafe — menu, suara, minum seteguk, antar pesanan baru', async () => {
+  const cafe = await import('../js/cafe.js');
+  const { roomSoundMix } = await import('../js/room.js');
+  const { SOUNDS } = await import('../js/ambient.js');
+  // setiap menu punya sprite yang dilukis
+  for (const d of cafe.DRINKS) assert.ok(cafe.CAFE_SPRITES[d.vessel] && cafe.CAFE_SPRITE_DRAW[d.vessel], d.id);
+  for (const f of cafe.FOODS) assert.ok(cafe.CAFE_SPRITES[f.id] && cafe.CAFE_SPRITE_DRAW[f.id], f.id);
+  assert.deepEqual(Object.keys(cafe.CAFE_SPRITES).sort(), Object.keys(cafe.CAFE_SPRITE_DRAW).sort());
+  // suara di dalam kafe: obrolan + cuaca luar lebih pelan, tanpa burung/jangkrik
+  const m = roomSoundMix({ place: 'cafe', loc: 'forest', weather: 'rain', time: 'day' });
+  assert.ok(m.cafe > 0 && m.rain > 0 && m.rain < 0.6 && !m.birds && !m.stream);
+  for (const w of ['clear', 'cloudy', 'rain', 'storm', 'snow', 'fog']) {
+    const k = roomSoundMix({ place: 'cafe', weather: w, time: 'night' });
+    assert.ok(Object.keys(k).every((id) => SOUNDS.some((s) => s.id === id)) && Object.values(k).every((v) => v > 0 && v <= 1), w);
+  }
+  // animasi meja kita
+  let clinks = 0; let placed = 0;
+  const a = cafe.createCafeAnimator({ onClink: () => clinks++, onPlaced: () => placed++ });
+  a.update({ serial: 1, drink: 'latte', food: 'croissant', drinkLeft: 1, foodLeft: 1 }, 0);
+  let tb = a.tableState(0);
+  assert.equal(tb.drink, 'latte'); assert.equal(tb.level, 1); assert.equal(tb.arm, null);
+  // isi berkurang 1/6 → cangkir terangkat (seteguk), lalu kembali dengan isi baru
+  a.update({ serial: 1, drink: 'latte', food: 'croissant', drinkLeft: 5 / 6, foodLeft: 0.7 }, 10);
+  tb = a.tableState(11.5);
+  assert.ok(tb.cupDy < -100 && tb.cupAlpha < 0.2, 'cangkir sedang diangkat');
+  tb = a.tableState(14);
+  assert.equal(tb.cupDy, 0); assert.ok(Math.abs(tb.level - 5 / 6) < 1e-9); assert.equal(tb.foodLeft, 0.7);
+  // pesanan baru → lengan pelayan mengambil yang lama lalu mengantar yang baru
+  a.update({ serial: 2, drink: 'matcha', food: 'sando', drinkLeft: 1, foodLeft: 1 }, 20);
+  assert.ok(a.busyDelivering);
+  assert.ok(a.tableState(20.6).arm, 'lengan masuk');
+  assert.equal(a.tableState(20.6).drink, 'latte');
+  let sawMatchaCarried = false;
+  for (let t = 20; t < 30; t += 0.02) { const s2 = a.tableState(t); if (s2.carry && s2.carry.id === 'matcha') sawMatchaCarried = true; }
+  tb = a.tableState(40);
+  assert.ok(sawMatchaCarried);
+  assert.equal(tb.drink, 'matcha'); assert.equal(tb.food, 'sando'); assert.equal(tb.level, 1); assert.equal(tb.arm, null);
+  assert.ok(!a.busyDelivering && placed === 1 && clinks >= 2);
+});
+
+test('v32: pengunjung kafe — jumlah ikut waktu, siklus lengkap, kursi tidak bentrok', async () => {
+  const v = await import('../js/visitors.js');
+  assert.ok(v.crowdTarget('day') > v.crowdTarget('night'));
+  assert.ok(v.crowdTarget('day', true) <= 3);
+  assert.ok(v.depthScale(794) > v.depthScale(650));
+  let s = 11; const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+  let bells = 0;
+  const cr = v.createCrowd({ onBell: () => bells++ }, rnd);
+  const seen = new Set(); let max = 0; let pairSat = false;
+  for (let t = 0; t < 900; t += 0.05) {
+    cr.step(0.05, { time: 'day', weather: 'rain', phone: false });
+    const ps = cr.people();
+    max = Math.max(max, ps.length);
+    const seats = ps.filter((p) => p.state === 'sit').map((p) => `${p.seat.kind}${p.seat.i}`);
+    assert.equal(new Set(seats).size, seats.length, 'dua orang di satu kursi');
+    for (const p of ps) {
+      seen.add(p.state);
+      assert.ok(Number.isFinite(p.x) && Number.isFinite(p.y) && p.alpha >= -0.2 && p.alpha <= 1);
+      if (p.pair && p.state === 'sit') pairSat = true;
+    }
+  }
+  for (const st of ['sit', 'enter', 'queue', 'order', 'pickup', 'toSeat', 'leave']) assert.ok(seen.has(st), st);
+  assert.ok(max <= v.crowdTarget('day') + 1 && bells > 3 && pairSat);
+});
