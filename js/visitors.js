@@ -17,7 +17,7 @@ const ORDER = { x: 292, y: 772 };
 const PICKUP = { x: 196, y: 778 };
 const QUEUE_X = 372;
 export const CHAT = [{ x: 1096, y: 728, face: 1 }, { x: 1304, y: 728, face: -1 }];
-const SPEED = 70;
+const SPEED = 78;
 
 // ukuran tubuh (satuan virtual, tinggi ±245 pada skala 1)
 const THIGH = 62; const SHIN = 60; const UPPER = 44; const FORE = 46;
@@ -63,15 +63,15 @@ function partCanvas(x0, y0, x1, y1, draw) {
   return { cv, ox: x0 - pad, oy: y0 - pad, w: x1 - x0 + pad * 2, h: y1 - y0 + pad * 2 };
 }
 const hex = (rgb) => rgb.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
-/** Gradien kain: terang di sisi cahaya, gelap di sisi lain, sedikit lebih gelap ke bawah. */
-function cloth(c, base, x0, x1, y0, y1, flip = false) {
-  const g = c.createLinearGradient(flip ? x1 : x0, 0, flip ? x0 : x1, 0);
-  g.addColorStop(0, C(LI(base, 0.14))); g.addColorStop(0.45, C(base)); g.addColorStop(1, C(DA(base, 0.3)));
+/** Gradien kain: bulat seperti silinder (kedua tepi lebih gelap) + cahaya dari atas — tidak berubah saat dicerminkan. */
+function cloth(c, base, x0, x1, y0, y1) {
+  const g = c.createLinearGradient(x0, 0, x1, 0);
+  g.addColorStop(0, C(DA(base, 0.26))); g.addColorStop(0.38, C(LI(base, 0.08))); g.addColorStop(0.62, C(base)); g.addColorStop(1, C(DA(base, 0.3)));
   c.fillStyle = g; c.fill();
-  const v = c.createLinearGradient(0, y0, 0, y1); v.addColorStop(0, 'rgba(255,255,255,0.05)'); v.addColorStop(1, 'rgba(0,0,0,0.14)');
+  const v = c.createLinearGradient(0, y0, 0, y1); v.addColorStop(0, 'rgba(255,250,240,0.07)'); v.addColorStop(1, 'rgba(0,0,0,0.16)');
   c.fillStyle = v; c.fill();
 }
-function rimStroke(c, rim, a) { if (!rim) return; c.strokeStyle = C(rim, a); c.lineWidth = 1.6; c.stroke(); }
+function rimStroke(c, rim, a) { if (!rim || a < 0.02) return; c.strokeStyle = C(rim, a); c.lineWidth = 1.1; c.stroke(); }
 
 function torsoPath(c, view, coat, slim) {
   const hem = coat ? 26 : 7; const k = slim;
@@ -98,7 +98,7 @@ function buildParts(look, L) {
   const pants = shade(L, look.bottom); const shoe = shade(L, look.shoe);
   // cahaya tepi dari jendela (siang) atau lampu (malam)
   const rimC = L.lampsOn ? WARM : M(H('dfe9f2'), H('fff4e0'), 0.3);
-  const rimA = L.lampsOn ? 0.35 * rimOf(L) + 0.15 : 0.45 * (1 - L.dark);
+  const rimA = (L.lampsOn ? 0.3 * rimOf(L) + 0.08 : 0.22 * (1 - L.dark)) * 0.6; // tipis: cukup memisahkan dari latar, tanpa "lingkaran putih"
   const sk = look.slim;
 
   // ---- badan (pinggul di 0,0; leher ke atas)
@@ -107,7 +107,7 @@ function buildParts(look, L) {
       // leher
       c.fillStyle = C(DA(skin, view === 'back' ? 0.18 : 0.08)); c.beginPath(); c.roundRect(view === 'side' ? -3 : -5.5, -94, view === 'side' ? 10 : 11, 16, 4); c.fill();
       torsoPath(c, view, !!look.coat, sk);
-      cloth(c, top, -30, 30, -82, 30, view === 'back');
+      cloth(c, top, -30 * sk, 30 * sk, -82, 30);
       rimStroke(c, rimC, rimA);
       c.save(); torsoPath(c, view, !!look.coat, sk); c.clip();
       c.strokeStyle = C(DA(top, 0.35), 0.55); c.lineWidth = 1.4;
@@ -189,7 +189,7 @@ function buildParts(look, L) {
   // ---- lengan: lengan atas (bahu di 0,0) & lengan bawah + tangan (siku di 0,0)
   P.upper = partCanvas(-10, -4, 10, UPPER + 4, (c) => {
     c.beginPath(); c.moveTo(-7.5, 0); c.quadraticCurveTo(-8.5, UPPER * 0.5, -6.5, UPPER + 2); c.quadraticCurveTo(0, UPPER + 5, 6.5, UPPER + 2); c.quadraticCurveTo(8.5, UPPER * 0.5, 7.5, 0); c.quadraticCurveTo(0, -5, -7.5, 0); c.closePath();
-    cloth(c, top, -8, 8, 0, UPPER); rimStroke(c, rimC, rimA * 0.7);
+    cloth(c, top, -8, 8, 0, UPPER);
     c.strokeStyle = C(DA(top, 0.35), 0.5); c.lineWidth = 1.2; c.beginPath(); c.moveTo(-4, UPPER - 6); c.quadraticCurveTo(0, UPPER - 3, 4, UPPER - 7); c.stroke();
   });
   P.fore = partCanvas(-9, -4, 9, FORE + 4, (c) => {
@@ -255,45 +255,152 @@ export function createCharacter(look, L) {
 }
 
 // ------------------------------------------------------------------ menggerakkan & menggambar
+const clamp01 = (x) => Math.max(0, Math.min(1, x));
+const ease = (x) => { const k = clamp01(x); return k * k * (3 - 2 * k); };
+const seg = (q, a, b) => clamp01((q - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+const lerpAng = (a, b, k) => { const d = ((b - a + Math.PI) % TAU + TAU) % TAU - Math.PI; return a + d * k; };
 /** Arah tulang → sudut putar (potongan menggantung ke +y). */
 const angOf = (vx, vy) => Math.atan2(-vx, vy);
-/** Inverse kinematics dua tulang: sudut lengan atas & bawah supaya tangan sampai di target (siku ke bawah). */
-export function ik(sx, sy, tx, ty, a, b) {
+/**
+ * Inverse kinematics dua tulang: sudut tulang atas & bawah supaya ujungnya sampai di target.
+ * bend: 'down' = sendi tengah di bawah (siku), 'fwd' = sendi tengah ke depan/+x (lutut).
+ */
+export function ik(sx, sy, tx, ty, a, b, bend = 'down') {
   let dx = tx - sx; let dy = ty - sy; let d = Math.hypot(dx, dy) || 1;
-  const max = (a + b) * 0.995; if (d > max) { dx *= max / d; dy *= max / d; d = max; }
+  const max = (a + b) * 0.999; if (d > max) { dx *= max / d; dy *= max / d; d = max; }
+  const min = Math.abs(a - b) + 1; if (d < min) { dx *= min / d; dy *= min / d; d = min; }
   const cosA = Math.max(-1, Math.min(1, (a * a + d * d - b * b) / (2 * a * d)));
   const al = Math.acos(cosA);
   const ux = dx / d; const uy = dy / d;
-  const opts = [al, -al].map((s) => { const ex = sx + a * (ux * Math.cos(s) - uy * Math.sin(s)); const ey = sy + a * (ux * Math.sin(s) + uy * Math.cos(s)); return { ex, ey }; });
-  const e = opts[0].ey >= opts[1].ey ? opts[0] : opts[1];
+  const opts = [al, -al].map((s) => ({ ex: sx + a * (ux * Math.cos(s) - uy * Math.sin(s)), ey: sy + a * (ux * Math.sin(s) + uy * Math.cos(s)) }));
+  const e = bend === 'fwd' ? (opts[0].ex >= opts[1].ex ? opts[0] : opts[1]) : (opts[0].ey >= opts[1].ey ? opts[0] : opts[1]);
   return { u: angOf(e.ex - sx, e.ey - sy), f: angOf(sx + dx - e.ex, sy + dy - e.ey), ex: e.ex, ey: e.ey, hx: sx + dx, hy: sy + dy };
 }
 
-function put(c, part, x, y, rot) {
-  c.save(); c.translate(x, y); if (rot) c.rotate(rot);
+function put(c, part, x, y, rot, sy = 1) {
+  c.save(); c.translate(x, y); if (rot) c.rotate(rot); if (sy !== 1) c.scale(1, sy);
   c.drawImage(part.cv, part.ox, part.oy, part.w, part.h);
   c.restore();
 }
-function leg(c, P, x, y, hip, knee, far, view) {
-  const t = P[far ? 'thigh_far' : 'thigh']; const s = P[`${view === 'side' ? 'shin_side' : 'shin_front'}${far ? '_far' : ''}`];
-  put(c, t, x, y, hip);
-  const kx = x - Math.sin(hip) * THIGH; const ky = y + Math.cos(hip) * THIGH;
-  put(c, s, kx, ky, hip + knee);
+/** Kaki dengan sudut paha & betis mutlak. */
+function legAbs(c, P, x, y, u, f, far, view = 'side') {
+  put(c, P[far ? 'thigh_far' : 'thigh'], x, y, u);
+  put(c, P[`${view === 'side' ? 'shin_side' : 'shin_front'}${far ? '_far' : ''}`], x - Math.sin(u) * THIGH, y + Math.cos(u) * THIGH, f);
 }
-function armFK(c, P, x, y, u, f, far) {
-  put(c, P[far ? 'upper_far' : 'upper'], x, y, u);
-  const ex = x - Math.sin(u) * UPPER; const ey = y + Math.cos(u) * UPPER;
-  put(c, P[far ? 'fore_far' : 'fore'], ex, ey, f);
-  return { hx: ex - Math.sin(f) * (FORE - 4), hy: ey + Math.cos(f) * (FORE - 4) };
+/** Kaki menapak di (fx, fy): lutut selalu menekuk ke depan. */
+function legTo(c, P, hx, hy, fx, fy, far) {
+  const k = ik(hx, hy, fx, fy, THIGH, SHIN + 3, 'fwd');
+  legAbs(c, P, hx, hy, k.u, k.f, far);
 }
-function cupAt(c, x, y, L) {
+function armFK(c, P, x, y, u, f, far, su = 1, sf = 1) {
+  put(c, P[far ? 'upper_far' : 'upper'], x, y, u, su);
+  const ex = x - Math.sin(u) * UPPER * su; const ey = y + Math.cos(u) * UPPER * su;
+  put(c, P[far ? 'fore_far' : 'fore'], ex, ey, f, sf);
+  return { hx: ex - Math.sin(f) * (FORE - 5) * sf, hy: ey + Math.cos(f) * (FORE - 5) * sf };
+}
+const handOf = (x, y, u, f) => { const ex = x - Math.sin(u) * UPPER; const ey = y + Math.cos(u) * UPPER; return { hx: ex - Math.sin(f) * (FORE - 5), hy: ey + Math.cos(f) * (FORE - 5) }; };
+
+/** Bayangan kontak yang lembut (gradien), bukan elips padat. */
+function contact(c, x, y, rx, ry, a) {
+  if (a <= 0.01) return;
+  c.save(); c.translate(x, y); c.scale(rx, ry);
+  const g = c.createRadialGradient(0, 0, 0, 0, 0, 1);
+  g.addColorStop(0, `rgba(26,17,10,${a})`); g.addColorStop(0.55, `rgba(26,17,10,${a * 0.5})`); g.addColorStop(1, 'rgba(26,17,10,0)');
+  c.fillStyle = g; c.beginPath(); c.arc(0, 0, 1, 0, TAU); c.fill(); c.restore();
+}
+/** Cangkir di titik (x, y) = tengah badan cangkir; tilt memiringkan bibir cangkir ke arah wajah. */
+function cupAt(c, x, y, L, tilt = 0) {
   const cer = shade(L, 'f1ece4');
-  c.fillStyle = C(cer); c.beginPath(); c.moveTo(x - 6, y - 9); c.lineTo(x + 6, y - 9); c.lineTo(x + 5, y + 2); c.lineTo(x - 5, y + 2); c.fill();
-  c.fillStyle = C(DA(cer, 0.35)); c.beginPath(); c.ellipse(x, y - 9, 6, 1.8, 0, 0, TAU); c.fill();
+  c.save(); c.translate(x, y); if (tilt) c.rotate(tilt);
+  c.fillStyle = C(DA(cer, 0.08)); c.beginPath(); c.moveTo(-5.6, -5); c.lineTo(5.6, -5); c.quadraticCurveTo(5.4, 5, 3.6, 6); c.lineTo(-3.6, 6); c.quadraticCurveTo(-5.4, 5, -5.6, -5); c.fill();
+  c.fillStyle = C(LI(cer, 0.1), 0.6); c.fillRect(-4.2, -3.6, 2, 8);
+  c.fillStyle = C(DA(cer, 0.4)); c.beginPath(); c.ellipse(0, -5, 5.6, 1.7, 0, 0, TAU); c.fill();
+  c.restore();
+}
+/** Roti kecil (left = sisa 0..1): croissant / roti bulat / sandwich. */
+function breadAt(c, x, y, L, kind, left, tilt = 0) {
+  if (left <= 0.02) return;
+  const k = 0.45 + 0.55 * left;
+  c.save(); c.translate(x, y); if (tilt) c.rotate(tilt); c.scale(k, k);
+  if (kind === 'sando') {
+    c.fillStyle = C(shade(L, 'efe2c4')); c.beginPath(); c.moveTo(-8, 3); c.lineTo(8, 3); c.lineTo(0, -8); c.closePath(); c.fill();
+    c.fillStyle = C(shade(L, 'f2d36b')); c.fillRect(-6, 0.5, 12, 1.6);
+    c.fillStyle = C(shade(L, '7aa35a')); c.fillRect(-5, -1.2, 10, 1.2);
+  } else {
+    const base = shade(L, kind === 'melonpan' ? 'e4b862' : 'c98a3c');
+    const g = c.createRadialGradient(-2, -3, 1, 0, 0, 9); g.addColorStop(0, C(LI(base, 0.2))); g.addColorStop(1, C(DA(base, 0.25)));
+    c.fillStyle = g; c.beginPath();
+    if (kind === 'croissant') { c.moveTo(-9, 2); c.quadraticCurveTo(-6, -7, 0, -6); c.quadraticCurveTo(6, -7, 9, 2); c.quadraticCurveTo(0, -1, -9, 2); }
+    else c.ellipse(0, -2, 7.5, 5.5, 0, 0, TAU);
+    c.fill();
+    c.strokeStyle = C(DA(base, 0.35), 0.6); c.lineWidth = 0.9; c.beginPath();
+    if (kind === 'croissant') { c.moveTo(-3, -5); c.lineTo(-4, 0); c.moveTo(3, -5); c.lineTo(4, 0); } else { c.moveTo(-4, -5); c.lineTo(3, 1); c.moveTo(3, -6); c.lineTo(-3, 1); }
+    c.stroke();
+  }
+  // bekas gigitan
+  if (left < 0.97) { c.globalCompositeOperation = 'destination-out'; c.beginPath(); c.arc(-9, -3, 3 + (1 - left) * 4, 0, TAU); c.fill(); c.globalCompositeOperation = 'source-over'; }
+  c.restore();
+}
+function plateAt(c, x, y, L) {
+  const cer = shade(L, 'f4efe6');
+  c.fillStyle = 'rgba(30,20,12,0.16)'; c.beginPath(); c.ellipse(x + 1, y + 1.6, 12.5, 3, 0, 0, TAU); c.fill();
+  c.fillStyle = C(cer); c.beginPath(); c.ellipse(x, y, 12, 2.8, 0, 0, TAU); c.fill();
+  c.fillStyle = C(DA(cer, 0.12)); c.beginPath(); c.ellipse(x, y - 0.2, 7.5, 1.6, 0, 0, TAU); c.fill();
 }
 
+// --- titik tangan untuk duduk di meja bundar (relatif dudukan kursi, menghadap kanan)
+const T_REST = { x: 40, y: -35 }; const T_FAR = { x: 48, y: -36 };
+const T_CUP = { x: 62, y: -38 }; const T_PLATE = { x: 81, y: -38 }; const TABLE_Y = -37;
+const MOUTH = { x: 20, y: -87 };
 /**
- * Gambar satu pengunjung. p: { x, y, s, face, pose, ph, ch, drink, talk, cupInHand, alpha }
+ * Lini masa satu gerakan tangan saat duduk. kind: sip (minum), eat (makan), place (meletakkan cangkir).
+ * Menghasilkan dari-mana-ke-mana (a → b, k), apa yang dipegang, kemiringan cangkir & kepala.
+ */
+function actPlan(act, from) {
+  const q = act.q; const out = { hold: null, tilt: 0, head: 0, nod: 0, lift: 0 };
+  if (act.kind === 'place') {
+    if (q < 0.55) Object.assign(out, { a: from, b: T_CUP, k: ease(seg(q, 0, 0.55)), arc: true, hold: 'cup' });
+    else Object.assign(out, { a: T_CUP, b: T_REST, k: ease(seg(q, 0.62, 1)) });
+    return out;
+  }
+  const item = act.kind === 'eat' ? T_PLATE : T_CUP; const hold = act.kind === 'eat' ? 'bread' : 'cup';
+  if (q < 0.16) Object.assign(out, { a: T_REST, b: item, k: ease(seg(q, 0, 0.16)) }); // meraih
+  else if (q < 0.22) Object.assign(out, { a: item, b: item, k: 0, hold }); // menggenggam
+  else if (q < 0.46) Object.assign(out, { a: item, b: MOUTH, k: seg(q, 0.22, 0.46), arc: true, hold }); // mengangkat
+  else if (q < 0.66) { // di mulut
+    const m = Math.sin(seg(q, 0.46, 0.66) * Math.PI);
+    Object.assign(out, { a: MOUTH, b: MOUTH, k: 0, hold });
+    if (act.kind === 'sip') { out.tilt = 0.15 + 0.45 * m; out.head = -0.1 * m; } else { out.tilt = 0.1; out.nod = Math.sin(seg(q, 0.5, 0.64) * Math.PI); }
+  } else if (q < 0.86) Object.assign(out, { a: MOUTH, b: item, k: seg(q, 0.66, 0.86), arc: true, hold }); // menurunkan
+  else Object.assign(out, { a: item, b: T_REST, k: ease(seg(q, 0.88, 1)) }); // melepas
+  out.lift = q < 0.66 ? ease(seg(q, 0.2, 0.46)) : 1 - ease(seg(q, 0.66, 0.88));
+  if (out.arc && out.b === MOUTH) out.tilt = 0.15 * ease(out.k);
+  if (out.arc && out.a === MOUTH) out.tilt = 0.15 * (1 - ease(out.k));
+  return out;
+}
+/** Titik tangan dari rencana: lintasan melengkung (naik dulu, lalu mendekat ke wajah) atau lurus. */
+function planTarget(pl) {
+  const k = ease(pl.k);
+  if (!pl.arc) return { x: lerp(pl.a.x, pl.b.x, k), y: lerp(pl.a.y, pl.b.y, k) };
+  const low = pl.a.y > pl.b.y ? pl.a : pl.b; const high = low === pl.a ? pl.b : pl.a;
+  const cx = low.x * 0.62 + high.x * 0.38; const cy = high.y + 9;
+  const m = 1 - k;
+  return { x: m * m * pl.a.x + 2 * m * k * cx + k * k * pl.b.x, y: m * m * pl.a.y + 2 * m * k * cy + k * k * pl.b.y };
+}
+/** Siklus kaki untuk berjalan dari samping: menapak (bergeser ke belakang, diam di lantai) lalu mengayun. */
+function foot(phi, half) {
+  const f = ((phi % TAU) + TAU) % TAU;
+  if (f < Math.PI) { const s = f / Math.PI; return { x: half * (1 - 2 * s), y: -Math.max(0, s - 0.75) * 10 * (half / 30), stance: true }; }
+  const s = (f - Math.PI) / Math.PI; const e = (1 - Math.cos(s * Math.PI)) / 2;
+  return { x: -half + 2 * half * e, y: -Math.sin(Math.min(1, s * 1.15) * Math.PI) * (4 + 9 * half / 30), stance: false };
+}
+const HALF = 26; // setengah panjang langkah (satuan tokoh) pada kecepatan penuh
+/** Jarak tempuh (satuan tokoh) → kemajuan fase langkah: telapak yang menapak tidak "meluncur". */
+export const stepPhase = (dist, spd) => (Math.PI * dist) / (2 * Math.max(6, HALF * spd));
+
+/**
+ * Gambar satu pengunjung. p: { x, y, s, face, pose, ph, spd, ch, act, talk, cupInHand, cupOnTable, food, alpha }
  * Titik (x, y) = telapak kaki (berdiri/berjalan) atau dudukan (duduk).
  */
 export function drawPerson(c, p, L, t) {
@@ -302,7 +409,6 @@ export function drawPerson(c, p, L, t) {
   c.save();
   c.globalAlpha = p.alpha ?? 1;
   c.translate(p.x, p.y);
-  if (p.pose !== 'sitBack') { c.fillStyle = 'rgba(30,20,10,0.2)'; c.beginPath(); c.ellipse(0, p.pose === 'sitSide' ? 50 * sc : 1, 24 * sc, 5.5 * sc, 0, 0, TAU); c.fill(); }
   c.scale(sc, sc);
   // berbalik kiri↔kanan: sesaat menghadap depan, jadi tidak "membalik" mendadak
   const face = p.turnT > 0 && p.turnVia ? p.turnVia : p.face;
@@ -311,99 +417,158 @@ export function drawPerson(c, p, L, t) {
   const view = side ? 'side' : face === 'back' ? 'back' : 'front';
   const walking = p.pose === 'walk'; const ph = p.ph || 0;
   const breathe = Math.sin(t * 1.6 + (p.id || 0)) * 0.5;
-  const drinkA = p.drink || 0; const talk = p.talk || 0;
+  const talk = p.talk || 0;
   const torso = P[`torso_${view}`]; const head = P[`head_${view}`];
-  const headTilt = talk * Math.sin(t * 3.1) * 0.05 - (p.pose === 'sitBack' ? drinkA * 0.12 : p.pose === 'sitSide' ? drinkA * 0.16 : 0) + (p.look2 || 0);
-  const idle = p.pose === 'stand' ? Math.sin(t * 0.8 + (p.id || 0) * 1.7) : 0; // berat badan berpindah pelan
-  const drawHead = (hx, hy) => put(c, head, hx, hy, headTilt);
+  const shA = 0.26 + (L.lampsOn ? 0.04 : 0);
+  const sk = lk.slim;
 
   if (p.pose === 'walk' || p.pose === 'stand') {
-    const sp = p.spd ?? 1;
-    const bob = walking ? (-Math.abs(Math.cos(ph)) * 2.8 + 1.4) * sp : breathe * 0.3;
-    const hipY = -LEG_LEN + bob;
-    c.translate(idle * 1.2, 0);
+    const sp = walking ? Math.max(0.2, p.spd ?? 1) : 0;
+    const idle = p.pose === 'stand' ? Math.sin(t * 0.8 + (p.id || 0) * 1.7) : 0; // berat badan berpindah pelan
     if (side) {
-      // langkah: paha berayun, lutut menekuk saat kaki diayun ke depan, sedikit menekuk saat menapak
-      const amp = 0.44 * sp;
-      const hA = walking ? amp * Math.sin(ph) : 0; const hB = -hA;
-      const kA = walking ? 0.1 * sp + 0.75 * sp * Math.max(0, -Math.cos(ph)) ** 1.4 : 0.04; const kB = walking ? 0.1 * sp + 0.75 * sp * Math.max(0, Math.cos(ph)) ** 1.4 : 0.04;
-      const lean = walking ? -0.05 * sp : 0;
-      // lengan jauh, kaki jauh, badan, kaki dekat, kepala, lengan dekat
-      // siku lebih menekuk saat tangan berayun ke depan
-      const elb = (a) => a - 0.18 - 0.35 * Math.max(0, -a) * 2;
-      const shX = -Math.sin(lean) * -SHOULDER_Y;
-      armFK(c, P, shX - 1, hipY + SHOULDER_Y, -hB * 0.85, elb(-hB * 0.85), true);
-      leg(c, P, 0, hipY, hB, kB, true, 'side');
-      put(c, torso, 0, hipY, lean);
-      leg(c, P, 1, hipY, hA, kA, false, 'side');
-      drawHead(shX + 1, hipY + NECK_Y);
-      if (p.cupInHand) { const k = ik(1, hipY + SHOULDER_Y, 30, hipY - 22, UPPER, FORE - 4); const hd = armFK(c, P, 1, hipY + SHOULDER_Y, k.u, k.f, false); cupAt(c, hd.hx + 2, hd.hy, L); }
-      else armFK(c, P, shX + 1, hipY + SHOULDER_Y, -hA * 0.85, elb(-hA * 0.85), false);
-      if (lk.umbrella && walking) { c.strokeStyle = C(shade(L, '2a2622')); c.lineWidth = 2; c.beginPath(); c.moveTo(-4, hipY + SHOULDER_Y + 50); c.lineTo(-10, hipY + 34); c.stroke(); c.fillStyle = C(shade(L, lk.umbrella)); c.beginPath(); c.moveTo(-7, hipY + SHOULDER_Y + 54); c.quadraticCurveTo(-3, hipY + 10, -9, hipY + 30); c.quadraticCurveTo(-14, hipY + 12, -7, hipY + SHOULDER_Y + 54); c.fill(); }
-    } else {
-      const lift = (k) => (walking ? Math.max(0, Math.sin(ph + k * Math.PI)) : 0);
-      const legF = (x, k) => { c.save(); c.translate(x, hipY); c.scale(1, 1 - lift(k) * 0.1); leg(c, P, 0, 0, 0, 0, false, 'front'); c.restore(); };
-      const sw = walking ? Math.sin(ph) * 0.14 : 0;
-      if (view === 'back') {
-        legF(-10 * lk.slim, 0); legF(10 * lk.slim, 1);
-        put(c, torso, 0, hipY);
-        armFK(c, P, -24 * lk.slim, hipY + SHOULDER_Y + 4, 0.1 + sw, 0.12 + sw, false);
-        drawHead(0, hipY + NECK_Y);
-        if (p.point > 0.01) { // menunjuk papan menu saat memesan
-          const k = ik(24 * lk.slim, hipY + SHOULDER_Y + 4, 24 + 22 * p.point, hipY + SHOULDER_Y + 40 - 90 * p.point, UPPER, FORE - 4);
-          armFK(c, P, 24 * lk.slim, hipY + SHOULDER_Y + 4, k.u, k.f, false);
-        } else armFK(c, P, 24 * lk.slim, hipY + SHOULDER_Y + 4, -0.1 - sw, -0.12 - sw, false);
-      } else {
-        legF(-10 * lk.slim, 0); legF(10 * lk.slim, 1);
-        put(c, torso, 0, hipY);
-        drawHead(0, hipY + NECK_Y);
-        armFK(c, P, -24 * lk.slim, hipY + SHOULDER_Y + 4, 0.1 - sw, 0.06 - sw, false);
-        if (p.cupInHand) { const hd = armFK(c, P, 24 * lk.slim, hipY + SHOULDER_Y + 4, -0.05, 1.2, false); cupAt(c, hd.hx, hd.hy - 2, L); }
-        else armFK(c, P, 24 * lk.slim, hipY + SHOULDER_Y + 4, -0.1 + sw, -0.06 + sw, false);
+      const half = HALF * sp;
+      const fn = walking ? foot(ph, half) : { x: 5, y: 0, stance: true }; // kaki dekat
+      const ff = walking ? foot(ph + Math.PI, half) : { x: -5, y: 0, stance: true }; // kaki jauh
+      const st = fn.stance ? fn : ff;
+      // pinggul naik-turun seperti pendulum terbalik: tertinggi saat kaki tegak di bawah badan
+      const hy = -Math.sqrt(Math.max(1, LEG_LEN * LEG_LEN - st.x * st.x)) * 0.992 + (walking ? 0 : breathe * 0.3);
+      const hx = idle * 0.8;
+      contact(c, (fn.x + ff.x) / 2 + hx, 1, 22 + Math.abs(fn.x - ff.x) * 0.45, 4.6, shA);
+      const lean = walking ? 0.035 * sp : 0; // condong sedikit ke depan saat berjalan
+      const swing = walking ? 0.3 * sp * Math.cos(ph) : 0; // lengan berlawanan dengan kaki
+      const elb = (u) => u - 0.18 - 1.1 * Math.max(0, -u);
+      const shF = { x: hx - 1 + Math.sin(lean) * 72, y: hy - Math.cos(lean) * 72 };
+      const shN = { x: hx + 1 + Math.sin(lean) * 72, y: hy - Math.cos(lean) * 72 };
+      // lengan jauh (+ payung tertutup), kaki jauh, badan, kaki dekat, kepala, lengan dekat
+      let fh;
+      if (p.cupInHand && p.food) { const k = ik(shF.x, shF.y, hx + 30, hy - 24, UPPER, FORE - 5); fh = armFK(c, P, shF.x, shF.y, k.u, k.f, true); }
+      else fh = armFK(c, P, shF.x, shF.y, -swing, elb(-swing), true);
+      if (lk.umbrella && !p.cupInHand) {
+        const a = -swing * 0.5 + 0.08; const ux = fh.hx; const uy = fh.hy;
+        c.save(); c.translate(ux, uy); c.rotate(a);
+        c.strokeStyle = C(shade(L, '2a2622')); c.lineWidth = 2; c.beginPath(); c.moveTo(0, -4); c.lineTo(0, 60); c.stroke();
+        c.fillStyle = C(shade(L, lk.umbrella)); c.beginPath(); c.moveTo(-1, 8); c.quadraticCurveTo(-7, 32, -2, 54); c.lineTo(2, 54); c.quadraticCurveTo(7, 32, 1, 8); c.fill();
+        c.restore();
       }
+      legTo(c, P, hx - 1, hy, ff.x + hx, ff.y, true);
+      put(c, torso, hx, hy, lean);
+      legTo(c, P, hx + 1, hy, fn.x + hx, fn.y, false);
+      put(c, head, hx + Math.sin(lean) * 84 + 1, hy - Math.cos(lean) * 84, -lean * 0.6 + (p.look2 || 0));
+      if (p.cupInHand) {
+        const k = ik(shN.x, shN.y, hx + 31, hy - 22, UPPER, FORE - 5);
+        const hd = handOf(shN.x, shN.y, k.u, k.f);
+        if (p.food) { // nampan kecil: cangkir & roti di atas, dibawa dua tangan
+          c.fillStyle = C(shade(L, '8a6a4a')); c.beginPath(); c.roundRect(hd.hx - 18, hd.hy - 3, 34, 4, 2); c.fill();
+          cupAt(c, hd.hx - 8, hd.hy - 9, L); breadAt(c, hd.hx + 7, hd.hy - 3, L, p.food.kind, 1);
+        } else cupAt(c, hd.hx + 3, hd.hy - 3, L);
+        armFK(c, P, shN.x, shN.y, k.u, k.f, false);
+      } else armFK(c, P, shN.x, shN.y, swing, elb(swing), false);
+    } else {
+      // depan / belakang: kaki bergantian terangkat, pinggul bergoyang ke kaki yang menapak
+      const lift = (k) => { if (!walking) return 0; const f = (((ph + k * Math.PI) % TAU) + TAU) % TAU; return f < Math.PI ? 0 : Math.sin((f - Math.PI)) * Math.min(1, sp); };
+      const sway = walking ? Math.sin(ph) * 2.2 * sp : idle * 0.8;
+      const hy = -LEG_LEN + 1 + (walking ? Math.abs(Math.sin(ph)) * 1.6 * sp : breathe * 0.3);
+      const roll = walking ? -Math.sin(ph) * 0.025 * sp : 0;
+      contact(c, sway * 0.5, 1, 24, 5, shA);
+      const legF = (x, k) => {
+        const l = lift(k);
+        if (view === 'front') { // lutut maju: paha memendek, telapak terangkat
+          put(c, P.thigh, x, hy, 0, 1 - 0.2 * l); put(c, P.shin_front, x, hy + THIGH * (1 - 0.2 * l), 0);
+        } else { // dari belakang: betis terlipat ke belakang
+          put(c, P.thigh, x, hy, 0); put(c, P.shin_front, x, hy + THIGH, 0, 1 - 0.28 * l);
+        }
+      };
+      const sw = walking ? Math.sin(ph) * 0.1 * sp : 0;
+      const shY = hy + SHOULDER_Y + 4;
+      legF(sway - 10 * sk, 0); legF(sway + 10 * sk, 1);
+      c.save(); c.translate(sway, hy); c.rotate(roll);
+      put(c, torso, 0, 0);
+      if (view === 'back') {
+        put(c, head, 0, NECK_Y, (p.look2 || 0) * 0.5);
+        if (p.point > 0.01) { // menunjuk papan menu (kiri atas) dengan tangan kiri
+          const q = p.point; const u = 0.08 + 1.05 * q; // lengan terangkat ke depan-kiri (memendek karena mengarah ke papan)
+          armFK(c, P, -24 * sk, SHOULDER_Y + 4, u, u + 0.12 + 0.55 * q, false, 1 - 0.38 * q, 1 - 0.2 * q);
+        } else armFK(c, P, -24 * sk, SHOULDER_Y + 4, 0.08 + sw, 0.12 + sw, false);
+        armFK(c, P, 24 * sk, SHOULDER_Y + 4, -0.08 - sw, -0.12 - sw, false);
+      } else {
+        put(c, head, 0, NECK_Y, (p.look2 || 0) * 0.5);
+        if (p.cupInHand && p.food) { // nampan di depan perut
+          armFK(c, P, -24 * sk, SHOULDER_Y + 4, 0.06, -0.9, false, 1, 0.55); armFK(c, P, 24 * sk, SHOULDER_Y + 4, -0.06, 0.9, false, 1, 0.55);
+          c.fillStyle = C(shade(L, '8a6a4a')); c.beginPath(); c.roundRect(-21, -15, 42, 5, 2); c.fill();
+          cupAt(c, -8, -21, L); breadAt(c, 9, -16, L, p.food.kind, 1);
+        } else {
+          armFK(c, P, -24 * sk, SHOULDER_Y + 4, 0.08 - sw, 0.04 - sw, false);
+          if (p.cupInHand) { const hd = handOf(24 * sk, SHOULDER_Y + 4, -0.04, 1.3); cupAt(c, hd.hx - 2, hd.hy - 5, L); armFK(c, P, 24 * sk, SHOULDER_Y + 4, -0.04, 1.3, false); }
+          else armFK(c, P, 24 * sk, SHOULDER_Y + 4, -0.08 + sw, -0.04 + sw, false);
+        }
+      }
+      c.restore();
     }
   } else if (p.pose === 'sitBack') { // duduk di bangku bar, membelakangi kita
-    const k = p.sitK ?? 1; const e = k * k * (3 - 2 * k);
-    const sy = breathe * 0.4 - (1 - e) * 30; // naik ke bangku lalu turun perlahan ke dudukan
-    if (e < 0.55) { // masih berdiri di depan bangku
-      leg(c, P, -10 * lk.slim, sy, 0, 0, true, 'front'); leg(c, P, 10 * lk.slim, sy, 0, 0.0, false, 'front');
-    } else { // betis menggantung ke pijakan bangku (paha ke depan, tertutup badan)
-      put(c, P.shin_front_far, -11 * lk.slim, -6, 0.1); put(c, P.shin_front, 11 * lk.slim, -6, -0.1);
+    const e = ease(p.sitK ?? 1);
+    const sy = -(1 - e) * 27 + breathe * 0.35 * e; // pinggul turun perlahan ke dudukan
+    contact(c, 0, 97, 20, 3.5, shA * 0.6 * (1 - e));
+    // paha bergerak ke depan (memendek dilihat dari belakang), betis menggantung ke pijakan
+    const th = e * 1.35; const kneeY = sy + THIGH * Math.cos(th);
+    for (const [x, far] of [[-10 * sk - 2 * e, true], [10 * sk + 2 * e, false]]) {
+      put(c, P[far ? 'shin_front_far' : 'shin_front'], x, kneeY - 2, (far ? 0.05 : -0.05) * e);
+      put(c, P[far ? 'thigh_far' : 'thigh'], x, sy, 0, Math.max(0.15, Math.cos(th)));
     }
-    // dari belakang, tangan yang bertumpu di meja bar tertutup punggung: lengan digambar di belakang badan
-    const shL = { x: -22 * lk.slim, y: SHOULDER_Y + 4 + sy }; const shR = { x: 22 * lk.slim, y: SHOULDER_Y + 4 + sy };
-    const kl = ik(shL.x, shL.y, -6, -44 + sy, UPPER, FORE - 4); armFK(c, P, shL.x, shL.y, kl.u, kl.f, true);
-    const rest = { x: 8, y: -44 + sy }; const mouth = { x: 4, y: NECK_Y - 14 + sy };
-    const tx = rest.x + (mouth.x - rest.x) * drinkA; const ty = rest.y + (mouth.y - rest.y) * drinkA;
-    const kr = ik(shR.x, shR.y, tx, ty, UPPER, FORE - 4);
-    if (drinkA <= 0.05) armFK(c, P, shR.x, shR.y, kr.u, kr.f, true);
+    const lift = p.act && p.act.kind !== 'place' ? actPlan(p.act, T_REST).lift : 0;
+    const shL = { x: -22 * sk, y: SHOULDER_Y + 4 + sy }; const shR = { x: 22 * sk, y: SHOULDER_Y + 4 + sy };
+    // lengan bawah (menuju meja bar / ke mulut) tertutup badan & kepala → digambar lebih dulu
+    put(c, P.fore_far, shL.x - Math.sin(0.1 * e) * UPPER * (1 - 0.2 * e), shL.y + Math.cos(0.1 * e) * UPPER * (1 - 0.2 * e), lerp(0.1, -1.1, e), 1 - 0.45 * e);
+    const uR = -(0.1 * e + 0.36 * lift); const suR = 1 - 0.2 * e - 0.16 * lift;
+    const elR = { x: shR.x - Math.sin(uR) * UPPER * suR, y: shR.y + Math.cos(uR) * UPPER * suR };
+    const fR = lift > 0.02 ? lerpAng(lerp(-0.1, 1.1, e), angOf(4 - elR.x, NECK_Y - 12 + sy - elR.y), ease(lift * 1.4)) : lerp(-0.1, 1.1, e);
+    put(c, P.fore, elR.x, elR.y, fR, lift > 0.02 ? 1 - 0.25 * lift : 1 - 0.45 * e);
     put(c, torso, 0, sy);
-    drawHead(0, NECK_Y + sy);
-    if (drinkA > 0.05) armFK(c, P, shR.x, shR.y, kr.u, kr.f, false); // siku terangkat saat minum
+    put(c, head, 0, NECK_Y + sy + lift * 1.2, 0, 1 - lift * 0.03);
+    put(c, P.upper_far, shL.x, shL.y, 0.1 * e, 1 - 0.2 * e);
+    put(c, P.upper, shR.x, shR.y, uR, suR); // siku terangkat ke samping saat minum / makan
   } else if (p.pose === 'sitSide') { // duduk di kursi menghadap meja (kanan)
     // duduk/berdiri: pinggul turun-naik dan mundur sedikit, lutut menekuk, telapak kaki tetap di lantai
-    const k = p.sitK ?? 1; const e = k * k * (3 - 2 * k);
-    const hipA = -(Math.PI / 2 - 0.03) * e; const kneeA = (Math.PI / 2 - 0.1) * e; // betis tegak, telapak di lantai
-    const footX = 30 + 36 * e; const FOOT_Y = CHAIR_FOOT;
+    const e = ease(p.sitK ?? 1);
+    const hipA = -(Math.PI / 2 - 0.03) * e; const kneeA = (Math.PI / 2 - 0.1) * e;
+    const footX = 30 + 36 * e;
     const relX = -THIGH * Math.sin(hipA) - SHIN * Math.sin(hipA + kneeA); const relY = THIGH * Math.cos(hipA) + SHIN * Math.cos(hipA + kneeA);
-    const hx = footX - relX; const hy = FOOT_Y - relY; // pinggul dihitung dari telapak kaki yang menapak
-    const lean = (1 - e) * e * 4 * 0.28; // condong ke depan di tengah gerakan duduk
+    const hx = footX - relX; const hy = CHAIR_FOOT - relY;
     const sy = hy + breathe * 0.4 * e;
-    c.translate(hx, 0);
-    leg(c, P, -4, hy, hipA + 0.04 * e, kneeA - 0.06 * e, true, 'side');
-    put(c, torso, 0, sy, 0.04 * e + lean);
-    leg(c, P, 2, hy, hipA, kneeA, false, 'side');
-    const lx = -Math.sin(0.04 * e + lean) * -SHOULDER_Y;
-    drawHead(2 + lx, NECK_Y + sy);
-    // tangan di atas meja; saat minum cangkir naik ke mulut; saat bicara tangan sedikit bergerak
-    const table = { x: 58 + talk * Math.sin(t * 4.2) * 6, y: -38 - talk * Math.max(0, Math.sin(t * 4.2)) * 10 };
-    const mouth = { x: 16, y: NECK_Y - 9 };
-    const tx = table.x + (mouth.x - table.x) * drinkA; const ty = table.y + (mouth.y - table.y) * drinkA;
-    if (e > 0.85) {
-      const ki = ik(2 + lx, SHOULDER_Y + 4 + sy, tx, ty, UPPER, FORE - 4);
-      const hd = armFK(c, P, 2 + lx, SHOULDER_Y + 4 + sy, ki.u, ki.f, false);
-      cupAt(c, hd.hx + 5, hd.hy + (drinkA > 0.1 ? -1 : 1), L);
-    } else { const hd = armFK(c, P, 2 + lx, SHOULDER_Y + 4 + sy, -0.3, -0.9, false); if (p.cupInHand !== false) cupAt(c, hd.hx + 3, hd.hy - 2, L); }
+    // barang di meja (cangkir & piring) — ikut memudar saat pergi
+    const items = p.state === 'standUp' ? e : 1;
+    const plan = p.act && e > 0.98 ? actPlan(p.act, { x: hx + 31, y: sy - 22 }) : null;
+    const target = plan ? planTarget(plan) : null;
+    // condong ke depan di tengah gerakan duduk, dan saat meraih piring yang agak jauh
+    const lean = 0.04 * e + (1 - e) * e * 4 * 0.3 + (target ? 0.13 * clamp01((target.x - 56) / 26) : 0);
+    contact(c, (hx + footX) / 2, CHAIR_FOOT, 34, 5, shA);
+    // titik bahu & leher mengikuti badan yang condong
+    const R = (x, y) => ({ x: hx + x * Math.cos(lean) - y * Math.sin(lean), y: sy + x * Math.sin(lean) + y * Math.cos(lean) });
+    const sh = R(2, SHOULDER_Y + 4); const shF = R(-1, SHOULDER_Y + 4); const nk = R(2, NECK_Y);
+    // lengan jauh: bertumpu di meja (tertutup badan)
+    const hang = (s) => ({ x: s.x + 3, y: s.y + 84 });
+    const farT = { x: lerp(hang(shF).x, T_FAR.x, ease(seg(e, 0.6, 1))), y: lerp(hang(shF).y, T_FAR.y, ease(seg(e, 0.6, 1))) - (talk * Math.max(0, Math.sin(t * 1.3 + 2)) * 3) };
+    const kf = ik(shF.x, shF.y, farT.x, farT.y, UPPER, FORE - 5); armFK(c, P, shF.x, shF.y, kf.u, kf.f, true);
+    put(c, P.thigh_far, hx - 4, hy, hipA + 0.04 * e); put(c, P.shin_side_far, hx - 4 - Math.sin(hipA + 0.04 * e) * THIGH, hy + Math.cos(hipA + 0.04 * e) * THIGH, hipA + kneeA - 0.02 * e);
+    put(c, torso, hx, sy, lean);
+    legAbs(c, P, hx + 2, hy, hipA, hipA + kneeA, false);
+    // kepala: mendongak sedikit saat minum, mengangguk saat menggigit roti
+    const headRot = (plan ? plan.head + plan.nod * 0.06 : 0) + talk * Math.sin(t * 1.9) * 0.03 + (p.look2 || 0) * 0.5;
+    put(c, head, nk.x + (plan ? plan.nod * 1.5 : 0), nk.y, headRot);
+    // tangan dekat
+    const holding = plan ? plan.hold : null;
+    if (items > 0.02 && p.cupOnTable && holding !== 'cup') { c.globalAlpha = (p.alpha ?? 1) * items; cupAt(c, T_CUP.x + 3, TABLE_Y - 6, L); c.globalAlpha = p.alpha ?? 1; }
+    if (items > 0.02 && p.food && p.seat?.kind !== 'stool') { c.globalAlpha = (p.alpha ?? 1) * items; plateAt(c, T_PLATE.x + 2, TABLE_Y + 1, L); if (holding !== 'bread') breadAt(c, T_PLATE.x + 2, TABLE_Y - 2, L, p.food.kind, p.food.left); c.globalAlpha = p.alpha ?? 1; }
+    let k;
+    if (target) k = ik(sh.x, sh.y, target.x, target.y, UPPER, FORE - 5);
+    else if (e > 0.98) { // istirahat di meja; saat bicara tangan ikut bergerak pelan
+      const g = Math.sin(t * 1.7 + (p.id || 0));
+      k = ik(sh.x, sh.y, T_REST.x + talk * g * 5, T_REST.y - talk * Math.max(0, Math.sin(t * 1.7 + 0.9 + (p.id || 0))) * 8, UPPER, FORE - 5);
+    } else if (p.cupInHand) k = ik(sh.x, sh.y, hx + 31, sy - 22, UPPER, FORE - 5); // membawa cangkir sambil duduk
+    else { const tg = { x: lerp(hang(sh).x, T_REST.x, ease(seg(e, 0.5, 1))), y: lerp(hang(sh).y, T_REST.y, ease(seg(e, 0.5, 1))) }; k = ik(sh.x, sh.y, tg.x, tg.y, UPPER, FORE - 5); }
+    const hd = handOf(sh.x, sh.y, k.u, k.f);
+    if (holding === 'cup' || (!plan && p.cupInHand)) cupAt(c, hd.hx + 4, hd.hy - 2, L, plan ? -plan.tilt : 0);
+    if (holding === 'bread') breadAt(c, hd.hx + 3, hd.hy - 2, L, p.food.kind, p.food.left, -0.2);
+    armFK(c, P, sh.x, sh.y, k.u, k.f, false);
   }
   c.restore();
   // gelembung obrolan kecil (tidak ikut dicerminkan)
@@ -444,10 +609,12 @@ export function createCrowd(hooks = {}, rnd = Math.random, makeChar = createChar
   const freeChar = () => { const xs = pool.filter((ch) => ch.ready && !ch.stale && !people.some((p) => p.ch === ch)); return xs.length ? xs[Math.floor(rnd() * xs.length)] : null; };
 
   function make(ch, seat, { sitting = false } = {}) {
-    const p = { id: ++id, ch, seat, pair: null, path: [], state: 'enter', t: 0, x: DOOR.x, y: DOOR.y, face: 'front', pose: 'walk', ph: rnd() * 6, alpha: 0, drink: 0, talk: 0, cupInHand: false, stay: 60 + rnd() * 100, nextSip: 5 + rnd() * 8 };
+    const p = { id: ++id, ch, seat, pair: null, path: [], state: 'enter', t: 0, x: DOOR.x, y: DOOR.y, face: 'front', pose: 'walk', ph: rnd() * 6, alpha: 0, talk: 0, cupInHand: false, cupOnTable: false, act: null, stay: 60 + rnd() * 100, nextAct: 4 + rnd() * 6,
+      food: rnd() < 0.45 ? { kind: pickOf(['croissant', 'melonpan', 'sando'], rnd), left: 1 } : null };
     if (sitting) {
       const sp = seatPos(seat);
-      Object.assign(p, { state: 'sit', x: sp.x, y: sp.y, alpha: 0.01, fadeIn: true, t: rnd() * 40 });
+      Object.assign(p, { state: 'sit', x: sp.x, y: sp.y, alpha: 0.01, fadeIn: true, t: rnd() * 40, cupOnTable: true });
+      if (p.food) p.food.left = 0.25 + Math.floor(rnd() * 4) * 0.25;
       p.pose = seat.kind === 'stool' ? 'sitBack' : 'sitSide'; p.face = seat.kind === 'stool' ? 'back' : (CHAT[seat.i].face > 0 ? 'right' : 'left');
     } else p.path = [{ x: DOOR.x, y: LANE }];
     people.push(p);
@@ -488,7 +655,7 @@ export function createCrowd(hooks = {}, rnd = Math.random, makeChar = createChar
     const want = last ? Math.min(1, 0.3 + d / 70) : 1;
     p.spd = (p.spd ?? 0) + (want - (p.spd ?? 0)) * Math.min(1, dt * 3.2);
     const v = SPEED * depthScale(p.y) * dt * Math.max(0.15, p.spd);
-    p.pose = 'walk'; p.ph += dt * 6.4 * Math.max(0.35, p.spd);
+    p.pose = 'walk'; p.ph += stepPhase(v / (depthScale(p.y) * p.ch.look.tall), Math.max(0.2, p.spd)); // langkah ikut jarak: kaki tidak meluncur
     const nf = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy > 0 ? 'front' : 'back');
     if (nf !== p.face && d > 1) {
       if ((nf === 'left' && p.face === 'right') || (nf === 'right' && p.face === 'left')) { p.turnT = 0.22; p.turnVia = 'front'; }
@@ -550,7 +717,7 @@ export function createCrowd(hooks = {}, rnd = Math.random, makeChar = createChar
           break;
         case 'sitDown': // pinggul turun perlahan ke dudukan
           p.sitK = Math.min(1, p.t / 1.1);
-          if (p.sitK >= 1) { p.state = 'sit'; p.t = 0; p.cupInHand = false; }
+          if (p.sitK >= 1) { p.state = 'sit'; p.t = 0; p.act = { kind: 'place', q: 0, dur: 1.4 }; }
           break;
         case 'standUp': { // berdiri lagi, lalu berjalan ke pintu
           p.sitK = Math.max(0, 1 - p.t / 0.9);
@@ -562,15 +729,24 @@ export function createCrowd(hooks = {}, rnd = Math.random, makeChar = createChar
           break;
         }
         case 'sit': {
-          // minum sesekali (cangkir naik ke mulut lalu turun); berdua: bergantian bicara
-          p.nextSip -= dt;
-          if (p.nextSip <= 0 && !p.sipT) { p.sipT = 3.2; p.nextSip = 9 + rnd() * 10; }
-          if (p.sipT > 0) { p.sipT -= dt; const q = 1 - p.sipT / 3.2; p.drink = q < 0.3 ? q / 0.3 : q > 0.7 ? (1 - q) / 0.3 : 1; p.drink = p.drink * p.drink * (3 - 2 * p.drink); if (p.sipT <= 0) { p.sipT = 0; p.drink = 0; } }
+          // gerakan tangan: meletakkan cangkir, sesekali minum atau makan roti; berdua: bergantian bicara
+          if (p.act) {
+            const q0 = p.act.q; p.act.q = Math.min(1, q0 + dt / p.act.dur);
+            if (p.act.kind === 'place' && q0 < 0.55 && p.act.q >= 0.55) { p.cupInHand = false; p.cupOnTable = true; }
+            if (p.act.kind === 'eat' && q0 < 0.57 && p.act.q >= 0.57 && p.food) p.food.left = Math.max(0, p.food.left - 0.25);
+            if (p.act.q >= 1) p.act = null;
+          } else {
+            p.nextAct -= dt;
+            if (p.nextAct <= 0) {
+              const eat = p.food && p.food.left > 0.01 && rnd() < 0.5;
+              p.act = { kind: eat ? 'eat' : 'sip', q: 0, dur: eat ? 4.8 : 4.4 }; p.nextAct = 7 + rnd() * 9;
+            }
+          }
           const mate = p.pair ? people.find((q) => q.id === p.pair) : null;
-          if (mate && mate.state === 'sit') { const turn = Math.floor(clock / 4.5) % 2 === p.seat.i; p.talk += ((turn && !p.sipT ? 1 : 0.12) - p.talk) * Math.min(1, dt * 3); } else p.talk += (0 - p.talk) * Math.min(1, dt * 3);
+          if (mate && mate.state === 'sit') { const turn = Math.floor(clock / 4.5) % 2 === p.seat.i; p.talk += ((turn && !p.act ? 1 : 0.12) - p.talk) * Math.min(1, dt * 2); } else p.talk += (0 - p.talk) * Math.min(1, dt * 2);
           const leader = !mate || p.seat.i === 0;
-          if (leader && p.t > p.stay && !p.sipT) {
-            [p, mate].filter(Boolean).forEach((q, k) => { q.state = 'standUp'; q.t = -k * 0.9; q.talk = 0; q.drink = 0; });
+          if (leader && p.t > p.stay && !p.act && !(mate && mate.act)) {
+            [p, mate].filter(Boolean).forEach((q, k) => { q.state = 'standUp'; q.t = -k * 0.9; q.talk = 0; q.act = null; });
           }
           break;
         }
@@ -595,17 +771,17 @@ export function createCrowd(hooks = {}, rnd = Math.random, makeChar = createChar
 
 /**
  * Sama dengan drawPerson, tapi orang yang sedang duduk/berdiri diam digambar ke kanvas kecil yang
- * diperbarui 8×/detik (cukup untuk napas, minum & bicara) — menghemat banyak kerja di HP.
+ * diperbarui 10×/detik (cukup untuk napas & bicara pelan); saat minum/makan digambar tiap frame — menghemat banyak kerja di HP.
  * Orang yang berjalan, duduk/berdiri, atau sedang muncul/menghilang tetap digambar tiap frame.
  */
 const BOX = { x: 110, y: 350, w: 220, h: 440 };
 export function drawPersonFast(c, p, L, t) {
-  const live = p.pose === 'walk' || p.state === 'sitDown' || p.state === 'standUp' || (p.turnT > 0);
+  const live = p.pose === 'walk' || p.state === 'sitDown' || p.state === 'standUp' || p.turnT > 0 || !!p.act;
   if (live) { drawPerson(c, p, L, t); return; }
   const dev = Math.abs(c.getTransform().a) || 1;
   const key = `${p.pose}|${p.face}|${dev.toFixed(3)}|${(p.s || 1).toFixed(3)}`;
   let k = p._cache;
-  if (!k || k.key !== key || t - k.t > 0.125 || t < k.t) {
+  if (!k || k.key !== key || t - k.t > 0.1 || t < k.t) {
     if (!k || k.key !== key) {
       const cv = (k && k.cv) || document.createElement('canvas');
       cv.width = Math.ceil(BOX.w * dev); cv.height = Math.ceil(BOX.h * dev);

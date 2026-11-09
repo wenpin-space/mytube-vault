@@ -908,6 +908,9 @@ export const EN = {
   // v33
   'Pengunjung kafe yang dilukis': 'Painted café visitors',
   'Pengunjung kini dilukis dengan kuas yang sama seperti latar: bentuk tubuh alami, lipatan baju, rambut bertekstur, dan cahaya tepi dari jendela atau lampu. Gerakannya lebih nyata: lutut & siku menekuk saat berjalan, mulai dan berhenti perlahan, berbalik dengan luwes, duduk & berdiri dengan kaki menapak, menunjuk menu saat memesan, dan mengangkat cangkir ke mulut.': 'Visitors are now painted with the same brush as the background: natural body shapes, clothing folds, textured hair, and rim light from the window or lamps. They also move more naturally: knees & elbows bend while walking, they ease in and out of each step, turn smoothly, sit down & stand up with their feet planted, point at the menu while ordering, and raise the cup to their lips.',
+  // v34
+  'Gerak pengunjung lebih alami': 'More natural visitor motion',
+  'Kaki benar-benar menapak saat berjalan (tidak lagi meluncur), pinggul naik-turun & lengan berayun berlawanan dengan kaki. Saat minum, tangan meraih cangkir di meja, mengangkatnya melengkung ke mulut, memiringkannya, lalu meletakkannya kembali; sebagian pengunjung juga memesan roti dan memakannya gigitan demi gigitan. Bayangan kini lembut di lantai, kepala tidak lagi lepas saat duduk.': 'Feet now stay planted while walking (no more sliding), hips rise and fall and arms swing opposite the legs. To drink, a hand reaches for the cup on the table, lifts it to the mouth in a curve, tips it, then sets it back down; some visitors also order bread and eat it bite by bite. Shadows are now soft on the floor, and heads no longer detach when sitting down.',
   // waktu relatif & lain-lain
   '{0} menit lalu': '{0} min ago',
   '{0} jam lalu': '{0} h ago',

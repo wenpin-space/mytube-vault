@@ -772,3 +772,27 @@ test('v32: pengunjung kafe — jumlah ikut waktu, siklus lengkap, kursi tidak be
   assert.ok(Math.abs(Math.hypot(k.ex, k.ey) - 44) < 1e-6);
   assert.ok(max <= v.crowdTarget('day') + 1 && bells > 3 && pairSat);
 });
+
+test('v34: langkah tidak meluncur, lutut ke depan, minum & makan bertahap', async () => {
+  const v = await import('../js/visitors.js');
+  // satu langkah penuh (fase π) = badan maju 2 × setengah langkah
+  assert.ok(Math.abs(v.stepPhase(52, 1) - Math.PI) < 1e-9);
+  assert.ok(v.stepPhase(10, 0.5) > v.stepPhase(10, 1)); // langkah pendek saat pelan → fase lebih cepat
+  const k = v.ik(0, -120, 20, 0, 62, 63, 'fwd');
+  assert.ok(k.ex > 0 && Math.hypot(k.hx - 20, k.hy) < 1e-6); // lutut menekuk ke depan, telapak tepat di lantai
+  let s = 7; const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+  const fake = (look) => ({ look, ready: true, step() { return true; } });
+  const cr = v.createCrowd({}, rnd, fake);
+  const kinds = new Set(); let bitten = false; let placed = false;
+  for (let t = 0; t < 1200; t += 0.05) {
+    cr.step(0.05, { time: 'day', weather: 'clear', phone: false, L: {} });
+    for (const p of cr.people()) {
+      if (p.act) { kinds.add(p.act.kind); assert.ok(p.act.q >= 0 && p.act.q <= 1); assert.equal(p.state, 'sit'); }
+      if (p.food && p.food.left < 1 && p.state === 'sit') bitten = true;
+      if (p.cupOnTable && !p.cupInHand) placed = true;
+      if (p.food) assert.ok(p.food.left >= 0 && p.food.left <= 1);
+    }
+  }
+  for (const k2 of ['place', 'sip', 'eat']) assert.ok(kinds.has(k2), k2);
+  assert.ok(bitten && placed);
+});
