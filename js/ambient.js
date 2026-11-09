@@ -726,12 +726,19 @@ export function chime() {
   });
 }
 
-/** Efek suara pendek di Kafe: 'clink' (cangkir diletakkan) atau 'bell' (lonceng pintu).
- *  Hanya berbunyi kalau suara alam sudah aktif (tidak membuat AudioContext baru). */
+/** Efek suara pendek di Kafe: 'clink' (cangkir diletakkan), 'bell' (lonceng pintu: ada yang masuk) atau
+ *  'bellOut' (lonceng lebih pelan: ada yang keluar). Disintesis langsung (tanpa file), tetap berbunyi
+ *  walau suara alam belum dinyalakan — kecuali volume utama 0. */
 export function sfx(kind) {
-  if (!ctx || ctx.state !== 'running' || masterLevel <= 0) return;
-  const now = ctx.currentTime;
-  const notes = kind === 'bell' ? [[1568, 0, 1.4, 0.07], [2093, 0.09, 1.2, 0.05], [2637, 0.18, 1.1, 0.04]] : [[2350, 0, 0.35, 0.05], [3520, 0.012, 0.25, 0.03], [2780, 0.11, 0.3, 0.03]];
+  let c; try { c = ensure(); } catch { return; }
+  if (c.state === 'suspended') { c.resume().catch(() => {}); return; }
+  if (masterLevel <= 0) return;
+  const now = c.currentTime;
+  // lonceng kuningan: nada dasar + parsial tak harmonis, dipukul 2–3 kali saat bergoyang
+  const strike = (t0, f, a) => [[f, t0, 1.6, a], [f * 2.41, t0, 0.9, a * 0.45], [f * 3.02, t0 + 0.004, 0.6, a * 0.25], [f * 4.18, t0 + 0.004, 0.35, a * 0.12]];
+  const notes = kind === 'bell' ? [...strike(0, 1318, 0.16), ...strike(0.16, 1318, 0.1), ...strike(0.36, 1318, 0.055)]
+    : kind === 'bellOut' ? [...strike(0, 1175, 0.1), ...strike(0.22, 1175, 0.05)]
+      : [[2350, 0, 0.35, 0.05], [3520, 0.012, 0.25, 0.03], [2780, 0.11, 0.3, 0.03]];
   notes.forEach(([f, d, len, a]) => {
     const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f;
     const e = ctx.createGain(); e.gain.setValueAtTime(0, now + d); e.gain.linearRampToValueAtTime(a, now + d + 0.005); e.gain.exponentialRampToValueAtTime(0.0001, now + d + len);

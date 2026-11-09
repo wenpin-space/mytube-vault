@@ -651,7 +651,7 @@ const SPRITE_DRAW = { hang: drawHang, plantA: (c, L) => drawPlant(c, L, 0), plan
 // Lukisan dibuat pada ukuran kanvas virtual tetap (VW×VH × k) supaya hasilnya bisa dipakai ulang
 // walau ukuran jendela berubah, lalu disimpan: di memori (buka-tutup Lobby instan) dan di IndexedDB
 // (buka aplikasi berikutnya instan). Versi dinaikkan setiap gaya lukisan berubah.
-const PAINT_V = 'p7';
+const PAINT_V = 'p8';
 const MEM_MAX = 2;
 const memCache = new Map(); // key → { outside, room, spr }
 const IDB_PREFIX = 'roompaint:';
@@ -745,7 +745,15 @@ export function roomScene() {
   }
   const same = (a, b) => placeOf(a) === placeOf(b) && a.loc === b.loc && a.weather === b.weather && a.time === b.time;
   const sfx = (kind) => { try { window.dispatchEvent(new CustomEvent('cafe-sfx', { detail: kind })); } catch { /* */ } };
-  const crowd = createCrowd({ onBell: () => sfx('bell') });
+  // pintu: lonceng berbunyi & bergoyang saat ada yang masuk / keluar (paling sering tiap 2,5 detik)
+  const door = { swing: 0, t: 0, last: -9 };
+  const doorEvent = (kind) => {
+    const now = performance.now() / 1000;
+    door.swing = 1; door.t = 0;
+    if (now - door.last < 2.5) return;
+    door.last = now; sfx(kind === 'out' ? 'bellOut' : 'bell');
+  };
+  const crowd = createCrowd({ onBell: () => doorEvent('in'), onDoor: doorEvent });
   const phone = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
   const cafeAnim = createCafeAnimator({ onClink: () => { try { window.dispatchEvent(new CustomEvent('cafe-sfx', { detail: 'clink' })); } catch { /* */ } } });
   /** Suasana yang tampil (cahaya, hujan, awan) — diganti tepat saat lukisannya ikut berganti. */
@@ -814,7 +822,20 @@ export function roomScene() {
     if (bar.mode === 'brew') { // uap dari mesin espresso
       for (let i = 0; i < 4; i++) { const p = (t * 0.5 + i / 4) % 1; c.fillStyle = `rgba(245,245,245,${0.24 * (1 - p)})`; c.beginPath(); c.arc(MACHINE.x - 8 + Math.sin(t * 2 + i) * 6 + p * 10, MACHINE.steamY - p * 60, 5 + p * 14, 0, TAU); c.fill(); }
     }
+    // lonceng kuningan di kusen pintu: bergoyang lalu berhenti pelan; pintu sedikit lebih terang saat terbuka
+    door.t += dt; door.swing = Math.max(0, door.swing - dt * 0.45);
+    { const a = Math.sin(door.t * 9) * 0.55 * door.swing * door.swing; const bx = 1474; const by = 172;
+      if (door.swing > 0.05) { c.save(); c.globalCompositeOperation = 'lighter'; glow(c, 1412, 420, 150, [210, 225, 240], 0.1 * door.swing); c.restore(); }
+      c.save(); c.translate(bx, by); c.rotate(a);
+      c.strokeStyle = C(shade(L, '3a2a1f')); c.lineWidth = 1.5; c.beginPath(); c.moveTo(0, 0); c.lineTo(0, 16); c.stroke();
+      const g = c.createLinearGradient(-7, 0, 7, 0); g.addColorStop(0, C(shade(L, '8a6a2e'))); g.addColorStop(0.45, C(shade(L, 'e2bf62'))); g.addColorStop(1, C(shade(L, '7a5c26')));
+      c.fillStyle = g; c.beginPath(); c.moveTo(-3, 16); c.quadraticCurveTo(-4, 20, -7.5, 28); c.lineTo(7.5, 28); c.quadraticCurveTo(4, 20, 3, 16); c.closePath(); c.fill();
+      c.fillStyle = C(shade(L, '5a4220')); c.beginPath(); c.arc(Math.sin(door.t * 9 + 1) * 3 * door.swing, 29.5, 2, 0, TAU); c.fill();
+      c.restore(); }
+    // semua orang berada di balik meja kita: bagian yang lebih rendah dari tepi meja (y 806) tertutup meja
+    c.save(); c.beginPath(); c.rect(-200, -200, VW + 400, 806 + 200); c.clip();
     for (const pp of crowd.people()) drawPersonFast(c, pp, L, t, phone);
+    c.restore();
     globalThis.__cafePeople = crowd.count;
     // meja kita: piring & roti (berkurang dengan gigitan), cangkir & minuman (berkurang per teguk)
     cafeAnim.update(state && state.cafe, t);
@@ -860,6 +881,7 @@ export function roomScene() {
     LANTERNS.forEach((x, i) => { const sx = x + Math.sin(t * 0.45 + i * 1.7) * 2.6; glow(c, sx, 222, 110, WARM, 0.32 * la * flick); glow(c, sx, 222, 40, [255, 226, 180], 0.35 * la); });
     c.save(); c.translate(800, BAR_TOP); c.scale(1, 0.18); glow(c, 0, 0, 520, WARM, 0.22 * la); c.restore();
     glow(c, 160, 360, 120, WARM, 0.12 * la);
+    c.save(); c.translate(880, 838); c.scale(1, 0.32); glow(c, 0, 0, 340, WARM, 0.05 + 0.2 * lf); c.restore(); // meja kita tetap jelas saat malam
     c.globalCompositeOperation = 'source-over';
     c.restore();
   }
@@ -868,7 +890,9 @@ export function roomScene() {
    *  Selama lukisan baru dibuat, lukisan lama tetap tampil (tidak ada layar "melukis dari nol"). */
   function prerender(w, h, dpr, want) {
     const s = h > w ? Math.max(w / 1000, (h / VH) * 0.55) : Math.max(w / VW, h / VH);
-    tf = { s, ox: w / 2 - (VW / 2) * s, oy: (h - VH * s) / 2, dpr };
+    // layar lebar memotong atas & bawah: di Kafe potong lebih banyak plafon supaya meja kita (kopi & roti) tetap terlihat
+    const cut = h - VH * s; const oy = cut < 0 && h <= w && placeOf(want) === 'cafe' ? cut * 0.8 : cut / 2;
+    tf = { s, ox: w / 2 - (VW / 2) * s, oy, dpr };
     // skala lukisan dibulatkan supaya cache tetap terpakai walau jendela sedikit berubah ukuran
     const k = Math.max(0.75, Math.min(1.5, Math.round(s * dpr * 4) / 4));
     const ck = `${PAINT_V}|${placeOf(want)}|${want.loc}|${paintWeather(want.weather)}|${want.time}|k${k}`;

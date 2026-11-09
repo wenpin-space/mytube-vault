@@ -6,15 +6,16 @@
 import { VW, VH, W, TAU, seeded, H, M, C, LI, DA, rr, lin, glow, softShadow, WARM, palette, woodGrain, shade, rimOf, leaf } from './paintkit.js';
 
 export const FL = 640; // garis lantai di dinding belakang
-const BAR_Y = 568; // meja bar di bawah jendela
+export const BAR_Y = 568; // meja bar di bawah jendela
 export const COUNTER_Y = 536; // permukaan konter depan (setinggi pinggang orang dewasa)
 const BACK_DY = 46; // konter belakang & mesin espresso diturunkan, sepadan dengan tinggi barista
 /** Mesin espresso (untuk uap) & tablet kasir — tablet digambar di depan barista. */
 export const MACHINE = { x: 134, steamY: 382 + BACK_DY };
 export const TABLET = { x: 214, y: COUNTER_Y, rot: -0.2, x0: -22, y0: -34, x1: 22, y1: -2 };
 export const STOOLS = [490, 660, 830, 1000];
-export const STOOL_SEAT = 650; // tinggi dudukan bangku bar
+export const STOOL_SEAT = 622; // dudukan bangku bar: ±0,45 tinggi orang, meja bar ±1/5 tinggi orang di atasnya
 export const STOOL_FOOT = 748;
+export const STOOL_RING = STOOL_SEAT + 70; // cincin pijakan kaki
 
 /** Menu: minuman & roti (id, nama, warna). */
 export const DRINKS = [
@@ -92,7 +93,7 @@ export function drawCafe(c, s, L) {
     softShadow(c, x, STOOL_FOOT + 2, 44, 7, 0.45);
     c.strokeStyle = '#3b2c22'; c.lineWidth = 5; c.lineCap = 'round';
     c.beginPath(); c.moveTo(x - 20, STOOL_SEAT + 6); c.lineTo(x - 30, STOOL_FOOT); c.moveTo(x + 20, STOOL_SEAT + 6); c.lineTo(x + 30, STOOL_FOOT); c.moveTo(x - 6, STOOL_SEAT + 8); c.lineTo(x - 8, STOOL_FOOT - 6); c.moveTo(x + 6, STOOL_SEAT + 8); c.lineTo(x + 8, STOOL_FOOT - 6); c.stroke();
-    c.lineWidth = 3.5; c.beginPath(); c.ellipse(x, STOOL_SEAT + 58, 26, 5, 0, 0, TAU); c.stroke();
+    c.lineWidth = 3.5; c.beginPath(); c.ellipse(x, STOOL_RING, 27, 5, 0, 0, TAU); c.stroke();
     c.fillStyle = '#7a5a3e'; c.beginPath(); c.ellipse(x, STOOL_SEAT + 5, 33, 9, 0, 0, TAU); c.fill();
     c.fillStyle = lin(c, x - 33, 0, x + 33, 0, [[0, '#dcb487'], [1, '#a77c54']]); c.beginPath(); c.ellipse(x, STOOL_SEAT, 33, 9, 0, 0, TAU); c.fill();
   });
@@ -257,11 +258,11 @@ export function drawCafe(c, s, L) {
 
 // ------------------------------------------------------------------ sprite (dilukis sekali, digerakkan)
 export const LANTERNS = [470, 800, 1130];
-export const CUP = { x: 770, y: 850 }; // titik dasar cangkir di meja kita
-export const PLATE = { x: 960, y: 856 };
+export const CUP = { x: 770, y: 842 }; // titik dasar cangkir di meja kita
+export const PLATE = { x: 960, y: 848 };
 export const CAFE_SPRITES = {
   lantern: { x: 760, y: 56, w: 80, h: 196, px: 800, py: 62 },
-  doorPlant: { x: 1440, y: 300, w: 160, h: 410, px: 1540, py: 700 },
+  doorPlant: { x: 1280, y: 170, w: 345, h: 545, px: 1495, py: 700 }, // cukup lebar untuk semua daun (tidak terpotong kotak)
   cup: { x: CUP.x - 52, y: CUP.y - 72, w: 116, h: 82, px: CUP.x, py: CUP.y },
   yunomi: { x: CUP.x - 40, y: CUP.y - 78, w: 80, h: 86, px: CUP.x, py: CUP.y },
   plate: { x: PLATE.x - 76, y: PLATE.y - 22, w: 152, h: 36, px: PLATE.x, py: PLATE.y },
@@ -283,13 +284,14 @@ function drawLantern(c, L) {
   c.fillStyle = C(shade(L, '3a2a1f')); c.fillRect(794, 254, 12, 4);
 }
 function drawDoorPlant(c, L) {
+  c.save(); c.translate(-45, 0); // sedikit ke kiri supaya daun kanan tidak terpotong tepi layar
   const rim = rimOf(L);
   softShadow(c, 1540, 704, 52, 8, 0.45);
   c.fillStyle = lin(c, 1508, 0, 1572, 0, [[0, C(shade(L, 'e9e2d6'))], [1, C(shade(L, 'b9b1a4'))]]);
   c.beginPath(); c.moveTo(1504, 620); c.lineTo(1576, 620); c.lineTo(1566, 702); c.lineTo(1514, 702); c.fill();
   const stems = [[-0.62, 190, 50], [-0.38, 250, 58], [-0.14, 300, 62], [0.1, 320, 64], [0.34, 270, 60], [0.58, 210, 54], [-0.85, 140, 44], [0.82, 150, 44], [-0.25, 180, 48], [0.22, 200, 50]];
   stems.forEach(([ang, len, size], i) => {
-    const a = ang - Math.PI / 2; const bx = 1540 + (i % 3 - 1) * 4; const by = 622;
+    const a = (ang > 0 ? ang * 0.45 : ang) - Math.PI / 2; const bx = 1540 + (i % 3 - 1) * 4; const by = 622; // daun kanan lebih tegak supaya tidak keluar layar
     const tx = bx + Math.cos(a) * len; const ty = by + Math.sin(a) * len;
     const cx = bx + Math.cos(a) * len * 0.5 + (i % 2 ? 18 : -18); const cy = by + Math.sin(a) * len * 0.5;
     c.strokeStyle = C(shade(L, '345a44')); c.lineWidth = 3.5; c.lineCap = 'round';
@@ -297,6 +299,7 @@ function drawDoorPlant(c, L) {
     const ea = Math.atan2(ty - cy, tx - cx);
     leaf(c, tx, ty, size * 1.9, size * 0.85, ea + (i % 2 ? 0.5 : -0.5), shade(L, ['3f6e52', '4a7a5c', '355f47'][i % 3]), rim * 0.3);
   });
+  c.restore();
 }
 /** Cangkir keramik + tatakan (isi minuman digambar bergerak di atasnya). */
 function drawCup(c, L) {

@@ -35,7 +35,7 @@ export function pomodoroNext(state, cfg = { work: 25, brk: 5, long: 15, every: 4
 export const FOCUS_PRESETS = [[25, 5, 15], [50, 10, 20], [15, 3, 10], [90, 15, 30]];
 export { SLEEP_PRESETS };
 
-const DEFAULTS = { room: { spot: 'room', loc: 'mountain', weather: 'rain', time: 'auto', autoSound: true, live: false, place: null }, wx: null, cafe: null, mix: null, master: 0.8, presets: [], autoHide: true, startup: false, nickname: '', showLyrics: true, wake: true, customSounds: [], pomo: { work: 25, brk: 5, long: 15 } };
+const DEFAULTS = { room: { spot: 'room', loc: 'mountain', weather: 'rain', time: 'auto', autoSound: true, live: false, place: null }, wx: null, cafe: null, mix: null, master: 0.8, presets: [], autoHide: true, cafeSfx: true, startup: false, nickname: '', showLyrics: true, wake: true, customSounds: [], pomo: { work: 25, brk: 5, long: 15 } };
 const PHASE = { work: 'Fokus', break: 'Istirahat', long: 'Istirahat panjang' };
 
 /** Satu ubin noise kecil untuk grain film (dibuat sekali, dipakai CSS). */
@@ -283,7 +283,7 @@ export function createLobby({ store, player, icon, toast, sleepTimer, getLyric, 
     pushCafe();
     if (++cafeSaveTick % 15 === 0) save();
   }
-  window.addEventListener('cafe-sfx', (e) => { if (open) amb.sfx(e.detail); });
+  window.addEventListener('cafe-sfx', (e) => { if (open && cfg().cafeSfx !== false) amb.sfx(e.detail); });
 
   // ------------------------------------------------------------------ cuaca & waktu nyata
   /** Ambil cuaca terbaru kalau datanya sudah basi (±25 menit) atau lokasinya baru. */
@@ -529,6 +529,7 @@ export function createLobby({ store, player, icon, toast, sleepTimer, getLyric, 
       ${tog('showLyrics', 'Tampilkan lirik', 'Baris yang sedang dinyanyikan muncul di bawah jam.')}
       ${tog('autoHide', 'Sembunyikan tombol otomatis', 'Setelah 3 detik tanpa gerakan.')}
       ${tog('wake', 'Layar tetap menyala', 'Selama Lobby terbuka (kalau browser mendukung).')}
+      ${tog('cafeSfx', 'Bunyi kafe', 'Lonceng pintu saat ada yang masuk/keluar & denting cangkir.')}
       ${tog('startup', 'Buka Lobby saat aplikasi dibuka', '')}
       <p class="lb-hint"><kbd>B</kbd> buka/tutup · <kbd>S</kbd> suasana · <kbd>T</kbd> timer · <kbd>Spasi</kbd> putar/jeda · <kbd>N</kbd> berikutnya · <kbd>Esc</kbd> keluar</p>`;
   }

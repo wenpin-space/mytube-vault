@@ -4,7 +4,7 @@ import { modal } from './dialogs.js';
 import { icon } from './icons.js';
 import { escapeHtml } from './utils.js';
 
-export const APP_VERSION = 'v36';
+export const APP_VERSION = 'v37';
 const SEEN_KEY = 'mytube_vault_seen_version';
 
 /** Langkah mulai cepat dan statusnya (murni, mudah diuji). */
@@ -49,6 +49,7 @@ export function renderQuickstart(host, state, { installable = false } = {}) {
 }
 
 const CHANGES = [
+  ['coffee', 'Kafe yang lebih hidup & rapi', 'Pengunjung di bangku bar kini benar-benar duduk (bangku setinggi bangku bar, siku di meja, baju berhenti di dudukan) dan pesanannya tampak di meja bar: kopi berasap & roti yang terangkat saat diminum/dimakan. Lonceng pintu berbunyi & bergoyang saat ada yang masuk atau keluar (bisa dimatikan di Setelan Lobby → Bunyi kafe). Kaki orang tertutup meja kita, tanaman di dekat pintu tidak terpotong lagi, dan kopi & roti di meja kita tetap terlihat di layar lebar dengan cahaya hangat saat malam.'],
   ['sort', 'Atur urutan playlist dengan mudah', 'Tarik lagu ke posisi baru (mouse: dari mana saja di baris; HP: dari pegangan ⋮⋮). Lagu terangkat mengikuti jari, lagu lain bergeser memberi ruang, dan layar bergulir sendiri di dekat tepi. Klik nomor urut lagu lalu ketik nomor baru untuk memindah jauh sekaligus. Pilih beberapa lagu lalu tarik salah satunya, atau ketuk Urutan: ke paling atas, ke nomor tertentu, ke paling bawah, kumpulkan, naik/turun satu (Alt+↑/↓). Semua bisa diurungkan.'],
   ['users', 'Barista yang hidup & proporsi yang pas', 'Barista kini dilukis dengan gaya yang sama seperti pengunjung, dengan ukuran yang sepadan. Ia punya ekspresi: tersenyum & mengobrol saat menerima pesanan, mengangguk saat mendengarkan, berkedip, serius saat mengelap konter sambil bersenandung, dan tersenyum lebar saat menyajikan. Kopi dibuat sesuai pesanan; pengunjung menunggu di konter sampai cangkirnya siap. Pengunjung yang duduk di bangku bar kini benar-benar duduk (kaki di pijakan bangku), dan gerakan berhenti, berbalik, serta duduk lebih halus.'],
   ['sparkle', 'Gerak pengunjung lebih alami', 'Kaki benar-benar menapak saat berjalan (tidak lagi meluncur), pinggul naik-turun & lengan berayun berlawanan dengan kaki. Saat minum, tangan meraih cangkir di meja, mengangkatnya melengkung ke mulut, memiringkannya, lalu meletakkannya kembali; sebagian pengunjung juga memesan roti dan memakannya gigitan demi gigitan. Bayangan kini lembut di lantai, kepala tidak lagi lepas saat duduk.'],
@@ -62,7 +63,6 @@ const CHANGES = [
   ['sliders', 'Panel suara lebih ringkas', 'Suara yang sedang berbunyi tampil di atas dengan slider; suara lain berupa ikon, ketuk untuk menyalakan. Simpan racikan, suara sendiri & matikan semua ada di menu Lainnya.'],
   ['moon', 'Satu timer tidur untuk semua', 'Timer tidur di player dan di Lobby kini sama: musik & suara alam memelan di menit terakhir, layar Lobby ikut meredup. Pilihan "Akhir lagu ini" ada di keduanya.'],
   ['sparkle', 'Lebih ringan & lebih bersih', 'Putar/jeda tidak lagi menggambar ulang seluruh daftar lagu. Tombol tema pindah ke Setelan → Umum (atau Ctrl+K); HP otomatis memakai mode hemat di Lobby.'],
-  ['bolt', 'Lobby terbuka lebih cepat', 'Lukisan kamar kini disimpan di perangkat: membuka Lobby lagi langsung tampil, dan saat aplikasi senggang lukisannya disiapkan lebih dulu. Melukis suasana baru tidak lagi membuat layar tersendat, dan Lobby yang dibuka ulang tidak lagi diam.'],
 ];
 
 /** Tampilkan "Apa yang baru" sekali setelah update (bukan untuk pengguna baru). */
