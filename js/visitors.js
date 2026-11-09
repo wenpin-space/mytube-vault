@@ -8,7 +8,7 @@
 // Tokoh dibuat sekali (kumpulan kecil) lalu dipakai bergantian supaya HP tetap ringan.
 
 import { TAU, H, C, DA, LI, M, shade, rimOf, WARM } from './paintkit.js';
-import { STOOLS, STOOL_SEAT } from './cafe.js';
+import { STOOLS, STOOL_SEAT, STOOL_FOOT, COUNTER_Y } from './cafe.js';
 import { createPainter } from './paint.js';
 
 const LANE = 794; // jalur jalan di depan bangku bar
@@ -24,10 +24,12 @@ const THIGH = 62; const SHIN = 60; const UPPER = 44; const FORE = 46;
 const SHOULDER_Y = -76; const NECK_Y = -84; // dari pinggul
 const LEG_LEN = THIGH + SHIN + 3;
 const RES = 1.5;
-const CHAIR_FOOT = 61; // telapak kaki di lantai, diukur dari dudukan kursi (satuan tokoh) // resolusi potongan: piksel per satuan virtual
+const CHAIR_FOOT = 61; // telapak kaki di lantai, diukur dari dudukan kursi (satuan tokoh)
 
+/** Ukuran orang terhadap ruangan: tinggi ±1,65 m dibanding konter ±1 m, bangku bar & pintu. */
+export const PERSON_K = 1.16;
 /** Skala menurut jarak: makin ke bawah (dekat kita) makin besar. */
-export const depthScale = (y) => 0.8 + Math.max(0, Math.min(1, (y - 640) / 160)) * 0.28;
+export const depthScale = (y) => (0.8 + Math.max(0, Math.min(1, (y - 640) / 160)) * 0.28) * PERSON_K;
 /** Berapa banyak pengunjung yang pas untuk waktu ini (dibatasi di HP). */
 export function crowdTarget(time, phone = false) {
   const n = { morning: 3, day: 4, dusk: 4, night: 2 }[time] ?? 3;
@@ -132,6 +134,23 @@ function buildParts(look, L) {
         c.beginPath(); c.moveTo(-6, -40); c.quadraticCurveTo(0, -30, -4, -14); c.stroke();
         if (look.coat) { c.beginPath(); c.moveTo(14, -60); c.lineTo(12, 28); c.stroke(); }
       }
+      if (look.apron) { // celemek barista
+        const ap = shade(L, look.apron);
+        if (view === 'front') {
+          c.beginPath(); c.moveTo(-13 * sk, -62); c.lineTo(13 * sk, -62); c.quadraticCurveTo(15 * sk, -30, 21 * sk, 34); c.lineTo(-21 * sk, 34); c.quadraticCurveTo(-15 * sk, -30, -13 * sk, -62); c.closePath();
+          cloth(c, ap, -21 * sk, 21 * sk, -62, 34);
+          c.strokeStyle = C(ap); c.lineWidth = 2.4; c.beginPath(); c.moveTo(-11 * sk, -62); c.lineTo(-7, -81); c.moveTo(11 * sk, -62); c.lineTo(7, -81); c.stroke();
+          c.strokeStyle = C(DA(ap, 0.3), 0.7); c.lineWidth = 1.1; c.beginPath(); c.roundRect(-9, -24, 18, 11, 2); c.moveTo(0, -24); c.lineTo(0, -13); c.stroke();
+        } else if (view === 'back') {
+          c.strokeStyle = C(ap); c.lineWidth = 2.6; c.beginPath(); c.moveTo(-9, -80); c.lineTo(17 * sk, -26); c.moveTo(9, -80); c.lineTo(-17 * sk, -26); c.stroke();
+          c.lineWidth = 3; c.beginPath(); c.moveTo(-22 * sk, -24); c.lineTo(22 * sk, -24); c.stroke();
+          c.fillStyle = C(DA(ap, 0.1)); c.beginPath(); c.ellipse(-4, -24, 4.5, 2.6, 0.3, 0, TAU); c.ellipse(4, -24, 4.5, 2.6, -0.3, 0, TAU); c.fill();
+          c.lineWidth = 2; c.beginPath(); c.moveTo(-2, -23); c.lineTo(-5, -6); c.moveTo(2, -23); c.lineTo(6, -7); c.stroke();
+        } else {
+          c.beginPath(); c.moveTo(10 * sk, -62); c.lineTo(15 * sk, -62); c.quadraticCurveTo(19 * sk, -20, 21 * sk, 34); c.lineTo(12 * sk, 34); c.closePath(); cloth(c, ap, 10, 21, -62, 34);
+          c.strokeStyle = C(ap); c.lineWidth = 2.4; c.beginPath(); c.moveTo(12 * sk, -62); c.lineTo(4, -81); c.moveTo(14 * sk, -24); c.lineTo(-15 * sk, -24); c.stroke();
+        }
+      }
       if (look.bag) { c.strokeStyle = C(shade(L, '6b4a32')); c.lineWidth = 3; c.beginPath(); c.moveTo(view === 'side' ? -6 : -20, -76); c.lineTo(view === 'side' ? 8 : 18, -6); c.stroke(); }
       c.restore();
     });
@@ -161,10 +180,10 @@ function buildParts(look, L) {
         c.fillStyle = C(skin); c.beginPath(); c.ellipse(-12.6, -16, 2.6, 4, 0, 0, TAU); c.ellipse(12.6, -16, 2.6, 4, 0, 0, TAU); c.fill();
         c.fillStyle = sg; c.beginPath(); c.moveTo(0, -1); c.bezierCurveTo(8, -1, 12.3, -8, 12.3, -17); c.bezierCurveTo(12.3, -27, 7, -33, 0, -33); c.bezierCurveTo(-7, -33, -12.3, -27, -12.3, -17); c.bezierCurveTo(-12.3, -8, -8, -1, 0, -1); c.fill();
         // wajah lembut: mata kecil, pipi merona, bayangan hidung
-        c.fillStyle = C(DA(hair, 0.1), 0.85); c.beginPath(); c.ellipse(-4.6, -16.5, 1.2, 1.6, 0, 0, TAU); c.ellipse(4.6, -16.5, 1.2, 1.6, 0, 0, TAU); c.fill();
+        if (!look.noFace) { c.fillStyle = C(DA(hair, 0.1), 0.85); c.beginPath(); c.ellipse(-4.6, -16.5, 1.2, 1.6, 0, 0, TAU); c.ellipse(4.6, -16.5, 1.2, 1.6, 0, 0, TAU); c.fill(); }
         c.fillStyle = 'rgba(220,120,110,0.22)'; c.beginPath(); c.ellipse(-7, -11.5, 2.8, 1.8, 0, 0, TAU); c.ellipse(7, -11.5, 2.8, 1.8, 0, 0, TAU); c.fill();
         c.strokeStyle = C(DA(skin, 0.3), 0.6); c.lineWidth = 1; c.beginPath(); c.moveTo(0.5, -14); c.lineTo(1.2, -10.5); c.stroke();
-        c.beginPath(); c.moveTo(-2, -6.5); c.quadraticCurveTo(0, -5.6, 2, -6.5); c.stroke();
+        if (!look.noFace) { c.beginPath(); c.moveTo(-2, -6.5); c.quadraticCurveTo(0, -5.6, 2, -6.5); c.stroke(); }
         const hg = c.createLinearGradient(-10, -36, 10, -14); hg.addColorStop(0, C(hairHi)); hg.addColorStop(1, C(hairDeep));
         c.fillStyle = hg; c.beginPath(); c.moveTo(-13.4, bob ? -6 : -14); c.bezierCurveTo(-15.5, -30, -8, -38, 0, -38); c.bezierCurveTo(8, -38, 15.5, -30, 13.4, bob ? -6 : -14);
         c.quadraticCurveTo(12, -25, 6, -26); c.quadraticCurveTo(0, -22, -6, -26.5); c.quadraticCurveTo(-11, -25, -13.4, bob ? -6 : -14); c.fill();
@@ -182,6 +201,16 @@ function buildParts(look, L) {
         strands(c, -12, 9, -36, -14, 12, 9);
       }
       if (look.style === 'bun') { c.fillStyle = C(hair); c.beginPath(); c.arc(view === 'side' ? -9 : 0, view === 'front' ? -38 : -36, 7, 0, TAU); c.fill(); c.strokeStyle = C(hairHi, 0.5); c.lineWidth = 1; c.beginPath(); c.arc(view === 'side' ? -9 : 0, -37, 4, 0.5, 2.6); c.stroke(); }
+      if (look.bandana) { // ikat kepala barista, simpul di belakang
+        const bd = shade(L, look.bandana); c.fillStyle = C(bd);
+        c.beginPath();
+        if (view === 'side') { c.moveTo(11, -29); c.quadraticCurveTo(0, -36, -13, -27); c.lineTo(-13, -22); c.quadraticCurveTo(0, -31, 11, -24.5); }
+        else { c.moveTo(-13.8, -27); c.quadraticCurveTo(0, view === 'front' ? -34 : -32, 13.8, -27); c.lineTo(13.6, -22.5); c.quadraticCurveTo(0, view === 'front' ? -29.5 : -27.5, -13.6, -22.5); }
+        c.closePath(); c.fill();
+        c.fillStyle = C(DA(bd, 0.15));
+        if (view === 'back') { c.beginPath(); c.ellipse(0, -25, 3, 2.4, 0, 0, TAU); c.fill(); c.beginPath(); c.moveTo(-1, -24); c.lineTo(-5, -13); c.lineTo(-2, -13); c.lineTo(1, -23); c.moveTo(1, -24); c.lineTo(5, -14); c.lineTo(2, -13); c.closePath(); c.fill(); }
+        if (view === 'side') { c.beginPath(); c.ellipse(-13, -24.5, 2.4, 2.8, 0, 0, TAU); c.fill(); c.beginPath(); c.moveTo(-13, -23); c.lineTo(-18, -13); c.lineTo(-15, -12); c.closePath(); c.fill(); }
+      }
       if (view !== 'front') { c.beginPath(); c.ellipse(view === 'side' ? -1 : 0, -18, view === 'side' ? 13 : 13.5, 18, 0, Math.PI * 1.1, Math.PI * 1.9); rimStroke(c, rimC, rimA * 0.9); }
     });
   });
@@ -413,6 +442,7 @@ export function drawPerson(c, p, L, t) {
   // berbalik kiri↔kanan: sesaat menghadap depan, jadi tidak "membalik" mendadak
   const face = p.turnT > 0 && p.turnVia ? p.turnVia : p.face;
   const side = face === 'left' || face === 'right';
+  if (p.turnT > 0) { const k = p.turnT / 0.22; c.scale(0.78 + 0.22 * Math.abs(2 * k - 1), 1); } // seolah memutar badan
   if (face === 'left') c.scale(-1, 1);
   const view = side ? 'side' : face === 'back' ? 'back' : 'front';
   const walking = p.pose === 'walk'; const ph = p.ph || 0;
@@ -427,15 +457,17 @@ export function drawPerson(c, p, L, t) {
     const idle = p.pose === 'stand' ? Math.sin(t * 0.8 + (p.id || 0) * 1.7) : 0; // berat badan berpindah pelan
     if (side) {
       const half = HALF * sp;
-      const fn = walking ? foot(ph, half) : { x: 5, y: 0, stance: true }; // kaki dekat
-      const ff = walking ? foot(ph + Math.PI, half) : { x: -5, y: 0, stance: true }; // kaki jauh
+      const st0 = ease(1 - (p.settle || 0)); // 0 = baru berhenti, 1 = sudah berdiri tegak
+      const settleFoot = (f, x) => ({ x: lerp(f.x, x, st0), y: f.y * (1 - st0), stance: true });
+      const fn = walking ? foot(ph, half) : settleFoot(foot(ph, HALF * 0.3), 5); // kaki dekat
+      const ff = walking ? foot(ph + Math.PI, half) : settleFoot(foot(ph + Math.PI, HALF * 0.3), -5); // kaki jauh
       const st = fn.stance ? fn : ff;
       // pinggul naik-turun seperti pendulum terbalik: tertinggi saat kaki tegak di bawah badan
       const hy = -Math.sqrt(Math.max(1, LEG_LEN * LEG_LEN - st.x * st.x)) * 0.992 + (walking ? 0 : breathe * 0.3);
       const hx = idle * 0.8;
       contact(c, (fn.x + ff.x) / 2 + hx, 1, 22 + Math.abs(fn.x - ff.x) * 0.45, 4.6, shA);
       const lean = walking ? 0.035 * sp : 0; // condong sedikit ke depan saat berjalan
-      const swing = walking ? 0.3 * sp * Math.cos(ph) : 0; // lengan berlawanan dengan kaki
+      const swing = walking ? 0.3 * sp * Math.cos(ph) : 0.09 * (1 - st0) * Math.cos(ph); // lengan berlawanan dengan kaki
       const elb = (u) => u - 0.18 - 1.1 * Math.max(0, -u);
       const shF = { x: hx - 1 + Math.sin(lean) * 72, y: hy - Math.cos(lean) * 72 };
       const shN = { x: hx + 1 + Math.sin(lean) * 72, y: hy - Math.cos(lean) * 72 };
@@ -465,7 +497,7 @@ export function drawPerson(c, p, L, t) {
       } else armFK(c, P, shN.x, shN.y, swing, elb(swing), false);
     } else {
       // depan / belakang: kaki bergantian terangkat, pinggul bergoyang ke kaki yang menapak
-      const lift = (k) => { if (!walking) return 0; const f = (((ph + k * Math.PI) % TAU) + TAU) % TAU; return f < Math.PI ? 0 : Math.sin((f - Math.PI)) * Math.min(1, sp); };
+      const lift = (k) => { const amt = walking ? Math.min(1, sp) : 0.3 * (p.settle || 0); if (amt <= 0) return 0; const f = (((ph + k * Math.PI) % TAU) + TAU) % TAU; return f < Math.PI ? 0 : Math.sin((f - Math.PI)) * amt; };
       const sway = walking ? Math.sin(ph) * 2.2 * sp : idle * 0.8;
       const hy = -LEG_LEN + 1 + (walking ? Math.abs(Math.sin(ph)) * 1.6 * sp : breathe * 0.3);
       const roll = walking ? -Math.sin(ph) * 0.025 * sp : 0;
@@ -506,24 +538,49 @@ export function drawPerson(c, p, L, t) {
     }
   } else if (p.pose === 'sitBack') { // duduk di bangku bar, membelakangi kita
     const e = ease(p.sitK ?? 1);
-    const sy = -(1 - e) * 27 + breathe * 0.35 * e; // pinggul turun perlahan ke dudukan
-    contact(c, 0, 97, 20, 3.5, shA * 0.6 * (1 - e));
-    // paha bergerak ke depan (memendek dilihat dari belakang), betis menggantung ke pijakan
-    const th = e * 1.35; const kneeY = sy + THIGH * Math.cos(th);
-    for (const [x, far] of [[-10 * sk - 2 * e, true], [10 * sk + 2 * e, false]]) {
-      put(c, P[far ? 'shin_front_far' : 'shin_front'], x, kneeY - 2, (far ? 0.05 : -0.05) * e);
-      put(c, P[far ? 'thigh_far' : 'thigh'], x, sy, 0, Math.max(0.15, Math.cos(th)));
+    // berdiri tepat di belakang bangku → pinggul naik ke dudukan; paha maju (tertutup dudukan), betis
+    // menggantung dengan telapak di pijakan bangku — bukan berdiri lurus di lantai
+    const floorY = 96; const ringY = 56 / sc + 3; // titik (x, y) = dudukan + 2
+    const sy = lerp(floorY - LEG_LEN + 0.5, -1, e) + breathe * 0.35 * e;
+    contact(c, 0, floorY + 1, 22, 4, shA * 0.7 * (1 - e));
+    const thS = Math.max(0.12, 1 - 0.88 * e); const kneeY = sy + THIGH * thS;
+    // duduk: lutut sedikit terbuka; satu kaki bertumpu di cincin pijakan, yang lain menjuntai lebih rendah
+    const legs = [
+      { far: true, kx: -lerp(9 * sk, 12 * sk, e), fx: lerp(-9 * sk, -15, e), fy: lerp(floorY, ringY + 13, e) },
+      { far: false, kx: lerp(9 * sk, 12 * sk, e), fx: lerp(9 * sk, 6, e), fy: lerp(floorY, ringY, e) },
+    ];
+    for (const g of legs) {
+      const dx = g.fx - g.kx; const dy = g.fy - kneeY - 1;
+      put(c, P[g.far ? 'shin_front_far' : 'shin_front'], g.kx, kneeY, angOf(dx, dy), Math.max(0.3, Math.hypot(dx, dy) / (SHIN + 3)));
+      put(c, P[g.far ? 'thigh_far' : 'thigh'], g.kx, sy, 0, thS);
+    }
+    // bangku: kaki & cincin pijakan yang dekat kita serta dudukannya menutupi kaki/pinggul orang
+    const oa = ease(seg(e, 0.35, 0.75));
+    if (oa > 0.01) {
+      const u = 1 / sc; const top = -2 * u; const foot = (STOOL_FOOT - STOOL_SEAT - 2) * u;
+      c.save(); c.globalAlpha *= oa;
+      c.strokeStyle = C(shade(L, '3b2c22')); c.lineCap = 'round'; c.lineWidth = 5 * u;
+      c.beginPath(); c.moveTo(-20 * u, top + 6 * u); c.lineTo(-30 * u, foot); c.moveTo(20 * u, top + 6 * u); c.lineTo(30 * u, foot); c.stroke();
+      c.lineWidth = 3.5 * u; c.beginPath(); c.ellipse(0, top + 58 * u, 26 * u, 5 * u, 0, 0, Math.PI); c.stroke();
+      c.fillStyle = C(shade(L, '7a5a3e')); c.beginPath(); c.ellipse(0, top + 5 * u, 33 * u, 9 * u, 0, 0, TAU); c.fill();
+      const g = c.createLinearGradient(-33 * u, 0, 33 * u, 0); g.addColorStop(0, C(shade(L, 'dcb487'))); g.addColorStop(1, C(shade(L, 'a77c54')));
+      c.fillStyle = g; c.beginPath(); c.ellipse(0, top, 33 * u, 9 * u, 0, 0, TAU); c.fill();
+      // pinggul/celana yang bertumpu di dudukan
+      const pg = shade(L, lk.bottom); const pgr = c.createLinearGradient(-22, 0, 22, 0); pgr.addColorStop(0, C(DA(pg, 0.25))); pgr.addColorStop(0.45, C(pg)); pgr.addColorStop(1, C(DA(pg, 0.3)));
+      c.fillStyle = pgr; c.beginPath(); c.ellipse(0, sy + 3, 22 * sk, 8, 0, 0, TAU); c.fill();
+      c.restore();
     }
     const lift = p.act && p.act.kind !== 'place' ? actPlan(p.act, T_REST).lift : 0;
-    const shL = { x: -22 * sk, y: SHOULDER_Y + 4 + sy }; const shR = { x: 22 * sk, y: SHOULDER_Y + 4 + sy };
+    const ts = 1 - 0.05 * e; // sedikit membungkuk ke arah meja bar
+    const shL = { x: -22 * sk, y: (SHOULDER_Y + 4) * ts + sy }; const shR = { x: 22 * sk, y: (SHOULDER_Y + 4) * ts + sy };
     // lengan bawah (menuju meja bar / ke mulut) tertutup badan & kepala → digambar lebih dulu
     put(c, P.fore_far, shL.x - Math.sin(0.1 * e) * UPPER * (1 - 0.2 * e), shL.y + Math.cos(0.1 * e) * UPPER * (1 - 0.2 * e), lerp(0.1, -1.1, e), 1 - 0.45 * e);
     const uR = -(0.1 * e + 0.36 * lift); const suR = 1 - 0.2 * e - 0.16 * lift;
     const elR = { x: shR.x - Math.sin(uR) * UPPER * suR, y: shR.y + Math.cos(uR) * UPPER * suR };
-    const fR = lift > 0.02 ? lerpAng(lerp(-0.1, 1.1, e), angOf(4 - elR.x, NECK_Y - 12 + sy - elR.y), ease(lift * 1.4)) : lerp(-0.1, 1.1, e);
+    const fR = lift > 0.02 ? lerpAng(lerp(-0.1, 1.1, e), angOf(4 - elR.x, NECK_Y * ts - 12 + sy - elR.y), ease(lift * 1.4)) : lerp(-0.1, 1.1, e);
     put(c, P.fore, elR.x, elR.y, fR, lift > 0.02 ? 1 - 0.25 * lift : 1 - 0.45 * e);
-    put(c, torso, 0, sy);
-    put(c, head, 0, NECK_Y + sy + lift * 1.2, 0, 1 - lift * 0.03);
+    put(c, torso, 0, sy, 0, ts);
+    put(c, head, 0, NECK_Y * ts + sy + lift * 1.2 + 1.5 * e, 0, 1 - lift * 0.03);
     put(c, P.upper_far, shL.x, shL.y, 0.1 * e, 1 - 0.2 * e);
     put(c, P.upper, shR.x, shR.y, uR, suR); // siku terangkat ke samping saat minum / makan
   } else if (p.pose === 'sitSide') { // duduk di kursi menghadap meja (kanan)
@@ -582,6 +639,215 @@ export function drawPerson(c, p, L, t) {
   }
 }
 
+// ------------------------------------------------------------------ barista (tokoh yang sama, dengan ekspresi)
+export const BARISTA_LOOK = { skin: 'e0b48f', hair: '2a211c', top: 'efe8dc', bottom: '3a3f48', shoe: '2a2622', coat: null, style: 'short', bag: false, tall: 1, slim: 1.05, umbrella: null, apron: '3c4f5f', bandana: 'b8614a', noFace: true };
+export const BARISTA_POS = { foot: 690, machine: 134, serve: 186, greet: 222, wipe: 158 };
+
+/** Wajah yang hidup (kepala tampak depan, pangkal leher di 0,0): mata berkedip & melirik, alis, mulut tersenyum/bicara. */
+function drawFace(c, f, look, L) {
+  const hair = shade(L, look.hair); const skin = shade(L, look.skin);
+  c.lineCap = 'round';
+  // alis: naik saat ramah/terkejut, ujung dalam turun saat serius
+  c.strokeStyle = C(DA(hair, 0.05), 0.85); c.lineWidth = 1.15;
+  for (const sd of [-1, 1]) {
+    const y0 = -20.8 - f.brow * 1.2;
+    c.beginPath(); c.moveTo(sd * 2.4, y0 + Math.max(0, -f.brow) * 1.1); c.quadraticCurveTo(sd * 4.8, y0 - 0.9, sd * 7, y0 + 0.2); c.stroke();
+  }
+  // mata
+  const ex = f.eyeX * 0.9; const ey = f.eyeY * 0.8;
+  c.fillStyle = C(DA(hair, 0.1), 0.92); c.strokeStyle = C(DA(hair, 0.1), 0.92); c.lineWidth = 1.05;
+  for (const sd of [-1, 1]) {
+    const x = sd * 4.6;
+    if (f.happy > 0.5) { c.beginPath(); c.arc(x, -15.6, 1.7, Math.PI * 1.15, Math.PI * 1.85); c.stroke(); continue; }
+    const h = 1.65 * (1 - f.blink);
+    if (h < 0.4) { c.beginPath(); c.moveTo(x - 1.4, -16.3); c.lineTo(x + 1.4, -16.3); c.stroke(); continue; }
+    c.beginPath(); c.ellipse(x + ex * 0.55, -16.5 + ey * 0.55, 1.25, h, 0, 0, TAU); c.fill();
+  }
+  // mulut: senyum melebar, terbuka saat bicara, bulat kecil saat bersenandung
+  const sm = f.smile; const open = f.talk;
+  if (open > 0.12) {
+    c.fillStyle = C(M(DA(skin, 0.62), H('5a2a26'), 0.5)); c.beginPath(); c.ellipse(0, -6.4 + sm * 0.2, 1.5 + sm * 0.7 - f.hum * 0.6, 0.35 + open * 1.4, 0, 0, TAU); c.fill();
+  } else {
+    c.strokeStyle = C(DA(skin, 0.5), 0.9); c.lineWidth = 1;
+    const w = 2.2 + sm * 0.9; const cy = -6.7 - sm * 0.5;
+    c.beginPath(); c.moveTo(-w, cy); c.quadraticCurveTo(0, cy + 0.4 + sm * 2.1, w, cy); c.stroke();
+  }
+}
+
+/**
+ * Barista: menyapa & mendengarkan pesanan (tersenyum, bicara, mengangguk), membuat kopi di mesin,
+ * mengantarnya ke konter ("silakan" — mata tersenyum, sedikit membungkuk), lalu mengelap konter sambil bersenandung.
+ * info: { ordering, orderX }. orders bertambah tiap ada pesanan; counterCup = cangkir siap diambil.
+ */
+export function createBarista(rnd = Math.random) {
+  const B = BARISTA_POS;
+  const b = { x: B.wipe, face: 'front', mode: 'idle', t: 2, q: 0, ph: 0, spd: 0, turnT: 0, turnVia: null, target: null, then: null, orders: 0, hold: false, counterCup: null,
+    blinkT: 2, blink: 0, f: { smile: 0.3, talk: 0, brow: 0, eyeX: 0, eyeY: 0, happy: 0, hum: 0, blink: 0 }, nod: 0, bow: 0, clock: 0, ch: null, idleN: 0 };
+  const goTo = (x, then) => {
+    if (Math.abs(x - b.x) < 1) { then(); return; }
+    b.target = x; b.then = then; b.mode = 'walk';
+    const nf = x > b.x ? 'right' : 'left'; if (nf !== b.face) { b.turnVia = b.face === 'back' || b.face === 'front' ? nf : 'front'; b.turnT = 0.24; } b.face = nf;
+  };
+  const faceTo = (f) => { if (f !== b.face) { b.turnVia = b.face; b.turnT = 0.24; b.face = f; } };
+  const brew = () => { b.mode = 'brew'; faceTo('back'); b.t = b.orders > 1 ? 2.4 : 3 + rnd() * 1.5; };
+  const serve = () => { b.mode = 'serve'; faceTo('front'); b.q = 0; };
+  const greet = () => { b.mode = 'greet'; faceTo('front'); b.t = 0; };
+  const idle = () => {
+    b.idleN++;
+    if (b.idleN % 2) { goTo(B.wipe, () => { b.mode = 'wipe'; faceTo('front'); b.t = 4 + rnd() * 3; }); }
+    else { b.mode = 'idle'; faceTo('front'); b.t = 2.5 + rnd() * 3; }
+  };
+  const next = () => { if (b.orders > 0) goTo(B.machine, brew); else idle(); };
+
+  function step(dt, info = {}) {
+    b.clock += dt;
+    if (b.turnT > 0) b.turnT -= dt;
+    if (b.counterCup) b.counterCup.age += dt;
+    b.blinkT -= dt; if (b.blinkT <= 0) { b.blink = 0.16; b.blinkT = 2.2 + rnd() * 3.4; }
+    if (b.blink > 0) b.blink -= dt;
+    // ada yang memesan: tinggalkan lap / diam, datangi kasir
+    if (info.ordering && (b.mode === 'idle' || b.mode === 'wipe' || (b.mode === 'walk' && b.target !== B.greet && !b.hold))) goTo(B.greet, greet);
+    const want = { smile: 0.3, talk: 0, brow: 0, eyeX: 0.5 * Math.sin(b.clock * 0.35), eyeY: 0.1, happy: 0, hum: 0 };
+    let nod = 0; let bow = 0;
+    switch (b.mode) {
+      case 'walk': {
+        const d = b.target - b.x; const want2 = Math.min(1, 0.3 + Math.abs(d) / 40);
+        b.spd += (want2 - b.spd) * Math.min(1, dt * 4);
+        const v = 46 * dt * Math.max(0.15, b.spd);
+        b.ph += v * 0.14;
+        want.eyeX = Math.sign(d) * 0.6;
+        if (Math.abs(d) <= v) { b.x = b.target; b.spd = 0; const th = b.then; b.then = null; th(); } else b.x += Math.sign(d) * v;
+        break;
+      }
+      case 'greet': { // mendengarkan & menjawab pesanan
+        b.t += dt;
+        const speak = Math.sin(b.t * 1.1) > 0.25;
+        Object.assign(want, { smile: 0.75, brow: 0.45, eyeX: 0.95, eyeY: 0.25, talk: speak ? 0.35 + 0.55 * Math.abs(Math.sin(b.t * 8.5)) : 0 });
+        nod = speak ? 0 : Math.max(0, Math.sin(b.t * 3.2)) * 0.8;
+        if (!info.ordering && b.t > 1.5) next();
+        break;
+      }
+      case 'brew':
+        b.t -= dt;
+        if (b.t <= 0) { if (b.orders > 0) { b.hold = true; goTo(B.serve, serve); } else next(); }
+        break;
+      case 'serve': { // meletakkan cangkir, "silakan!"
+        b.q = Math.min(1, b.q + dt / 2.6);
+        if (b.hold && b.q >= 0.38) { b.hold = false; b.counterCup = { x: b.x + 25, y: COUNTER_Y + 3, age: 0 }; b.orders = Math.max(0, b.orders - 1); }
+        const k = Math.sin(seg(b.q, 0.4, 0.95) * Math.PI);
+        Object.assign(want, { smile: 0.5 + 0.5 * k, happy: k, brow: 0.3, eyeX: 0.6, eyeY: 0.3, talk: b.q > 0.42 && b.q < 0.62 ? 0.5 + 0.4 * Math.abs(Math.sin(b.clock * 9)) : 0 });
+        bow = k;
+        if (b.q >= 1) next();
+        break;
+      }
+      case 'wipe': // mengelap konter, serius sambil sesekali bersenandung
+        b.t -= dt;
+        Object.assign(want, { smile: 0.15, brow: -0.35, eyeX: 0.15 * Math.sin(b.clock * 2.4), eyeY: 1, hum: Math.sin(b.clock * 0.5) > 0.6 ? 1 : 0 });
+        if (want.hum) want.talk = 0.25 + 0.1 * Math.sin(b.clock * 6);
+        if (b.t <= 0) next();
+        break;
+      case 'idle': // melihat ke arah pengunjung
+        b.t -= dt;
+        Object.assign(want, { smile: 0.4, eyeX: 0.8 * Math.sin(b.clock * 0.6), eyeY: 0.15 });
+        if (b.t <= 0) next();
+        break;
+      default: break;
+    }
+    const r = Math.min(1, dt * 5);
+    for (const k of Object.keys(want)) b.f[k] += (want[k] - b.f[k]) * (k === 'talk' ? Math.min(1, dt * 18) : r);
+    b.f.blink = b.blink > 0 ? Math.sin((b.blink / 0.16) * Math.PI) : 0;
+    b.nod += (nod - b.nod) * r; b.bow += (bow - b.bow) * Math.min(1, dt * 3);
+  }
+  b.step = step;
+  return b;
+}
+
+/** Gambar barista (titik = telapak di balik konter). Pemanggil memotong gambar di permukaan konter. */
+export function drawBarista(c, b, L, t) {
+  const ch = b.ch; if (!ch || !ch.ready) return;
+  const P = ch.parts; const lk = ch.look; const sk = lk.slim;
+  const B = BARISTA_POS;
+  const sc = depthScale(B.foot) * lk.tall;
+  const cy = (COUNTER_Y - B.foot) / sc; // permukaan konter dalam satuan tokoh
+  c.save(); c.translate(b.x, B.foot); c.scale(sc, sc);
+  let face = b.turnT > 0 && b.turnVia ? b.turnVia : b.face;
+  if (b.turnT > 0) { const k = b.turnT / 0.24; c.scale(0.78 + 0.22 * Math.abs(2 * k - 1), 1); }
+  const breathe = Math.sin(t * 1.5) * 0.6;
+  const walking = b.mode === 'walk';
+  const hy = -LEG_LEN + 1 + breathe * 0.3 - (walking ? Math.abs(Math.sin(b.ph)) * 1.8 : 0);
+  const SH = hy + SHOULDER_Y + 4;
+  if (face === 'left' || face === 'right') {
+    if (face === 'left') c.scale(-1, 1);
+    const sw = walking ? Math.sin(b.ph) * 0.22 : 0;
+    armFK(c, P, -1, SH, -sw, -sw - 0.2, true);
+    put(c, P.torso_side, 0, hy, 0.03);
+    put(c, P.head_side, 2, hy + NECK_Y, -0.02);
+    if (b.hold) { const k = ik(1, SH, 28, SH + 30, UPPER, FORE - 5); const hd = handOf(1, SH, k.u, k.f); cupAt(c, hd.hx + 3, hd.hy - 3, L); armFK(c, P, 1, SH, k.u, k.f, false); }
+    else armFK(c, P, 1, SH, sw, sw - 0.2, false);
+  } else if (face === 'back') { // di mesin espresso: siku bergantian bekerja, kepala menunduk sedikit
+    const uL = 0.2 + Math.sin(t * 3.1) * 0.07; const uR = -0.2 - Math.sin(t * 2.3 + 1) * 0.07; const su = 0.78;
+    // lengan bawah mengarah ke mesin di depannya → tertutup badan, yang tampak hanya siku yang bergerak
+    put(c, P.torso_back, 0, hy);
+    put(c, P.head_back, 0, hy + NECK_Y + 1.5);
+    put(c, P.upper_far, -24 * sk, SH, uL, su); put(c, P.upper, 24 * sk, SH, uR, su);
+  } else { // menghadap kita
+    const bow = b.bow * 0.06;
+    put(c, P.torso_front, 0, hy, 0, 1 - bow);
+    // lengan kiri santai (tangan di bawah permukaan konter)
+    armFK(c, P, -24 * sk, SH, 0.1, 0.02, false);
+    const hx = 0; const hyN = hy + NECK_Y * (1 - bow) + b.nod * 1.4 + b.bow * 2.5;
+    const tilt = b.mode === 'greet' ? 0.06 : b.mode === 'wipe' ? -0.03 : Math.sin(t * 0.4) * 0.03;
+    c.save(); c.translate(hx, hyN); c.rotate(tilt);
+    c.drawImage(P.head_front.cv, P.head_front.ox, P.head_front.oy, P.head_front.w, P.head_front.h);
+    drawFace(c, b.f, lk, L);
+    c.restore();
+    // lengan kanan: mengelap / menaruh cangkir / gerak tangan saat bicara / santai
+    const shR = { x: 24 * sk, y: SH };
+    let tg = null; let cloth2 = false; let cup = false;
+    if (b.mode === 'wipe') { tg = { x: 10 + 13 * Math.sin(t * 2.4), y: cy - 2 + Math.abs(Math.cos(t * 2.4)) * 1.5 }; cloth2 = true; }
+    else if (b.mode === 'serve') {
+      const q = b.q; const chest = { x: 16, y: SH + 46 }; const place = { x: 24, y: cy - 4 };
+      if (q < 0.38) { const k = ease(seg(q, 0, 0.38)); tg = { x: lerp(chest.x, place.x, k), y: lerp(chest.y, place.y, k) }; cup = true; }
+      else if (q < 0.7) { const k = ease(seg(q, 0.42, 0.7)); tg = { x: lerp(place.x, 30, k), y: lerp(place.y, SH + 80, k) }; }
+    } else if (b.mode === 'greet' && b.f.talk > 0.2) tg = { x: 22 + Math.sin(t * 2) * 3, y: SH + 52 - Math.abs(Math.sin(t * 1.7)) * 6 };
+    if (tg) {
+      // lengan bawah mengarah ke depan (ke kita) → tampak memendek; siku tetap dekat badan
+      const FS = 0.58; const k = ik(shR.x, shR.y, tg.x, tg.y, UPPER, (FORE - 5) * FS, 'fwd');
+      const ex = shR.x - Math.sin(k.u) * UPPER; const ey = shR.y + Math.cos(k.u) * UPPER;
+      const hd = { hx: ex - Math.sin(k.f) * (FORE - 5) * FS, hy: ey + Math.cos(k.f) * (FORE - 5) * FS };
+      if (cup) cupAt(c, hd.hx - 2, hd.hy - 5, L);
+      armFK(c, P, shR.x, shR.y, k.u, k.f, false, 1, FS);
+      if (cloth2) { c.fillStyle = C(shade(L, 'b9cdd3')); c.beginPath(); c.roundRect(hd.hx - 6, hd.hy - 1, 12, 4, 1.5); c.fill(); }
+    } else armFK(c, P, shR.x, shR.y, -0.1, -0.02, false);
+  }
+  c.restore();
+}
+/** Di HP: barista yang tidak berjalan digambar ke kanvas kecil yang diperbarui ±12×/detik. */
+const BBOX = { x: 70, y: 300, w: 140, h: 300 };
+export function drawBaristaFast(c, b, L, t, cheap = true) {
+  if (!cheap || b.mode === 'walk' || b.turnT > 0 || !b.ch || !b.ch.ready) { drawBarista(c, b, L, t); return; }
+  const dev = Math.abs(c.getTransform().a) || 1;
+  const key = `${dev.toFixed(3)}|${b.ch === (b._cache && b._cache.ch)}`;
+  let k = b._cache;
+  if (!k || k.key !== key || t - k.t > 0.08 || t < k.t) {
+    if (!k || k.key !== key) { const cv = (k && k.cv) || document.createElement('canvas'); cv.width = Math.ceil(BBOX.w * dev); cv.height = Math.ceil(BBOX.h * dev); k = b._cache = { cv, key: `${dev.toFixed(3)}|true`, ch: b.ch, t: -1 }; }
+    const x = k.cv.getContext('2d');
+    x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, k.cv.width, k.cv.height);
+    x.setTransform(dev, 0, 0, dev, (BBOX.x - b.x) * dev, (BBOX.y - BARISTA_POS.foot) * dev);
+    drawBarista(x, b, L, t);
+    k.t = t;
+  }
+  c.drawImage(k.cv, b.x - BBOX.x, BARISTA_POS.foot - BBOX.y, BBOX.w, BBOX.h);
+}
+/** Cangkir siap diambil di konter (titik = dasar cangkir). */
+export function drawCounterCup(c, cup, L) {
+  const sc = depthScale(BARISTA_POS.foot) * 1.05;
+  c.save(); c.translate(cup.x, cup.y); c.scale(sc, sc);
+  c.fillStyle = 'rgba(30,20,12,0.18)'; c.beginPath(); c.ellipse(1, 0, 9, 2, 0, 0, TAU); c.fill();
+  cupAt(c, 0, -6, L);
+  c.restore();
+}
+
 // ------------------------------------------------------------------ keramaian
 /**
  * Pengatur pengunjung. step(dt, {time, weather, phone, L}) memajukan semuanya; people() untuk digambar.
@@ -591,6 +857,7 @@ export function createCrowd(hooks = {}, rnd = Math.random, makeChar = createChar
   const people = [];
   let nextSpawn = 2; let seeded = false; let id = 0; let clock = 0;
   let pool = []; let poolKey = '';
+  const barista = createBarista(rnd); let baristaKey = ''; let baristaNext = null;
   const seatTaken = (kind, i) => people.some((p) => p.seat && p.seat.kind === kind && p.seat.i === i);
   const freeStools = () => STOOLS.map((_, i) => i).filter((i) => !seatTaken('stool', i));
   const chatFree = () => !seatTaken('chat', 0) && !seatTaken('chat', 1);
@@ -604,6 +871,9 @@ export function createCrowd(hooks = {}, rnd = Math.random, makeChar = createChar
     if (key !== poolKey) { poolKey = key; pool = pool.filter((ch) => people.some((p) => p.ch === ch)); pool.forEach((ch) => { ch.stale = true; }); }
     while (pool.filter((ch) => !ch.stale).length < size) pool.push(makeChar(makeLook(rnd, rainy), ctx.L));
     const t0 = performance.now();
+    // barista dilukis lebih dulu; tokoh lama tetap tampil sampai yang baru (cahaya baru) siap
+    if (key !== baristaKey) { baristaKey = key; baristaNext = makeChar({ ...BARISTA_LOOK }, ctx.L); }
+    if (baristaNext) { if (!baristaNext.ready) baristaNext.step(Math.max(0.5, budget)); if (baristaNext.ready) { barista.ch = baristaNext; baristaNext = null; } }
     for (const ch of pool) { if (!ch.ready) { ch.step(Math.max(0.5, budget - (performance.now() - t0))); if (performance.now() - t0 > budget) break; } }
   }
   const freeChar = () => { const xs = pool.filter((ch) => ch.ready && !ch.stale && !people.some((p) => p.ch === ch)); return xs.length ? xs[Math.floor(rnd() * xs.length)] : null; };
@@ -661,7 +931,7 @@ export function createCrowd(hooks = {}, rnd = Math.random, makeChar = createChar
       if ((nf === 'left' && p.face === 'right') || (nf === 'right' && p.face === 'left')) { p.turnT = 0.22; p.turnVia = 'front'; }
       p.face = nf;
     }
-    if (d <= v) { p.x = tg.x; p.y = tg.y; p.path.shift(); if (!p.path.length) p.spd = 0; return !p.path.length; }
+    if (d <= v) { p.x = tg.x; p.y = tg.y; p.path.shift(); if (!p.path.length) { p.spd = 0; p.settle = 1; } return !p.path.length; }
     p.x += (dx / d) * v; p.y += (dy / d) * v;
     return false;
   }
@@ -671,12 +941,14 @@ export function createCrowd(hooks = {}, rnd = Math.random, makeChar = createChar
     preparePool(ctx, ctx.budget ?? 3);
     if (!seeded) seed(ctx);
     clock += dt;
+    barista.step(dt, { ordering: people.some((q) => q.state === 'order') });
     nextSpawn -= dt;
     if (nextSpawn <= 0 && seeded) { spawn(ctx); nextSpawn = 9 + rnd() * 16; }
     for (const p of [...people]) {
       p.t += dt;
       if (p.delay > 0) { p.delay -= dt; continue; }
       if (p.turnT > 0) p.turnT -= dt;
+      if (p.settle > 0) p.settle = Math.max(0, p.settle - dt * 2.4); // langkah terakhir mengendap pelan ke posisi berdiri
       if (p.fadeIn) { p.alpha = Math.min(1, p.alpha + dt * 1.2); if (p.alpha >= 1) p.fadeIn = false; }
       switch (p.state) {
         case 'enter':
@@ -694,15 +966,16 @@ export function createCrowd(hooks = {}, rnd = Math.random, makeChar = createChar
           break;
         case 'order': {
           const q = (p.t - 1) / 1.8; p.point = q > 0 && q < 1 ? Math.sin(q * Math.PI) ** 2 : 0; // menunjuk papan menu
-          if (p.t > p.wait) { p.point = 0; p.state = 'toPickup'; p.path = [{ x: PICKUP.x, y: PICKUP.y }]; }
+          if (p.t > p.wait) { p.point = 0; p.state = 'toPickup'; p.path = [{ x: PICKUP.x, y: PICKUP.y }]; barista.orders++; }
           break;
         }
         case 'toPickup':
-          if (walk(p, dt)) { p.state = 'pickup'; p.t = 0; p.pose = 'stand'; p.face = 'back'; p.wait = 3 + rnd() * 3; }
+          if (walk(p, dt)) { p.state = 'pickup'; p.t = 0; p.pose = 'stand'; p.face = 'back'; p.wait = 30; }
           break;
-        case 'pickup':
-          if (p.t > p.wait) {
-            p.cupInHand = true; const sp = seatPos(p.seat); p.state = 'toSeat';
+        case 'pickup': // menunggu barista menaruh cangkirnya di konter
+          if ((barista.counterCup && barista.counterCup.age > 1.2 && p.t > 0.8) || p.t > p.wait) {
+            if (!barista.counterCup) barista.orders = Math.max(0, barista.orders - 1); // tidak jadi menunggu
+            barista.counterCup = null; p.cupInHand = true; const sp = seatPos(p.seat); p.state = 'toSeat';
             // berhenti tepat di titik awal gerakan duduk (kaki menapak di depan bangku / di samping kursi)
             const sc = seatScale(p);
             const end = p.seat.kind === 'stool' ? { x: sp.x, y: sp.y + 96 * sc } : { x: sp.x + CHAT[p.seat.i].face * 30 * sc, y: sp.y + CHAIR_FOOT * sc };
@@ -716,11 +989,11 @@ export function createCrowd(hooks = {}, rnd = Math.random, makeChar = createChar
           }
           break;
         case 'sitDown': // pinggul turun perlahan ke dudukan
-          p.sitK = Math.min(1, p.t / 1.1);
+          p.sitK = Math.min(1, p.t / 1.4);
           if (p.sitK >= 1) { p.state = 'sit'; p.t = 0; p.act = { kind: 'place', q: 0, dur: 1.4 }; }
           break;
         case 'standUp': { // berdiri lagi, lalu berjalan ke pintu
-          p.sitK = Math.max(0, 1 - p.t / 0.9);
+          p.sitK = Math.max(0, 1 - p.t / 1.2);
           if (p.sitK <= 0) {
             const sp = seatPos(p.seat); const sc = seatScale(p);
             const start = p.seat.kind === 'stool' ? { x: sp.x, y: sp.y + 96 * sc } : { x: sp.x + CHAT[p.seat.i].face * 30 * sc, y: sp.y + CHAIR_FOOT * sc };
@@ -766,17 +1039,17 @@ export function createCrowd(hooks = {}, rnd = Math.random, makeChar = createChar
   }
   const sortY = (p) => (seated(p) ? (p.seat.kind === 'stool' ? 748 : 790) : p.y);
   const sorted = () => [...people].filter((p) => !(p.delay > 0)).sort((a, b) => sortY(a) - sortY(b));
-  return { step, people: sorted, get count() { return people.length; }, seat: seatPos, get poolReady() { return pool.filter((ch) => ch.ready).length; } };
+  return { step, people: sorted, get barista() { return barista; }, get count() { return people.length; }, seat: seatPos, get poolReady() { return pool.filter((ch) => ch.ready).length; } };
 }
 
 /**
- * Sama dengan drawPerson, tapi orang yang sedang duduk/berdiri diam digambar ke kanvas kecil yang
+ * Sama dengan drawPerson, tapi (di HP) orang yang sedang duduk/berdiri diam digambar ke kanvas kecil yang
  * diperbarui 10×/detik (cukup untuk napas & bicara pelan); saat minum/makan digambar tiap frame — menghemat banyak kerja di HP.
  * Orang yang berjalan, duduk/berdiri, atau sedang muncul/menghilang tetap digambar tiap frame.
  */
 const BOX = { x: 110, y: 350, w: 220, h: 440 };
-export function drawPersonFast(c, p, L, t) {
-  const live = p.pose === 'walk' || p.state === 'sitDown' || p.state === 'standUp' || p.turnT > 0 || !!p.act;
+export function drawPersonFast(c, p, L, t, cheap = true) {
+  const live = !cheap || p.pose === 'walk' || p.state === 'sitDown' || p.state === 'standUp' || p.turnT > 0 || p.settle > 0 || !!p.act;
   if (live) { drawPerson(c, p, L, t); return; }
   const dev = Math.abs(c.getTransform().a) || 1;
   const key = `${p.pose}|${p.face}|${dev.toFixed(3)}|${(p.s || 1).toFixed(3)}`;

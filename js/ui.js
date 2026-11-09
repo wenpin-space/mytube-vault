@@ -100,7 +100,7 @@ export function renderList(entries, opt) {
   }
   empty.hidden = true;
   const shown = entries.slice(0, opt.limit);
-  list.classList.toggle('reorderable', opt.canReorder && !opt.selecting);
+  list.classList.toggle('reorderable', !!opt.canReorder);
   list.classList.toggle('selecting', !!opt.selecting);
   list.dataset.density = opt.density || 'comfy';
   list.innerHTML = shown.map((e, i) => row(e, i, opt)).join('');
@@ -169,16 +169,16 @@ function row(e, i, opt) {
   const loading = !v.title && opt.metaPending(v.youtubeId);
   const title = v.title || (loading ? 'Memuat judul…' : `Judul belum tersedia (${v.youtubeId})`);
   const sel = !!opt.selecting;
-  const reorder = opt.canReorder && !sel;
+  const reorder = !!opt.canReorder; // juga saat memilih: geser satu yang terpilih = memindah semua yang terpilih
   const picked = sel && opt.selected.has(e.key);
   const fresh = opt.flashKeys && opt.flashKeys.has(e.youtubeId);
   const part = opt.progress ? opt.progress(v.youtubeId, v.duration) : 0;
   const prog = v.watched ? 1 : part > 0.02 ? part : 0;
   const sub = opt.view === 'mix' && e.reason ? e.reason : opt.view === 'history' && v.lastPlayedAt ? `diputar ${timeAgo(v.lastPlayedAt)}${v.playCount > 1 ? ` · ${v.playCount}×` : ''}` : timeAgo(e.addedAt);
-  return `<li${playing ? ` data-ps="p${opt.isPlaying ? 1 : 0}"` : ''} class="vrow${playing ? ' playing' : ''}${v.watched ? ' watched' : ''}${picked ? ' selected' : ''}${fresh ? ' flash' : ''}" data-key="${escapeHtml(e.key)}" data-yt="${escapeHtml(v.youtubeId)}" data-i="${i}"${reorder ? ' draggable="true"' : ''}${sel ? ` aria-selected="${picked}"` : ''}>
+  return `<li${playing ? ` data-ps="p${opt.isPlaying ? 1 : 0}"` : ''} class="vrow${playing ? ' playing' : ''}${v.watched ? ' watched' : ''}${picked ? ' selected' : ''}${fresh ? ' flash' : ''}" data-key="${escapeHtml(e.key)}" data-yt="${escapeHtml(v.youtubeId)}" data-i="${i}"${sel ? ` aria-selected="${picked}"` : ''}>
     ${sel ? `<span class="pick" data-action="select-toggle" role="checkbox" aria-checked="${picked}" aria-label="Pilih">${icon(picked ? 'checkCircle' : 'circle')}</span>` : ''}
-    ${reorder ? `<span class="grip" title="Geser untuk mengubah urutan">${icon('grip')}</span>` : ''}
-    <span class="idx">${playing ? icon('volume') : i + 1}</span>
+    ${reorder ? `<span class="grip" title="${sel ? 'Tarik untuk memindah semua lagu yang dipilih' : 'Tarik untuk mengubah urutan'}">${icon('grip')}</span>` : ''}
+    ${reorder && !sel ? `<span class="idx idx-edit" data-action="idx-edit" role="button" tabindex="0" title="Klik untuk mengetik nomor urutan baru">${playing ? icon('volume') : i + 1}</span>` : `<span class="idx">${playing ? icon('volume') : i + 1}</span>`}
     <div class="thumb" data-action="play">
       <img src="${thumbUrl(v.youtubeId)}" alt="" loading="lazy" decoding="async" draggable="false">
       ${v.duration ? `<span class="dur">${formatDuration(v.duration)}</span>` : ''}

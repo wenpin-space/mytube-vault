@@ -673,6 +673,50 @@ export const store = {
     p.updatedAt = nowISO();
     this.commit('reorder');
   },
+  /**
+   * Pindahkan beberapa item sekaligus (urutan di antara mereka tetap) sehingga blok itu dimulai di
+   * posisi `to` (0 = paling atas) pada urutan akhir. Mengembalikan urutan lama (untuk Urungkan) atau null.
+   */
+  moveItems(playlistId, itemIds, to) {
+    const p = this.getPlaylist(playlistId);
+    if (!p) return null;
+    const ids = new Set(itemIds);
+    const block = p.items.filter((it) => ids.has(it.itemId));
+    if (!block.length) return null;
+    const rest = p.items.filter((it) => !ids.has(it.itemId));
+    const at = Math.max(0, Math.min(rest.length, Math.round(to)));
+    const next = [...rest.slice(0, at), ...block, ...rest.slice(at)];
+    if (next.every((it, i) => it === p.items[i])) return null;
+    const before = p.items.map((it) => it.itemId);
+    p.items = next;
+    p.updatedAt = nowISO();
+    this.commit('reorder-many');
+    return before;
+  },
+  /** Geser item terpilih satu langkah (dir -1 naik, +1 turun); item terpilih yang berdempetan ikut bersama. */
+  nudgeItems(playlistId, itemIds, dir) {
+    const p = this.getPlaylist(playlistId);
+    if (!p) return false;
+    const ids = new Set(itemIds); const a = [...p.items]; let moved = false;
+    const idxs = dir < 0 ? a.map((_, i) => i) : a.map((_, i) => a.length - 1 - i);
+    for (const i of idxs) {
+      const j = i + dir;
+      if (j < 0 || j >= a.length || !ids.has(a[i].itemId) || ids.has(a[j].itemId)) continue;
+      [a[i], a[j]] = [a[j], a[i]]; moved = true;
+    }
+    if (!moved) return false;
+    p.items = a; p.updatedAt = nowISO(); this.commit('reorder');
+    return true;
+  },
+  /** Kembalikan urutan item (hasil moveItems) — item yang sudah tidak ada dilewati, yang baru tetap di akhir. */
+  setOrder(playlistId, order) {
+    const p = this.getPlaylist(playlistId);
+    if (!p || !order) return;
+    const rank = new Map(order.map((id, i) => [id, i]));
+    p.items = [...p.items].sort((a, b) => (rank.get(a.itemId) ?? 1e9) - (rank.get(b.itemId) ?? 1e9));
+    p.updatedAt = nowISO();
+    this.commit('reorder');
+  },
   moveToPlaylist(fromId, itemId, toId) {
     const from = this.getPlaylist(fromId);
     const to = this.getPlaylist(toId);

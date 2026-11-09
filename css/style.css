@@ -790,7 +790,8 @@ body.selecting .main { padding-bottom: 160px; }
   body.selecting .dock { display: none; }
   .sel-head { min-width: 0; flex-basis: 100%; }
   .sel-actions { flex: 1; justify-content: space-between; }
-  .sel-btn { min-width: 0; flex: 1; }
+  .sel-btn { min-width: 0; flex: 1 1 auto; padding: 6px 1px; font-size: 10.5px; letter-spacing: -0.1px; }
+  .sel-btn span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   body.selecting .main { padding-bottom: calc(var(--nav-h) + 150px); }
   .dock-badge { display: none; }
   body.np-open .dock-badge { display: inline-block; }
@@ -1617,3 +1618,24 @@ body { font-size: 14.5px; letter-spacing: -0.005em; }
 
 /* thumbnail YouTube yang tidak tersedia → kotak bergradasi dengan ikon musik */
 img[src*="ytmissing"] { object-fit: scale-down; background: linear-gradient(135deg, #e8505b, #7a5cff) !important; }
+
+/* v36: ubah urutan — nomor yang bisa diklik, input nomor, gambar seret banyak lagu */
+.idx-edit { cursor: text; border-radius: 6px; padding: 3px 0; transition: background .12s, color .12s; }
+.idx-edit:hover, .idx-edit:focus-visible { background: var(--panel-3); color: var(--text); outline: none; }
+.idx.editing { width: 46px; }
+.idx-input { width: 46px; height: 28px; padding: 0 4px; border: 1px solid var(--accent); border-radius: 7px; background: var(--panel); color: var(--text); font: inherit; font-size: 13px; text-align: center; font-variant-numeric: tabular-nums; -moz-appearance: textfield; }
+.idx-input::-webkit-inner-spin-button, .idx-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.pos-quick { display: flex; gap: 8px; margin-top: 10px; }
+.video-list.selecting .grip { opacity: 0.8; }
+/* tarik untuk mengubah urutan: baris terangkat mengikuti jari/kursor, baris lain bergeser memberi ruang */
+.grip { touch-action: none; }
+.video-list .vrow.drag-shift { transition: transform .18s cubic-bezier(.2, .8, .3, 1); }
+.video-list .vrow.drag-src { opacity: 0; }
+.video-list .vrow.drag-src-multi { opacity: .35; }
+.vrow.drag-float { position: fixed; z-index: 90; margin: 0; pointer-events: none; background: var(--panel); box-shadow: 0 2px 6px rgba(0,0,0,.12); transition: box-shadow .16s, transform .16s, opacity .11s; will-change: top, transform; }
+.vrow.drag-float.lifted { transform: scale(1.02); box-shadow: 0 14px 34px rgba(0,0,0,.28), 0 0 0 1.5px var(--accent); }
+.vrow.drag-float.landing { transform: scale(1); opacity: .6; }
+.drag-float .grip { opacity: 1; color: var(--accent); }
+.drag-count { position: absolute; top: -9px; left: -9px; min-width: 26px; height: 26px; padding: 0 7px; display: grid; place-items: center; border-radius: 999px; background: var(--accent); color: #fff; font-size: 13px; font-weight: 700; box-shadow: 0 3px 10px rgba(0,0,0,.3); }
+body.row-dragging, body.row-dragging * { cursor: grabbing !important; user-select: none !important; -webkit-user-select: none !important; }
+@media (prefers-reduced-motion: reduce) { .video-list .vrow.drag-shift { transition: none; } }

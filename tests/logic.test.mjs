@@ -796,3 +796,55 @@ test('v34: langkah tidak meluncur, lutut ke depan, minum & makan bertahap', asyn
   for (const k2 of ['place', 'sip', 'eat']) assert.ok(kinds.has(k2), k2);
   assert.ok(bitten && placed);
 });
+
+test('v35: barista menyapa, membuat kopi, menaruh cangkir; pengunjung mengambilnya', async () => {
+  const v = await import('../js/visitors.js');
+  let s = 11; const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+  const fake = (look) => ({ look, ready: true, step() { return true; } });
+  const cr = v.createCrowd({}, rnd, fake);
+  const modes = new Set(); const served = new Set(); let had = false; let smiled = false;
+  for (let t = 0; t < 900; t += 0.05) {
+    cr.step(0.05, { time: 'day', weather: 'clear', phone: false, L: {} });
+    const b = cr.barista; modes.add(b.mode);
+    assert.ok(b.orders >= 0 && b.orders < 6);
+    if (b.counterCup) had = true;
+    if (b.f.happy > 0.6) smiled = true;
+    for (const p of cr.people()) if (p.cupInHand && p.state === 'toSeat') served.add(p.id);
+    assert.ok(b.x >= 100 && b.x <= 240);
+  }
+  for (const m of ['greet', 'brew', 'serve', 'wipe', 'walk']) assert.ok(modes.has(m), m);
+  assert.ok(had && smiled && served.size > 3, `${had} ${smiled} ${served.size}`);
+  assert.equal(cr.barista.ch.look.apron, '3c4f5f');
+});
+
+test('v36: pindah banyak lagu sekaligus, ke nomor tertentu, geser satu langkah, urungkan', () => {
+  mem.clear();
+  store.load();
+  const pid = store.data.playlists[0].id;
+  const ids = 'abcdefghij'.split('').map((ch) => ch.repeat(11));
+  store.addVideos(ids, pid);
+  const order = () => store.getPlaylist(pid).items.map((i) => i.youtubeId[0]).join('');
+  const item = (ch) => store.getPlaylist(pid).items.find((i) => i.youtubeId[0] === ch).itemId;
+  assert.equal(order(), 'abcdefghij');
+  // c, f, h ke paling atas — urutan di antara mereka tetap
+  const before = store.moveItems(pid, ['h', 'c', 'f'].map(item), 0);
+  assert.equal(order(), 'cfhabdegij');
+  store.setOrder(pid, before); // urungkan
+  assert.equal(order(), 'abcdefghij');
+  // satu lagu (nomor 9 → nomor 2)
+  store.moveItems(pid, [item('i')], 1);
+  assert.equal(order(), 'aibcdefghj');
+  // ke paling bawah (angka kebesaran dibatasi)
+  store.moveItems(pid, [item('a'), item('b')], 999);
+  assert.equal(order(), 'icdefghjab');
+  assert.equal(store.moveItems(pid, [item('a'), item('b')], 999), null); // sudah di sana
+  // kumpulkan c & g di posisi c
+  store.moveItems(pid, [item('c'), item('g')], 1);
+  assert.equal(order(), 'icgdefhjab');
+  // geser satu langkah: blok berdempetan ikut bersama, yang sudah paling atas diam
+  assert.ok(store.nudgeItems(pid, [item('d'), item('e')], -1));
+  assert.equal(order(), 'icdegfhjab');
+  assert.ok(store.nudgeItems(pid, [item('i'), item('f')], -1));
+  assert.equal(order(), 'icdefghjab');
+  assert.ok(store.nudgeItems(pid, [item('b')], 1) === false);
+});

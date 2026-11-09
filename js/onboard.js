@@ -4,7 +4,7 @@ import { modal } from './dialogs.js';
 import { icon } from './icons.js';
 import { escapeHtml } from './utils.js';
 
-export const APP_VERSION = 'v34';
+export const APP_VERSION = 'v36';
 const SEEN_KEY = 'mytube_vault_seen_version';
 
 /** Langkah mulai cepat dan statusnya (murni, mudah diuji). */
@@ -49,6 +49,8 @@ export function renderQuickstart(host, state, { installable = false } = {}) {
 }
 
 const CHANGES = [
+  ['sort', 'Atur urutan playlist dengan mudah', 'Tarik lagu ke posisi baru (mouse: dari mana saja di baris; HP: dari pegangan ⋮⋮). Lagu terangkat mengikuti jari, lagu lain bergeser memberi ruang, dan layar bergulir sendiri di dekat tepi. Klik nomor urut lagu lalu ketik nomor baru untuk memindah jauh sekaligus. Pilih beberapa lagu lalu tarik salah satunya, atau ketuk Urutan: ke paling atas, ke nomor tertentu, ke paling bawah, kumpulkan, naik/turun satu (Alt+↑/↓). Semua bisa diurungkan.'],
+  ['users', 'Barista yang hidup & proporsi yang pas', 'Barista kini dilukis dengan gaya yang sama seperti pengunjung, dengan ukuran yang sepadan. Ia punya ekspresi: tersenyum & mengobrol saat menerima pesanan, mengangguk saat mendengarkan, berkedip, serius saat mengelap konter sambil bersenandung, dan tersenyum lebar saat menyajikan. Kopi dibuat sesuai pesanan; pengunjung menunggu di konter sampai cangkirnya siap. Pengunjung yang duduk di bangku bar kini benar-benar duduk (kaki di pijakan bangku), dan gerakan berhenti, berbalik, serta duduk lebih halus.'],
   ['sparkle', 'Gerak pengunjung lebih alami', 'Kaki benar-benar menapak saat berjalan (tidak lagi meluncur), pinggul naik-turun & lengan berayun berlawanan dengan kaki. Saat minum, tangan meraih cangkir di meja, mengangkatnya melengkung ke mulut, memiringkannya, lalu meletakkannya kembali; sebagian pengunjung juga memesan roti dan memakannya gigitan demi gigitan. Bayangan kini lembut di lantai, kepala tidak lagi lepas saat duduk.'],
   ['sparkle', 'Pengunjung kafe yang dilukis', 'Pengunjung kini dilukis dengan kuas yang sama seperti latar: bentuk tubuh alami, lipatan baju, rambut bertekstur, dan cahaya tepi dari jendela atau lampu. Gerakannya lebih nyata: lutut & siku menekuk saat berjalan, mulai dan berhenti perlahan, berbalik dengan luwes, duduk & berdiri dengan kaki menapak, menunjuk menu saat memesan, dan mengangkat cangkir ke mulut.'],
   ['users', 'Kafe yang hidup', 'Pengunjung datang lewat pintu (lonceng berbunyi), antre & memesan di konter, membawa minumannya ke bangku bar atau berdua ke meja bundar untuk minum & mengobrol bergantian, lalu pulang. Ramai pagi sampai sore, sepi di malam hari; saat hujan mereka membawa payung.'],
@@ -61,8 +63,6 @@ const CHANGES = [
   ['moon', 'Satu timer tidur untuk semua', 'Timer tidur di player dan di Lobby kini sama: musik & suara alam memelan di menit terakhir, layar Lobby ikut meredup. Pilihan "Akhir lagu ini" ada di keduanya.'],
   ['sparkle', 'Lebih ringan & lebih bersih', 'Putar/jeda tidak lagi menggambar ulang seluruh daftar lagu. Tombol tema pindah ke Setelan → Umum (atau Ctrl+K); HP otomatis memakai mode hemat di Lobby.'],
   ['bolt', 'Lobby terbuka lebih cepat', 'Lukisan kamar kini disimpan di perangkat: membuka Lobby lagi langsung tampil, dan saat aplikasi senggang lukisannya disiapkan lebih dulu. Melukis suasana baru tidak lagi membuat layar tersendat, dan Lobby yang dibuka ulang tidak lagi diam.'],
-  ['mic', 'Dari Lobby langsung ke lirik', 'Klik bar musik di Lobby → pindah ke halaman lirik dengan animasi (artwork & judul ikut berpindah). Tombol Back kembali ke daftar lagu.'],
-  ['volume', 'Suara alam pakai rekaman asli', 'Hujan, petir, jangkrik, kafe, keramaian orang, kipas angin, lalu lintas, dan lainnya kini rekaman asli (CC0/Pixabay), diputar berulang tanpa jeda. Baru: hujan deras, burung camar, burung hantu, restoran ramai, kucing mendengkur.'],
 ];
 
 /** Tampilkan "Apa yang baru" sekali setelah update (bukan untuk pengguna baru). */

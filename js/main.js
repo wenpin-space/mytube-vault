@@ -7,7 +7,7 @@ import { extractYouTubeId, parseMany, extractPlaylistId } from './parser.js';
 import { createMetaQueue, watchUrl, installThumbFallback } from './metadata.js';
 import { openEnvelope, summarize } from './envelope.js';
 import {
-  toast, modal, confirmDialog, promptDialog, passphraseDialog, conflictDialog, pickPlaylistDialog, openMenu,
+  toast, modal, confirmDialog, promptDialog, positionDialog, passphraseDialog, conflictDialog, pickPlaylistDialog, openMenu,
 } from './dialogs.js';
 import { openSettings } from './settings.js';
 import * as ui from './ui.js';
@@ -16,12 +16,13 @@ import { applyTint } from './tint.js';
 import { openPalette } from './palette.js';
 import { healthCheckDialog } from './health.js';
 import { createLobby } from './lobby.js';
+import { enableRowDrag } from './rowdrag.js';
 import { createSleepTimer, SLEEP_PRESETS } from './sleep.js';
 import * as ambient from './ambient.js';
 import { renderQuickstart, toggleQuickstart, maybeShowWhatsNew, showWhatsNew } from './onboard.js';
 import { sortEntries, filterEntries, quickFilter, QUICK_FILTERS, animateOut, copyText, downloadText, escapeHtml, slugify, formatDuration } from './utils.js';
 import {
-  isPhone, overlay, enableTouchReorder, setupPwa, promptInstall, isStandalone, takeLaunchParams,
+  isPhone, overlay, setupPwa, promptInstall, isStandalone, takeLaunchParams,
 } from './mobile.js';
 import { libraryPicker, ytSearchDialog, youtubeAppUrl, ytPlaylistImportDialog, audioVersionDialog, getApiKey } from './sources.js';
 import { buildSharePayload, encodeShare, decodeShare, shareUrl, takeShareFromUrl } from './share.js';
@@ -60,6 +61,71 @@ function currentSort() {
 function canReorder() {
   return store.ui.view.startsWith('pl:') && currentSort() === 'manual' && !local.query.trim() && !local.qf;
 }
+// ---------- ubah urutan: satu lagu atau banyak sekaligus ----------
+/** Pindahkan entri (urutan di antara mereka tetap) supaya mulai di posisi `to` (0 = paling atas). */
+function moveBlock(ents, to, { scroll = true } = {}) {
+  const pl = store.currentPlaylist();
+  if (!pl || !ents.length) return;
+  const n = ents.length; const max = pl.items.length - n;
+  const at = Math.max(0, Math.min(max, to));
+  const before = store.moveItems(pl.id, ents.map((e) => e.itemId), at);
+  if (!before) { toast(n > 1 ? 'Lagu-lagu ini sudah di posisi itu.' : 'Lagu ini sudah di posisi itu.'); return; }
+  flashVideos(ents.map((e) => e.youtubeId), scroll);
+  const msg = n > 1
+    ? (at === 0 ? `${n} lagu dipindah ke paling atas.` : at === max ? `${n} lagu dipindah ke paling bawah.` : `${n} lagu dipindah ke nomor ${at + 1}–${at + n}.`)
+    : (at === 0 ? 'Dipindah ke paling atas.' : at === max ? 'Dipindah ke paling bawah.' : `Dipindah ke nomor ${at + 1}.`);
+  toast(msg, 'success', 6000, { label: 'Urungkan', fn: () => store.setOrder(pl.id, before) });
+}
+/** Tanya nomor tujuan (1 = paling atas). */
+async function askPosition(ents) {
+  const pl = store.currentPlaylist();
+  if (!pl) return;
+  const n = ents.length; const max = pl.items.length - n + 1;
+  const cur = Math.min(...ents.map((e) => e.index)) + 1;
+  const v = await positionDialog(n > 1 ? `Pindahkan ${n} lagu ke nomor…` : 'Pindahkan ke nomor…', { max, value: cur, hint: n > 1 ? `Lagu terpilih dikumpulkan berurutan mulai nomor itu (1–${max}).` : `1 = paling atas, ${max} = paling bawah.` });
+  if (v) moveBlock(ents, v - 1);
+}
+/** Klik nomor urut sebuah lagu → ketik nomor baru langsung di tempat. */
+function editIndex(rowEl, entry) {
+  const pl = store.currentPlaylist();
+  const idx = rowEl.querySelector('.idx');
+  if (!pl || !idx || idx.querySelector('input')) return;
+  const inp = document.createElement('input');
+  inp.type = 'number'; inp.min = '1'; inp.max = String(pl.items.length); inp.value = String(entry.index + 1);
+  inp.className = 'idx-input'; inp.setAttribute('aria-label', 'Nomor urutan baru'); inp.inputMode = 'numeric';
+  idx.replaceChildren(inp); idx.classList.add('editing');
+  inp.focus(); inp.select();
+  let done = false;
+  const finish = (ok) => {
+    if (done) return; done = true;
+    const v = Math.round(Number(inp.value));
+    if (ok && v >= 1 && v - 1 !== entry.index) moveBlock([entry], v - 1); else renderMain();
+  };
+  inp.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); } else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  });
+  inp.addEventListener('blur', () => finish(true));
+  inp.addEventListener('click', (e) => e.stopPropagation());
+}
+/** Menu "Urutan" untuk lagu-lagu terpilih. */
+function openOrderMenu(anchor) {
+  const ents = selectedEntries();
+  const pl = store.currentPlaylist();
+  if (!ents.length || !pl) return;
+  const first = Math.min(...ents.map((e) => e.index));
+  const spread = Math.max(...ents.map((e) => e.index)) - first + 1 > ents.length;
+  openMenu(anchor, [
+    { label: 'Ke paling atas', icon: 'top', action: () => moveBlock(ents, 0) },
+    { label: 'Ke nomor…', icon: 'sort', action: () => askPosition(ents) },
+    { label: 'Ke paling bawah', icon: 'down', action: () => moveBlock(ents, pl.items.length) },
+    spread && { label: `Kumpulkan di nomor ${first + 1}`, icon: 'rows', action: () => moveBlock(ents, first) },
+    'sep',
+    { label: 'Naik satu (Alt+↑)', icon: 'up', action: () => store.nudgeItems(pl.id, ents.map((e) => e.itemId), -1) },
+    { label: 'Turun satu (Alt+↓)', icon: 'down', action: () => store.nudgeItems(pl.id, ents.map((e) => e.itemId), 1) },
+  ]);
+}
+
 function visibleEntries() {
   return sortEntries(quickFilter(filterEntries(store.viewEntries(), local.query), local.qf), currentSort());
 }
@@ -145,6 +211,7 @@ function renderBottomNav() {
 }
 
 function renderMain() {
+  if (local.rowDrag) { local.renderLater = true; return; } // jangan ganti baris saat sedang ditarik
   const all = store.viewEntries();
   const sort = currentSort();
   const view = store.ui.view;
@@ -322,9 +389,9 @@ function addIds(ids, target, { invalid = 0, dup = 0 } = {}) {
 }
 
 /** Sorot video yang baru ditambahkan dan gulir ke sana (kalau tampil di view ini). */
-function flashVideos(ids) {
+function flashVideos(ids, scroll = true) {
   ids.forEach((id) => local.flash.add(id));
-  setTimeout(() => {
+  if (scroll) setTimeout(() => {
     const keys = new Set(ids);
     const row = [...document.querySelectorAll('.vrow.flash')].find((r) => {
       const e = entryByKey(r.dataset.key);
@@ -428,7 +495,9 @@ function openItemMenu(anchor, entry) {
     inPl && { label: 'Pindahkan ke playlist…', icon: 'arrowRight', action: () => moveToOther(entry) },
     reorder && entry.index > 0 && { label: 'Naikkan', icon: 'up', action: () => store.moveItem(pl.id, entry.index, entry.index - 1) },
     reorder && entry.index < pl.items.length - 1 && { label: 'Turunkan', icon: 'down', action: () => store.moveItem(pl.id, entry.index, entry.index + 1) },
-    reorder && entry.index > 0 && { label: 'Pindah ke paling atas', icon: 'top', action: () => store.moveItem(pl.id, entry.index, 0) },
+    reorder && entry.index > 0 && { label: 'Pindah ke paling atas', icon: 'top', action: () => moveBlock([entry], 0) },
+    reorder && pl.items.length > 2 && { label: 'Pindah ke nomor…', icon: 'sort', action: () => askPosition([entry]) },
+    reorder && entry.index < pl.items.length - 1 && { label: 'Pindah ke paling bawah', icon: 'down', action: () => moveBlock([entry], pl.items.length) },
     'sep',
     { label: 'Buka di YouTube', icon: 'external', action: () => window.open(watchUrl(v.youtubeId), '_blank', 'noopener') },
     { label: 'Salin link', icon: 'copy', action: async () => toast((await copyText(watchUrl(v.youtubeId))) ? 'Link disalin.' : 'Gagal menyalin.') },
@@ -795,6 +864,7 @@ function renderSelectBar() {
       ${b('sel-play', 'play', 'Putar')}
       ${b('sel-queue', 'queue', 'Antrean')}
       ${b('sel-add', 'plus', 'Playlist')}
+      ${inPl && canReorder() ? b('sel-order', 'sort', 'Urutan') : ''}
       ${inPl ? b('sel-move', 'arrowRight', 'Pindah') : ''}
       ${b('sel-fav', 'heart', allFav ? 'Batal favorit' : 'Favorit')}
       ${b('sel-tag', 'tag', 'Tag')}
@@ -1068,7 +1138,7 @@ function fillAdd(text) {
 document.addEventListener('click', async (e) => {
   if (local.selecting && !e.target.closest('dialog')) {
     const r = e.target.closest('.vrow');
-    if (r && !e.target.closest('[data-action=item-menu]')) { toggleSelected(r.dataset.key); return; }
+    if (r && !e.target.closest('[data-action=item-menu], .grip')) { toggleSelected(r.dataset.key); return; }
   }
   const el = e.target.closest('[data-action]');
   if (!el || el.closest('dialog')) return;
@@ -1076,6 +1146,7 @@ document.addEventListener('click', async (e) => {
   const rowEl = el.closest('.vrow');
   const entry = rowEl ? entryByKey(rowEl.dataset.key) : null;
 
+  if (action === 'sel-order') { openOrderMenu(el); return; }
   if (action.startsWith('sel-')) { selectionAction(action); return; }
 
   switch (action) {
@@ -1093,6 +1164,7 @@ document.addEventListener('click', async (e) => {
     case 'close-add': openAddSheet(false); break;
     case 'paste-link': pasteLink(); break;
     case 'select-toggle': if (rowEl) toggleSelected(rowEl.dataset.key); break;
+    case 'idx-edit': if (rowEl && entry && canReorder()) editIndex(rowEl, entry); break;
     case 'tag-open':
       store.setView(`tag:${el.dataset.tag.toLocaleLowerCase('id')}`);
       local.query = ''; $('search').value = '';
@@ -1208,58 +1280,43 @@ document.addEventListener('change', (e) => {
   }
 });
 
-// ---------- drag & drop reorder ----------
-(() => {
-  const list = $('video-list');
-  let fromIndex = null;
-  const clearMarks = () => list.querySelectorAll('.drop-before, .drop-after').forEach((n) => n.classList.remove('drop-before', 'drop-after'));
-  const isGrid = () => list.dataset.density === 'grid';
-  const isAfter = (row, y, x) => {
-    const r = row.getBoundingClientRect();
-    return isGrid() && x != null ? x > r.left + r.width / 2 : y > r.top + r.height / 2;
+// ---------- tarik untuk mengubah urutan: satu lagu, atau semua yang dipilih sekaligus (js/rowdrag.js) ----------
+/** Entri yang ikut digeser bila baris `en` digeser: semua yang dipilih (kalau `en` termasuk), atau `en` saja. */
+function dragGroup(en) {
+  return local.selecting && local.selected.has(en.key) && local.selected.size > 1 ? selectedEntries() : [en];
+}
+/** Indeks jatuh (posisi di playlist) → posisi awal blok setelah blok dikeluarkan. */
+function dropTo(ents, dropIndex) {
+  const keys = new Set(ents.map((e) => e.index));
+  let to = dropIndex; for (const i of keys) if (i < dropIndex) to--;
+  return to;
+}
+/** Gulir otomatis saat menggeser di dekat tepi atas/bawah (di bawah bar atas, di atas player/bar pilihan). */
+function edgeScroller() {
+  let v = 0; let raf = 0;
+  const loop = () => { if (!v) { raf = 0; return; } window.scrollBy(0, v); raf = requestAnimationFrame(loop); };
+  return {
+    update(y) {
+      const top = (document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 0) + 70;
+      const bars = ['select-bar', 'dock'].map((id) => $(id)).filter((n) => n && !n.hidden && n.offsetParent);
+      const bottom = Math.min(window.innerHeight, ...bars.map((n) => n.getBoundingClientRect().top)) - 70;
+      v = y < top ? -Math.min(28, 4 + (top - y) * 0.35) : y > bottom ? Math.min(28, 4 + (y - bottom) * 0.35) : 0;
+      if (v && !raf) raf = requestAnimationFrame(loop);
+    },
+    stop() { v = 0; cancelAnimationFrame(raf); raf = 0; },
   };
-
-  list.addEventListener('dragstart', (e) => {
-    const row = e.target.closest('.vrow');
-    if (!row || !canReorder()) return;
-    const en = entryByKey(row.dataset.key);
-    if (!en) return;
-    fromIndex = en.index;
-    row.classList.add('dragging');
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', row.dataset.key);
-  });
-  list.addEventListener('dragover', (e) => {
-    if (fromIndex == null) return;
-    e.preventDefault();
-    const row = e.target.closest('.vrow');
-    clearMarks();
-    if (row) row.classList.add(isAfter(row, e.clientY, e.clientX) ? 'drop-after' : 'drop-before');
-  });
-  list.addEventListener('drop', (e) => {
-    if (fromIndex == null) return;
-    e.preventDefault();
-    const row = e.target.closest('.vrow');
-    const target = row ? entryByKey(row.dataset.key) : null;
-    if (target) {
-      let to = target.index + (isAfter(row, e.clientY, e.clientX) ? 1 : 0);
-      if (to > fromIndex) to--;
-      store.moveItem(target.playlistId, fromIndex, to);
-    }
-    fromIndex = null;
-    clearMarks();
-  });
-  list.addEventListener('dragend', () => {
-    fromIndex = null;
-    clearMarks();
-    list.querySelectorAll('.dragging').forEach((n) => n.classList.remove('dragging'));
-  });
-})();
-
-enableTouchReorder($('video-list'), {
+}
+enableRowDrag($('video-list'), {
   canReorder,
   entryByKey,
-  move: (plId, from, to) => store.moveItem(plId, from, to),
+  group: dragGroup,
+  scroller: edgeScroller(),
+  onState: (on) => { local.rowDrag = on; if (!on && local.renderLater) { local.renderLater = false; renderMain(); } },
+  move: (ents, dropIndex) => {
+    const to = dropTo(ents, dropIndex);
+    if (ents.length > 1) moveBlock(ents, to, { scroll: false });
+    else { flashVideos([ents[0].youtubeId], false); store.moveItem(ents[0].playlistId, ents[0].index, to); }
+  },
 });
 
 // ---------- player mengambang: geser ke pojok mana pun (desktop/tablet lebar) ----------
@@ -1462,6 +1519,19 @@ document.addEventListener('keydown', (e) => {
   if ((e.key === 'k' || e.key === 'K') && (e.ctrlKey || e.metaKey) && !e.altKey && !document.querySelector('dialog.palette[open]')) {
     e.preventDefault();
     if (!document.querySelector('dialog[open]')) openCommandPalette();
+  }
+});
+// Alt+↑/↓: geser lagu terpilih satu langkah; Alt+Shift+↑/↓: ke paling atas/bawah
+document.addEventListener('keydown', (e) => {
+  if (!e.altKey || e.ctrlKey || e.metaKey || !local.selecting || !canReorder() || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+  if (e.target.closest && e.target.closest('input, textarea, select, dialog')) return;
+  const ents = selectedEntries(); const pl = store.currentPlaylist();
+  if (!ents.length || !pl) return;
+  e.preventDefault();
+  const up = e.key === 'ArrowUp';
+  if (e.shiftKey) moveBlock(ents, up ? 0 : pl.items.length);
+  else if (store.nudgeItems(pl.id, ents.map((x) => x.itemId), up ? -1 : 1)) {
+    requestAnimationFrame(() => { const r = document.querySelector('.vrow.selected'); if (r) r.scrollIntoView({ block: 'nearest' }); });
   }
 });
 document.addEventListener('keydown', (e) => {

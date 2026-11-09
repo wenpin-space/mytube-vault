@@ -4,8 +4,8 @@
 
 import { createPainter } from './paint.js';
 import { putFile, getFile, deleteFile, listKeys } from './idb.js';
-import { createCrowd, drawPersonFast } from './visitors.js';
-import { drawCafe, CAFE_SPRITES, CAFE_SPRITE_DRAW, createCafeAnimator, drawDrink, biteClip, drinkOf, LANTERNS, CUP, PLATE } from './cafe.js';
+import { createCrowd, drawPersonFast, drawBaristaFast, drawCounterCup } from './visitors.js';
+import { drawCafe, CAFE_SPRITES, CAFE_SPRITE_DRAW, createCafeAnimator, drawDrink, biteClip, drinkOf, LANTERNS, CUP, PLATE, COUNTER_Y, MACHINE, TABLET } from './cafe.js';
 import { VW, VH, W, OW, HZ, BT, TAU, rnd, seeded, H, M, C, LI, DA, mix, css, ridgeLine, rr, lin, glow, softShadow, WARM, lighting, palette, woodGrain, shade, rimOf, leaf } from './paintkit.js';
 
 export const LOCATIONS = [
@@ -651,7 +651,7 @@ const SPRITE_DRAW = { hang: drawHang, plantA: (c, L) => drawPlant(c, L, 0), plan
 // Lukisan dibuat pada ukuran kanvas virtual tetap (VW×VH × k) supaya hasilnya bisa dipakai ulang
 // walau ukuran jendela berubah, lalu disimpan: di memori (buka-tutup Lobby instan) dan di IndexedDB
 // (buka aplikasi berikutnya instan). Versi dinaikkan setiap gaya lukisan berubah.
-const PAINT_V = 'p6';
+const PAINT_V = 'p7';
 const MEM_MAX = 2;
 const memCache = new Map(); // key → { outside, room, spr }
 const IDB_PREFIX = 'roompaint:';
@@ -801,17 +801,20 @@ export function roomScene() {
     c.lineWidth = 2.2; c.beginPath(); c.moveTo(1412, 112); c.lineTo(1412 + Math.cos(mA) * 21, 112 + Math.sin(mA) * 21); c.stroke();
     // lampu kertas berayun pelan
     LANTERNS.forEach((x, i) => sp('lantern', { dx: x - 800, rot: Math.sin(t * 0.45 + i * 1.7) * 0.018 }));
-    // barista: membuat kopi (uap dari mesin), membawanya ke depan, lalu kembali
-    cafeAnim.stepBarista(dt);
-    const bar = cafeAnim.barista; const walking = bar.mode === 'toFront' || bar.mode === 'toBack';
-    sp('barista', { dx: bar.x, dy: walking ? -Math.abs(Math.sin(t * 7)) * 2.5 : Math.sin(t * 1.3) * 0.8 });
-    if (bar.mode === 'brew') {
-      for (let i = 0; i < 4; i++) { const p = (t * 0.5 + i / 4) % 1; c.fillStyle = `rgba(245,245,245,${0.28 * (1 - p)})`; c.beginPath(); c.arc(126 + Math.sin(t * 2 + i) * 6 + p * 10, 382 - p * 70, 6 + p * 16, 0, TAU); c.fill(); }
-    }
     sp('doorPlant', { rot: Math.sin(t * 0.5) * 0.012 });
     // pengunjung: masuk, memesan, duduk, minum & mengobrol, lalu pulang (urut dari yang terjauh)
     crowd.step(dt, { time: st.time, weather: st.weather, phone, L, budget: phone ? 2.5 : 3.5 }); // tokoh dilukis bertahap di sela animasi
-    for (const pp of crowd.people()) drawPersonFast(c, pp, L, t);
+    // barista di balik konter: dipotong di permukaan konter; tablet kasir tetap di depannya
+    const bar = crowd.barista;
+    c.save(); c.beginPath(); c.rect(-40, 0, 298, COUNTER_Y);
+    { const cs = Math.cos(TABLET.rot); const sn = Math.sin(TABLET.rot); const pt = (x, y) => [TABLET.x + x * cs - y * sn, TABLET.y + x * sn + y * cs];
+      [[TABLET.x0, TABLET.y0], [TABLET.x1, TABLET.y0], [TABLET.x1, TABLET.y1], [TABLET.x0, TABLET.y1]].forEach(([x, y], i) => { const [px, py] = pt(x, y); if (i) c.lineTo(px, py); else c.moveTo(px, py); }); c.closePath(); }
+    c.clip('evenodd'); drawBaristaFast(c, bar, L, t, phone); c.restore();
+    if (bar.counterCup) drawCounterCup(c, bar.counterCup, L);
+    if (bar.mode === 'brew') { // uap dari mesin espresso
+      for (let i = 0; i < 4; i++) { const p = (t * 0.5 + i / 4) % 1; c.fillStyle = `rgba(245,245,245,${0.24 * (1 - p)})`; c.beginPath(); c.arc(MACHINE.x - 8 + Math.sin(t * 2 + i) * 6 + p * 10, MACHINE.steamY - p * 60, 5 + p * 14, 0, TAU); c.fill(); }
+    }
+    for (const pp of crowd.people()) drawPersonFast(c, pp, L, t, phone);
     globalThis.__cafePeople = crowd.count;
     // meja kita: piring & roti (berkurang dengan gigitan), cangkir & minuman (berkurang per teguk)
     cafeAnim.update(state && state.cafe, t);

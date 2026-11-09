@@ -7,10 +7,14 @@ import { VW, VH, W, TAU, seeded, H, M, C, LI, DA, rr, lin, glow, softShadow, WAR
 
 export const FL = 640; // garis lantai di dinding belakang
 const BAR_Y = 568; // meja bar di bawah jendela
-const COUNTER_Y = 486; // permukaan konter depan
+export const COUNTER_Y = 536; // permukaan konter depan (setinggi pinggang orang dewasa)
+const BACK_DY = 46; // konter belakang & mesin espresso diturunkan, sepadan dengan tinggi barista
+/** Mesin espresso (untuk uap) & tablet kasir — tablet digambar di depan barista. */
+export const MACHINE = { x: 134, steamY: 382 + BACK_DY };
+export const TABLET = { x: 214, y: COUNTER_Y, rot: -0.2, x0: -22, y0: -34, x1: 22, y1: -2 };
 export const STOOLS = [490, 660, 830, 1000];
 export const STOOL_SEAT = 650; // tinggi dudukan bangku bar
-const STOOL_FOOT = 748;
+export const STOOL_FOOT = 748;
 
 /** Menu: minuman & roti (id, nama, warna). */
 export const DRINKS = [
@@ -130,6 +134,7 @@ export function drawCafe(c, s, L) {
     }
   });
   // konter belakang + mesin espresso
+  c.save(); c.translate(0, BACK_DY);
   woodGrain(c, 0, 420, 300, 14, H('9c7653'), { a: 0.15 });
   c.fillStyle = '#5b4231'; c.fillRect(0, 434, 300, FL - 434);
   softShadow(c, 130, 424, 70, 6, 0.4);
@@ -140,6 +145,7 @@ export function drawCafe(c, s, L) {
   c.fillStyle = '#e9e3d8'; [104, 154].forEach((x) => { rr(c, x, 404, 14, 14, 3); c.fill(); });
   c.fillStyle = lin(c, 206, 0, 238, 0, [[0, '#3a3c40'], [1, '#202124']]); rr(c, 206, 352, 30, 70, 5); c.fill();
   c.fillStyle = 'rgba(120,80,50,0.8)'; c.beginPath(); c.moveTo(208, 352); c.lineTo(234, 352); c.lineTo(228, 330); c.lineTo(214, 330); c.fill();
+  c.restore();
   // konter depan: kisi oak + lemari kaca roti
   softShadow(c, 180, 724, 210, 12, 0.45);
   woodGrain(c, -20, COUNTER_Y + 14, 390, 716 - COUNTER_Y - 14, H('c39a6c'), { vertical: true, a: 0.1 });
@@ -255,7 +261,6 @@ export const CUP = { x: 770, y: 850 }; // titik dasar cangkir di meja kita
 export const PLATE = { x: 960, y: 856 };
 export const CAFE_SPRITES = {
   lantern: { x: 760, y: 56, w: 80, h: 196, px: 800, py: 62 },
-  barista: { x: 50, y: 300, w: 120, h: COUNTER_Y - 300, px: 110, py: COUNTER_Y },
   doorPlant: { x: 1440, y: 300, w: 160, h: 410, px: 1540, py: 700 },
   cup: { x: CUP.x - 52, y: CUP.y - 72, w: 116, h: 82, px: CUP.x, py: CUP.y },
   yunomi: { x: CUP.x - 40, y: CUP.y - 78, w: 80, h: 86, px: CUP.x, py: CUP.y },
@@ -276,22 +281,6 @@ function drawLantern(c, L) {
   c.strokeStyle = C(DA(paper, 0.22), 0.6); c.lineWidth = 1.2;
   for (let i = -3; i <= 3; i++) { c.beginPath(); c.ellipse(800, 222 + i * 9, Math.sqrt(Math.max(0, 1 - (i * 9 / 34) ** 2)) * 36, 3, 0, 0, TAU); c.stroke(); }
   c.fillStyle = C(shade(L, '3a2a1f')); c.fillRect(794, 254, 12, 4);
-}
-function drawBarista(c, L) {
-  const x = 110; const base = COUNTER_Y;
-  const shirt = shade(L, 'efe8dc'); const apron = shade(L, '3c4f5f'); const skin = shade(L, 'e0b48f'); const hair = shade(L, '2a211c');
-  // badan & lengan
-  c.fillStyle = C(shirt); c.beginPath(); c.moveTo(x - 40, base); c.quadraticCurveTo(x - 44, base - 90, x - 26, base - 118); c.lineTo(x + 26, base - 118); c.quadraticCurveTo(x + 44, base - 90, x + 40, base); c.fill();
-  c.fillStyle = C(apron); c.beginPath(); c.moveTo(x - 30, base); c.lineTo(x - 26, base - 96); c.lineTo(x + 26, base - 96); c.lineTo(x + 30, base); c.fill();
-  c.strokeStyle = C(apron); c.lineWidth = 3; c.beginPath(); c.moveTo(x - 22, base - 96); c.lineTo(x - 12, base - 118); c.moveTo(x + 22, base - 96); c.lineTo(x + 12, base - 118); c.stroke();
-  c.fillStyle = C(shirt); c.beginPath(); c.ellipse(x - 38, base - 70, 10, 34, 0.25, 0, TAU); c.ellipse(x + 38, base - 70, 10, 34, -0.25, 0, TAU); c.fill();
-  // kepala, rambut, bandana
-  c.fillStyle = C(skin); c.fillRect(x - 7, base - 130, 14, 14);
-  c.beginPath(); c.ellipse(x, base - 150, 20, 23, 0, 0, TAU); c.fill();
-  c.fillStyle = C(hair); c.beginPath(); c.ellipse(x, base - 160, 21, 16, 0, Math.PI, TAU); c.fill(); c.fillRect(x - 21, base - 162, 6, 18); c.fillRect(x + 15, base - 162, 6, 18);
-  c.fillStyle = C(shade(L, 'b8614a')); c.beginPath(); c.moveTo(x - 22, base - 166); c.quadraticCurveTo(x, base - 180, x + 22, base - 166); c.lineTo(x + 21, base - 158); c.quadraticCurveTo(x, base - 168, x - 21, base - 158); c.fill();
-  const rim = rimOf(L);
-  if (rim) { c.strokeStyle = C(WARM, 0.45 * rim); c.lineWidth = 2; c.beginPath(); c.ellipse(x, base - 150, 20, 23, 0, -1.2, 0.4); c.stroke(); }
 }
 function drawDoorPlant(c, L) {
   const rim = rimOf(L);
@@ -376,7 +365,7 @@ function drawArm(c, L) {
   c.fillStyle = C(skin); c.beginPath(); c.moveTo(1054, 682); c.quadraticCurveTo(1018, 676, 1006, 692); c.quadraticCurveTo(1000, 704, 1012, 712); c.quadraticCurveTo(1030, 722, 1054, 720); c.fill();
   c.strokeStyle = C(DA(skin, 0.25), 0.6); c.lineWidth = 1.5; c.beginPath(); c.moveTo(1016, 698); c.lineTo(1032, 700); c.moveTo(1016, 706); c.lineTo(1032, 708); c.stroke();
 }
-export const CAFE_SPRITE_DRAW = { lantern: drawLantern, barista: drawBarista, doorPlant: drawDoorPlant, cup: drawCup, yunomi: drawYunomi, plate: drawPlate, croissant: drawCroissant, melonpan: drawMelonpan, sando: drawSando, arm: drawArm };
+export const CAFE_SPRITE_DRAW = { lantern: drawLantern, doorPlant: drawDoorPlant, cup: drawCup, yunomi: drawYunomi, plate: drawPlate, croissant: drawCroissant, melonpan: drawMelonpan, sando: drawSando, arm: drawArm };
 
 // ------------------------------------------------------------------ bagian bergerak
 const ease = (x) => x * x * (3 - 2 * x);
@@ -384,12 +373,11 @@ const clamp01 = (x) => Math.max(0, Math.min(1, x));
 export const drinkOf = (id) => DRINKS.find((d) => d.id === id) || DRINKS[0];
 
 /**
- * Pengatur animasi kafe: barista bolak-balik, lampu berayun, minuman & roti yang berkurang,
+ * Pengatur animasi kafe: lampu berayun, minuman & roti yang berkurang,
  * dan lengan pelayan yang mengambil pesanan lama lalu mengantar yang baru.
  * cafe (dari Lobby) = { serial, drink, food, drinkLeft 0..1, foodLeft 0..1 }
  */
 export function createCafeAnimator(hooks = {}) {
-  const bar = { x: 0, mode: 'brew', t: 3 };
   let shown = null; // pesanan yang sedang ada di meja { serial, drink, food }
   let deliver = null; // { t0, old, next }
   let sip = { t0: -10, level: 1 };
@@ -456,19 +444,8 @@ export function createCafeAnimator(hooks = {}) {
     return out;
   }
 
-  /** Barista: membuat kopi di mesin (uap), membawanya ke konter depan, lalu kembali. */
-  function stepBarista(dt) {
-    bar.t -= dt;
-    const go = (tx) => { const d = tx - bar.x; if (Math.abs(d) < 0.5) { bar.x = tx; return true; } bar.x += Math.sign(d) * Math.min(Math.abs(d), dt * 46); return false; };
-    if (bar.mode === 'brew' && bar.t <= 0) bar.mode = 'toFront';
-    else if (bar.mode === 'toFront' && go(92)) { bar.mode = 'serve'; bar.t = 2 + Math.random() * 3; }
-    else if (bar.mode === 'serve' && bar.t <= 0) bar.mode = 'toBack';
-    else if (bar.mode === 'toBack' && go(0)) { bar.mode = 'brew'; bar.t = 4 + Math.random() * 5; }
-  }
-
   return {
-    get barista() { return bar; },
-    update, tableState, stepBarista,
+    update, tableState,
     get busyDelivering() { return !!deliver; },
   };
 }

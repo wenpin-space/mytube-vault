@@ -151,6 +151,30 @@ export function promptDialog(title, { label = '', value = '', placeholder = '', 
   });
 }
 
+/** Nomor urutan tujuan (1..max). Hasil: angka atau null. Tombol cepat: paling atas / paling bawah. */
+export function positionDialog(title, { max, value = 1, hint = '' } = {}) {
+  return modal({
+    title,
+    body: `<label class="field"><span>Nomor urutan</span>
+      <input type="number" id="pos-input" min="1" max="${max}" value="${value}" inputmode="numeric"></label>
+      <div class="pos-quick"><button type="button" class="chip" data-pos="1">Paling atas</button><button type="button" class="chip" data-pos="${max}">Paling bawah</button></div>
+      ${hint ? `<p class="hint">${escapeHtml(hint)}</p>` : ''}<p class="form-error"></p>`,
+    actions: [
+      { label: 'Batal', value: null },
+      {
+        label: 'Pindahkan',
+        variant: 'primary',
+        validate: (b) => { const v = Number(b.querySelector('#pos-input').value); return setError(b, Number.isInteger(v) && v >= 1 && v <= max ? '' : `Isi angka 1–${max}.`); },
+        value: (b) => Number(b.querySelector('#pos-input').value),
+      },
+    ],
+    onOpen: (b) => {
+      const i = b.querySelector('#pos-input'); i.focus(); i.select();
+      b.querySelectorAll('[data-pos]').forEach((x) => x.addEventListener('click', () => { i.value = x.dataset.pos; i.focus(); i.select(); }));
+    },
+  });
+}
+
 export function textInputDialog(title, { label = '', placeholder = '', ok = 'Lanjut' } = {}) {
   return modal({
     title,
