@@ -1,14 +1,14 @@
 // Service worker: menyimpan "kerangka" aplikasi supaya bisa dibuka offline dan dipasang di Android.
 // Data playlist TIDAK lewat sini (ada di LocalStorage); YouTube & GitHub selalu langsung ke jaringan.
 
-const VERSION = 'v32';
+const VERSION = 'v33';
 const CACHE = `mytube-vault-${VERSION}`;
 const SOUND_CACHE = 'mytube-vault-sounds-1'; // rekaman suara alam: disimpan terpisah, tidak diunduh ulang tiap update
 const SHELL = [
   './',
   'index.html',
   'manifest.webmanifest',
-  'css/style.css', 'css/style.css?v=32', 'js/main.js?v=32',
+  'css/style.css', 'css/style.css?v=33', 'js/main.js?v=33',
   'js/main.js', 'js/store.js', 'js/sync.js', 'js/gist.js', 'js/envelope.js', 'js/crypto.js',
   'js/player.js', 'js/parser.js', 'js/metadata.js', 'js/ui.js', 'js/dialogs.js',
   'js/settings.js', 'js/utils.js', 'js/icons.js', 'js/mobile.js', 'js/sources.js', 'js/share.js', 'js/stats.js', 'js/lyrics.js', 'js/tint.js', 'js/palette.js', 'js/recommend.js', 'js/health.js', 'js/onboard.js', 'js/lobby.js', 'js/ambient.js', 'js/scenes.js', 'js/idb.js', 'js/room.js', 'js/paint.js', 'js/sleep.js', 'js/weather.js', 'js/cafe.js', 'js/visitors.js', 'js/paintkit.js', 'js/i18n.js', 'js/i18n-en.js',

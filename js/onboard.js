@@ -4,7 +4,7 @@ import { modal } from './dialogs.js';
 import { icon } from './icons.js';
 import { escapeHtml } from './utils.js';
 
-export const APP_VERSION = 'v32';
+export const APP_VERSION = 'v33';
 const SEEN_KEY = 'mytube_vault_seen_version';
 
 /** Langkah mulai cepat dan statusnya (murni, mudah diuji). */
@@ -49,6 +49,7 @@ export function renderQuickstart(host, state, { installable = false } = {}) {
 }
 
 const CHANGES = [
+  ['sparkle', 'Pengunjung kafe yang dilukis', 'Pengunjung kini dilukis dengan kuas yang sama seperti latar: bentuk tubuh alami, lipatan baju, rambut bertekstur, dan cahaya tepi dari jendela atau lampu. Gerakannya lebih nyata: lutut & siku menekuk saat berjalan, mulai dan berhenti perlahan, berbalik dengan luwes, duduk & berdiri dengan kaki menapak, menunjuk menu saat memesan, dan mengangkat cangkir ke mulut.'],
   ['users', 'Kafe yang hidup', 'Pengunjung datang lewat pintu (lonceng berbunyi), antre & memesan di konter, membawa minumannya ke bangku bar atau berdua ke meja bundar untuk minum & mengobrol bergantian, lalu pulang. Ramai pagi sampai sore, sepi di malam hari; saat hujan mereka membawa payung.'],
   ['coffee', 'Tempat baru: Kafe', 'Lobby → Suasana → Tempat → Kafe. Kafe Jepang modern yang hangat: lampu kertas, barista yang membuat kopi, noren di pintu, jam dinding sungguhan, dan pemandangan & cuaca di jendela besar.'],
   ['sparkle', 'Kopi & roti di meja kita', 'Minuman berkurang seteguk demi seteguk dan roti tergigit pelan-pelan; setelah habis, pelayan mengantar pesanan baru (latte, matcha, kopi susu, ocha; croissant, melon pan, sando). Saat Fokus aktif, satu porsi habis tepat di akhir sesi dan pesanan baru datang saat istirahat.'],
@@ -62,7 +63,6 @@ const CHANGES = [
   ['mic', 'Dari Lobby langsung ke lirik', 'Klik bar musik di Lobby → pindah ke halaman lirik dengan animasi (artwork & judul ikut berpindah). Tombol Back kembali ke daftar lagu.'],
   ['volume', 'Suara alam pakai rekaman asli', 'Hujan, petir, jangkrik, kafe, keramaian orang, kipas angin, lalu lintas, dan lainnya kini rekaman asli (CC0/Pixabay), diputar berulang tanpa jeda. Baru: hujan deras, burung camar, burung hantu, restoran ramai, kucing mendengkur.'],
   ['translate', 'Bahasa Inggris', 'Setelan → Umum → Bahasa / Language (atau Ctrl+K). Judul lagu, nama playlist, dan lirik tetap seperti aslinya.'],
-  ['rain', 'Hujan & petir baru', 'Hujan lebih nyata (desis, tetes kecil, tetes besar di kusen) dan petir yang bergemuruh panjang dengan gema.'],
 ];
 
 /** Tampilkan "Apa yang baru" sekali setelah update (bukan untuk pengguna baru). */

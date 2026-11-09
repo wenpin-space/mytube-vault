@@ -184,22 +184,23 @@ export function drawCafe(c, s, L) {
   c.fillStyle = '#f2ebde'; c.beginPath(); c.arc(1412, 112, 29, 0, TAU); c.fill();
   c.fillStyle = '#3a2a1f'; for (let i = 0; i < 12; i++) { const a = (i / 12) * TAU; c.fillRect(1412 + Math.cos(a) * 24 - 1.5, 112 + Math.sin(a) * 24 - 1.5, 3, 3); }
 
-  // ---- meja bundar untuk ngobrol (kanan tengah) + dua kursi
-  softShadow(c, 1200, 792, 90, 10, 0.4);
+  // ---- meja bundar untuk ngobrol (kanan tengah) + dua kursi — ukurannya sepadan dengan orang di depan bangku bar
+  softShadow(c, 1200, 798, 120, 12, 0.42);
   const chair = (x, flip) => {
-    const bx = x + (flip ? 24 : -24);
-    c.strokeStyle = '#4a3324'; c.lineWidth = 4.5; c.lineCap = 'round';
-    c.beginPath(); c.moveTo(x - 18, 742); c.lineTo(x - 22, 792); c.moveTo(x + 18, 742); c.lineTo(x + 22, 792); c.stroke();
-    c.lineWidth = 5; c.beginPath(); c.moveTo(bx, 742); c.lineTo(bx + (flip ? 4 : -4), 668); c.stroke();
-    c.fillStyle = '#a77a50'; rr(c, bx - (flip ? 2 : 10), 664, 12, 40, 5); c.fill();
-    c.fillStyle = lin(c, x - 28, 0, x + 28, 0, [[0, '#d0a676'], [1, '#9c7149']]); c.beginPath(); c.ellipse(x, 740, 28, 8, 0, 0, TAU); c.fill();
+    const bx = x + (flip ? 30 : -30);
+    c.strokeStyle = '#4a3324'; c.lineWidth = 5; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(x - 22, 732); c.lineTo(x - 27, 796); c.moveTo(x + 22, 732); c.lineTo(x + 27, 796); c.stroke();
+    c.lineWidth = 6; c.beginPath(); c.moveTo(bx, 732); c.lineTo(bx + (flip ? 5 : -5), 640); c.stroke();
+    c.fillStyle = '#a77a50'; rr(c, bx - (flip ? 3 : 12), 634, 15, 52, 6); c.fill();
+    c.fillStyle = '#7a5a3e'; c.beginPath(); c.ellipse(x, 734, 34, 9, 0, 0, TAU); c.fill();
+    c.fillStyle = lin(c, x - 34, 0, x + 34, 0, [[0, '#d0a676'], [1, '#9c7149']]); c.beginPath(); c.ellipse(x, 730, 34, 9, 0, 0, TAU); c.fill();
   };
-  chair(1104, false); chair(1296, true);
-  c.strokeStyle = '#3d2b20'; c.lineWidth = 7; c.beginPath(); c.moveTo(1200, 728); c.lineTo(1200, 790); c.stroke();
-  c.fillStyle = '#3d2b20'; c.beginPath(); c.ellipse(1200, 792, 28, 6, 0, 0, TAU); c.fill();
-  c.fillStyle = '#7a5a3e'; c.beginPath(); c.ellipse(1200, 726, 74, 17, 0, 0, TAU); c.fill();
-  c.fillStyle = lin(c, 1126, 0, 1274, 0, [[0, '#e1bd90'], [1, '#b08257']]); c.beginPath(); c.ellipse(1200, 721, 74, 16, 0, 0, TAU); c.fill();
-  c.fillStyle = '#efe7da'; rr(c, 1172, 702, 16, 16, 4); c.fill(); c.fillStyle = '#efe7da'; rr(c, 1216, 704, 14, 14, 4); c.fill();
+  chair(1096, false); chair(1304, true);
+  c.strokeStyle = '#3d2b20'; c.lineWidth = 9; c.beginPath(); c.moveTo(1200, 696); c.lineTo(1200, 794); c.stroke();
+  c.fillStyle = '#3d2b20'; c.beginPath(); c.ellipse(1200, 796, 34, 7, 0, 0, TAU); c.fill();
+  c.fillStyle = '#7a5a3e'; c.beginPath(); c.ellipse(1200, 694, 88, 19, 0, 0, TAU); c.fill();
+  c.fillStyle = lin(c, 1112, 0, 1288, 0, [[0, '#e1bd90'], [1, '#b08257']]); c.beginPath(); c.ellipse(1200, 689, 88, 18, 0, 0, TAU); c.fill();
+  c.fillStyle = 'rgba(255,240,215,0.25)'; c.beginPath(); c.ellipse(1180, 685, 50, 7, 0, 0, TAU); c.fill();
 
   // ---- meja kita (depan)
   c.save();

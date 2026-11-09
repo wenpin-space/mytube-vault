@@ -905,6 +905,9 @@ export const EN = {
   // v32
   'Kafe yang hidup': 'A café that feels alive',
   'Pengunjung datang lewat pintu (lonceng berbunyi), antre & memesan di konter, membawa minumannya ke bangku bar atau berdua ke meja bundar untuk minum & mengobrol bergantian, lalu pulang. Ramai pagi sampai sore, sepi di malam hari; saat hujan mereka membawa payung.': 'Visitors come in through the door (the bell rings), queue & order at the counter, carry their drink to a bar stool or sit in pairs at the round table to sip & chat in turns, then head home. Busy from morning to evening, quiet at night; when it rains they carry umbrellas.',
+  // v33
+  'Pengunjung kafe yang dilukis': 'Painted café visitors',
+  'Pengunjung kini dilukis dengan kuas yang sama seperti latar: bentuk tubuh alami, lipatan baju, rambut bertekstur, dan cahaya tepi dari jendela atau lampu. Gerakannya lebih nyata: lutut & siku menekuk saat berjalan, mulai dan berhenti perlahan, berbalik dengan luwes, duduk & berdiri dengan kaki menapak, menunjuk menu saat memesan, dan mengangkat cangkir ke mulut.': 'Visitors are now painted with the same brush as the background: natural body shapes, clothing folds, textured hair, and rim light from the window or lamps. They also move more naturally: knees & elbows bend while walking, they ease in and out of each step, turn smoothly, sit down & stand up with their feet planted, point at the menu while ordering, and raise the cup to their lips.',
   // waktu relatif & lain-lain
   '{0} menit lalu': '{0} min ago',
   '{0} jam lalu': '{0} h ago',

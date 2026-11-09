@@ -4,7 +4,7 @@
 
 import { createPainter } from './paint.js';
 import { putFile, getFile, deleteFile, listKeys } from './idb.js';
-import { createCrowd, drawPerson } from './visitors.js';
+import { createCrowd, drawPersonFast } from './visitors.js';
 import { drawCafe, CAFE_SPRITES, CAFE_SPRITE_DRAW, createCafeAnimator, drawDrink, biteClip, drinkOf, LANTERNS, CUP, PLATE } from './cafe.js';
 import { VW, VH, W, OW, HZ, BT, TAU, rnd, seeded, H, M, C, LI, DA, mix, css, ridgeLine, rr, lin, glow, softShadow, WARM, lighting, palette, woodGrain, shade, rimOf, leaf } from './paintkit.js';
 
@@ -810,8 +810,9 @@ export function roomScene() {
     }
     sp('doorPlant', { rot: Math.sin(t * 0.5) * 0.012 });
     // pengunjung: masuk, memesan, duduk, minum & mengobrol, lalu pulang (urut dari yang terjauh)
-    crowd.step(dt, { time: st.time, weather: st.weather, phone });
-    for (const pp of crowd.people()) drawPerson(c, pp, L, t);
+    crowd.step(dt, { time: st.time, weather: st.weather, phone, L, budget: phone ? 2.5 : 3.5 }); // tokoh dilukis bertahap di sela animasi
+    for (const pp of crowd.people()) drawPersonFast(c, pp, L, t);
+    globalThis.__cafePeople = crowd.count;
     // meja kita: piring & roti (berkurang dengan gigitan), cangkir & minuman (berkurang per teguk)
     cafeAnim.update(state && state.cafe, t);
     const tb = cafeAnim.tableState(t);

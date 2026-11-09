@@ -750,10 +750,11 @@ test('v32: pengunjung kafe — jumlah ikut waktu, siklus lengkap, kursi tidak be
   assert.ok(v.depthScale(794) > v.depthScale(650));
   let s = 11; const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
   let bells = 0;
-  const cr = v.createCrowd({ onBell: () => bells++ }, rnd);
+  const fake = (look) => ({ look, ready: false, n: 0, step() { this.n++; if (this.n > 3) this.ready = true; return this.ready; } });
+  const cr = v.createCrowd({ onBell: () => bells++ }, rnd, fake);
   const seen = new Set(); let max = 0; let pairSat = false;
   for (let t = 0; t < 900; t += 0.05) {
-    cr.step(0.05, { time: 'day', weather: 'rain', phone: false });
+    cr.step(0.05, { time: 'day', weather: 'rain', phone: false, L: {} });
     const ps = cr.people();
     max = Math.max(max, ps.length);
     const seats = ps.filter((p) => p.state === 'sit').map((p) => `${p.seat.kind}${p.seat.i}`);
@@ -764,6 +765,10 @@ test('v32: pengunjung kafe — jumlah ikut waktu, siklus lengkap, kursi tidak be
       if (p.pair && p.state === 'sit') pairSat = true;
     }
   }
-  for (const st of ['sit', 'enter', 'queue', 'order', 'pickup', 'toSeat', 'leave']) assert.ok(seen.has(st), st);
+  for (const st of ['sit', 'enter', 'queue', 'order', 'pickup', 'toSeat', 'sitDown', 'standUp', 'leave']) assert.ok(seen.has(st), st);
+  // inverse kinematics: tangan sampai di target yang terjangkau
+  const k = v.ik(0, 0, 40, 40, 44, 42);
+  assert.ok(Math.hypot(k.hx - 40, k.hy - 40) < 1e-6);
+  assert.ok(Math.abs(Math.hypot(k.ex, k.ey) - 44) < 1e-6);
   assert.ok(max <= v.crowdTarget('day') + 1 && bells > 3 && pairSat);
 });
