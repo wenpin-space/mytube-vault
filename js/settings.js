@@ -197,9 +197,7 @@ export async function openSettings(initialTab = 'cloud') {
             <p class="hint">Pintasan keyboard: <kbd>Spasi</kbd>/<kbd>K</kbd> putar/jeda · <kbd>N</kbd> berikutnya · <kbd>P</kbd> sebelumnya · <kbd>/</kbd> cari</p>
           </section>
           <section class="card">
-            <h3>Tambah lebih cepat</h3>
-            <p class="muted">Pasang tombol “Tambah ke Vault” di bilah bookmark: klik saat membuka video YouTube, videonya langsung masuk ke playlist tujuan terakhir.</p>
-            <div class="row"><button type="button" class="btn" data-act="bookmarklet">${icon('pin')}Pasang tombol bookmark</button></div>
+            <h3>Tag otomatis</h3>
             <label class="check"><input type="checkbox" data-gen="autoTag" ${store.ui.autoTag !== false ? 'checked' : ''}><span>Beri tag otomatis dari judul lagu baru (live, cover, remix, acoustic, lyrics, …)</span></label>
             <div class="row"><button type="button" class="btn" data-act="autotag-all">${icon('tag')}Terapkan ke semua lagu</button></div>
           </section>
@@ -399,7 +397,6 @@ export async function openSettings(initialTab = 'cloud') {
             toast(k ? 'API key disimpan.' : 'API key dihapus.', 'success');
             break;
           }
-          case 'bookmarklet': window.dispatchEvent(new Event('mtv-bookmarklet')); break;
           case 'autotag-all': window.dispatchEvent(new Event('mtv-autotag-all')); break;
           case 'clear-all':
             if (await confirmDialog('Hapus semua data di browser ini?',

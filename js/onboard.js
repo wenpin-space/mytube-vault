@@ -4,7 +4,7 @@ import { modal } from './dialogs.js';
 import { icon } from './icons.js';
 import { escapeHtml } from './utils.js';
 
-export const APP_VERSION = 'v39';
+export const APP_VERSION = 'v40';
 const SEEN_KEY = 'mytube_vault_seen_version';
 
 /** Langkah mulai cepat dan statusnya (murni, mudah diuji). */
@@ -50,9 +50,9 @@ export function renderQuickstart(host, state, { installable = false } = {}) {
 
 // [ikon, judul, penjelasan, versi?] — entri bertanda versi sekarang tampil penuh; sisanya dilipat di "Pembaruan sebelumnya".
 const CHANGES = [
+  ['bolt', 'Setelan lebih ringan', 'Dialog Setelan & dialog lain tidak lagi memakai efek kaca buram selebar layar, dan kilau “sedang dimuat” di thumbnail berhenti begitu gambarnya tampil. Membuka Setelan, menggulir daftar lagu, dan memutar video jauh lebih ringan. Tombol bookmark “Tambah ke Vault” dihapus.', 'v40'],
   ['play', 'Lanjutkan dari terakhir', 'Saat aplikasi dibuka lagi, kartu Lanjutkan muncul di bawah: lagu, posisi, dan antrean terakhir kembali persis seperti saat ditinggal (tekan Spasi juga bisa). Tidak pernah memutar sendiri.', 'v39'],
   ['panelRight', 'Panel Sedang diputar', 'Di layar lebar (PC) ada kolom kanan berisi artwork atau video, lirik yang berjalan, lima lagu berikutnya, dan info lagu (berapa kali diputar, ada di playlist mana). Sembunyikan lewat tombol di player atau tekan I.', 'v39'],
-  ['pin', 'Tombol “Tambah ke Vault”', 'Pasang tombol di bilah bookmark browser (Setelan → Umum). Klik saat membuka video YouTube: lagunya langsung masuk ke playlist tujuan terakhir.', 'v39'],
   ['tag', 'Tag otomatis dari judul', 'Lagu baru otomatis diberi tag live, cover, remix, acoustic, lyrics, dan lainnya sesuai judulnya. Untuk lagu yang sudah ada: Setelan → Umum → Terapkan ke semua lagu.', 'v39'],
   ['gift', 'Dekorasi musiman di Lobby', 'Hiasan Natal, kembang api Tahun Baru, lampion Imlek, ketupat Lebaran, dan bendera Agustusan muncul sendiri sesuai tanggal, di Kamar santai maupun Kafe.', 'v39'],
   ['bolt', 'Lebih cepat dibuka', 'Lobby, Setelan, dan kamus bahasa Inggris kini dimuat hanya saat dibutuhkan, jadi kode yang dimuat saat aplikasi dibuka turun dari ±760 KB ke ±380 KB. Lagu yang sedang diputar ditandai batang ekualiser yang bergerak.', 'v39'],

@@ -35,11 +35,15 @@ await startTranslator(); // bahasa Inggris: tunggu kamusnya dulu supaya teks Ind
 installThumbFallback();
 
 // Dialog besar yang jarang dibuka dimuat saat pertama dipakai (bukan saat aplikasi dibuka).
-const later = (path, name) => { const load = once(() => import(path)); return (...a) => load().then((m) => m[name](...a)); };
+const later = (path, name) => {
+  const load = once(() => import(path));
+  const fn = (...a) => load().then((m) => m[name](...a));
+  fn.warm = () => load().catch(() => {}); // siapkan lebih dulu saat aplikasi senggang
+  return fn;
+};
 const openSettings = later('./settings.js', 'openSettings');
 const openPalette = later('./palette.js', 'openPalette');
 const healthCheckDialog = later('./health.js', 'healthCheckDialog');
-const bookmarkletDialog = later('./bookmarklet.js', 'bookmarkletDialog');
 
 const PAGE = 200;
 const $ = (id) => document.getElementById(id);
@@ -377,22 +381,6 @@ function handleAdd(e) {
     return;
   }
   if (addIds([id], target)) $('add-input').value = '';
-}
-
-/** Dari tombol bookmark "Tambah ke Vault": tambahkan langsung ke playlist tujuan terakhir. false = biarkan form Tambah yang menangani. */
-function quickAdd(text) {
-  const id = extractYouTubeId(text);
-  if (!id) return false;
-  renderAddTarget();
-  const target = $('add-target').value;
-  const pl = store.getPlaylist(target);
-  if (!pl) return false;
-  if (pl.items.some((it) => it.youtubeId === id)) {
-    toast(`Video ini sudah ada di “${pl.name}”.`, 'info', 5000, { label: 'Tunjukkan', fn: () => { store.setView(`pl:${pl.id}`); setTimeout(() => flashVideos([id]), 200); } });
-    return true;
-  }
-  addIds([id], target);
-  return true;
 }
 
 /** Tambahkan video ke playlist + umpan balik. Banyak video sekaligus dapat tombol "Batalkan". */
@@ -868,7 +856,6 @@ function autoTagAll() {
   toast(`${r.tags} tag ditambahkan ke ${r.videos} lagu.`, 'success', 8000, { label: 'Urungkan', fn: () => { r.undo(); toast('Tag otomatis dibatalkan.', 'info'); } });
 }
 window.addEventListener('mtv-autotag-all', autoTagAll);
-window.addEventListener('mtv-bookmarklet', () => bookmarkletDialog({ toast }));
 
 // ---------- pilih banyak video ----------
 function startSelect(firstKey) {
@@ -1695,7 +1682,6 @@ function openCommandPalette() {
     { group: 'Lobby', label: 'Fokus (Pomodoro)', icon: 'timer', keywords: 'lobby fokus pomodoro belajar kerja', hideEmpty: true, run: () => lobby.openFocus() },
     { group: 'Lobby', label: 'Timer tidur', icon: 'moon', keywords: 'lobby tidur sleep timer', hideEmpty: true, run: () => lobby.openSleep() },
     { group: 'Lobby', label: 'Suara alam (mixer)', icon: 'sliders', keywords: 'hujan rain ambient noise suara', run: () => lobby.openMixer() },
-    { group: 'Aksi', label: 'Pasang tombol “Tambah ke Vault” di bookmark', icon: 'pin', keywords: 'bookmarklet bookmark tombol browser tambah cepat', hideEmpty: true, run: () => bookmarkletDialog({ toast }) },
     { group: 'Aksi', label: 'Tag otomatis dari judul untuk semua lagu', icon: 'tag', keywords: 'tag otomatis live cover remix acoustic lyrics', hideEmpty: true, run: () => autoTagAll() },
     resumeOffer && { group: 'Aksi', label: 'Lanjutkan sesi terakhir', icon: 'play', keywords: 'resume lanjut terakhir sesi continue', run: () => resumeSession() },
     { group: 'Aksi', label: 'Tambah lagu (tempel link)', icon: 'link', keywords: 'add tambah video', run: () => openAddSheet(true) },
@@ -1903,6 +1889,12 @@ document.addEventListener('click', (e) => {
 });
 
 // Lobby pernah dipakai → siapkan lukisannya di latar belakang supaya langsung tampil saat dibuka
+// Setelan & palet perintah disiapkan saat senggang: aplikasi tetap cepat dibuka, dan membuka Setelan
+// pertama kali tidak perlu menunggu unduhan modulnya.
+setTimeout(() => {
+  const go = () => { openSettings.warm(); openPalette.warm(); };
+  if ('requestIdleCallback' in window) requestIdleCallback(go, { timeout: 5000 }); else go();
+}, 2500);
 setTimeout(() => {
   if (!store.ui.lobby || lobby.isOpen() || document.hidden) return;
   const go = () => { if (!lobby.isOpen() && !document.hidden) lobby.prewarm(); };
@@ -1931,7 +1923,6 @@ async function onboarding() {
 function handleLaunch() {
   const p = takeLaunchParams();
   if (p.view && ['all', 'favorites', 'unwatched'].includes(p.view)) store.setView(p.view);
-  if (p.shared && p.quick && quickAdd(p.shared)) return true;
   if (p.shared) {
     openAddSheet(true);
     fillAdd(p.shared);

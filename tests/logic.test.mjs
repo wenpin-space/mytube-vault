@@ -1084,29 +1084,6 @@ test('v39: tag otomatis dari judul — tidak salah tangkap judul lagu, terapkan 
   assert.deepEqual(store.data.videos[B].tags, ['indo']);
 });
 
-test('v39: tombol bookmark membuka aplikasi dengan link video', async () => {
-  globalThis.window.matchMedia = globalThis.window.matchMedia || (() => ({ matches: false, addEventListener() {} }));
-  const { bookmarkletCode } = await import('../js/bookmarklet.js');
-  const code = bookmarkletCode('https://wenpin-space.github.io/mytube-vault/?x=1#y');
-  assert.ok(code.startsWith('javascript:'));
-  const js = decodeURIComponent(code.slice('javascript:'.length));
-  const opened = [];
-  const alerts = [];
-  const run = (href, hostname) => new Function('location', 'window', 'alert', js)({ href, hostname }, { open: (...a) => opened.push(a) }, (m) => alerts.push(m));
-  run('https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=10', 'www.youtube.com');
-  assert.equal(opened.length, 1);
-  assert.equal(opened[0][1], 'mytube-vault', 'tab yang sama dipakai ulang');
-  const url = new URL(opened[0][0]);
-  assert.equal(url.origin + url.pathname, 'https://wenpin-space.github.io/mytube-vault/');
-  assert.equal(url.searchParams.get('quick'), '1');
-  assert.equal(url.searchParams.get('share_url'), 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=10');
-  run('https://music.youtube.com/watch?v=abc', 'music.youtube.com');
-  assert.equal(opened.length, 2);
-  run('https://example.com/', 'example.com');
-  assert.equal(opened.length, 2);
-  assert.equal(alerts.length, 1, 'di luar YouTube: beri tahu, jangan buka apa-apa');
-});
-
 test('v39: dekorasi musiman menurut tanggal & jendela lirik panel Sedang diputar', async () => {
   const { seasonFor } = await import('../js/seasons.js');
   const at = (iso) => { const [y, m, d] = iso.split('-').map(Number); return seasonFor(new Date(y, m - 1, d, 20)); };

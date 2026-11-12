@@ -86,7 +86,6 @@ export function takeLaunchParams() {
     shared: [p.get('share_url'), p.get('share_text'), p.get('share_title')].filter(Boolean).join('\n'),
     action: p.get('action'),
     view: p.get('view'),
-    quick: p.get('quick') === '1', // dari tombol bookmark "Tambah ke Vault": langsung tambahkan
   };
   if ([...p.keys()].length) {
     try { history.replaceState(history.state, '', location.pathname + location.hash); } catch { /* abaikan */ }

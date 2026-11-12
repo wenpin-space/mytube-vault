@@ -26,7 +26,10 @@ export function installThumbFallback() {
   };
   const ok = (e) => {
     const img = e.target;
-    if (!(img instanceof HTMLImageElement) || !img.dataset.ytTried) return;
+    if (!(img instanceof HTMLImageElement)) return;
+    // gambar sudah tampil → hentikan animasi kilau "sedang dimuat" di kotak thumbnail (lihat .thumb.ready)
+    if (img.parentElement && img.parentElement.classList.contains('thumb')) img.parentElement.classList.add('ready');
+    if (!img.dataset.ytTried) return;
     const m = /i\.ytimg\.com\/vi\/([\w-]{11})\/(\w+)\.jpg/.exec(img.getAttribute('src') || '');
     if (m && img.naturalWidth > 120) thumbResolved.set(m[1], img.getAttribute('src'));
   };

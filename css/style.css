@@ -1037,6 +1037,8 @@ body.tinted .stage { box-shadow: 0 12px 40px color-mix(in srgb, var(--np-tint) 3
 .lyrics-body .sk-line { height: 15px; }
 @keyframes sk { from { background-position: 100% 0; } to { background-position: 0 0; } }
 .thumb { background: linear-gradient(90deg, var(--panel-3) 25%, color-mix(in srgb, var(--panel-3) 60%, var(--panel)) 50%, var(--panel-3) 75%); background-size: 300% 100%; animation: sk 1.6s ease-in-out infinite; }
+/* kilau hanya selama gambar dimuat: animasi background yang terus berjalan membuat seluruh daftar digambar ulang tiap frame */
+.thumb.ready { animation: none; background: var(--panel-3); }
 
 .vrow.leaving { animation: row-out .2s ease-in forwards; overflow: hidden; pointer-events: none; }
 @keyframes row-out { to { opacity: 0; transform: translateX(-24px); height: 0; padding-top: 0; padding-bottom: 0; margin: 0; } }
@@ -1839,9 +1841,13 @@ body:not(.is-playing) .eq i { animation-play-state: paused; }
   .eq-badge .eq i { width: 2.2px; }
 }
 
-/* ===================== v39: tombol bookmark "Tambah ke Vault" ===================== */
-.bm-drag { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 16px 0 6px; padding: 14px; border-radius: 14px; border: 1px dashed var(--border); background: var(--panel-2); }
-.bm-link { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; background: var(--accent); color: #fff; font-weight: 700; text-decoration: none; cursor: grab; box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 35%, transparent); }
-.bm-link:active { cursor: grabbing; }
-.bm-link .i { width: 16px; height: 16px; }
-.bm-steps { margin: 12px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+
+/* ===================== v40: dialog ringan ===================== */
+/* Tanpa blur di dialog besar: efek kaca buram selebar layar dihitung ulang setiap kali ada yang bergerak di
+   belakangnya (video, bilah progres, lirik, ekualiser) sehingga Setelan terasa patah-patah. */
+.modal::backdrop, dialog.palette::backdrop { background: rgba(6, 8, 12, 0.7); backdrop-filter: none; -webkit-backdrop-filter: none; }
+.modal-inner, dialog.palette { background-color: var(--panel); backdrop-filter: none; -webkit-backdrop-filter: none; border-color: var(--border); }
+:root[data-theme="light"] .modal::backdrop, :root[data-theme="light"] dialog.palette::backdrop { background: rgba(20, 24, 32, 0.38); }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .modal::backdrop, :root:not([data-theme="dark"]) dialog.palette::backdrop { background: rgba(20, 24, 32, 0.38); } }
+/* animasi hiasan di belakang dialog berhenti selama dialog terbuka */
+body:has(dialog[open]) .eq i, body:has(dialog[open]) .thumb { animation-play-state: paused; }
