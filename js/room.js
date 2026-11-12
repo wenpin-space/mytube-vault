@@ -4,6 +4,7 @@
 
 import { createPainter } from './paint.js';
 import { putFile, getFile, deleteFile, listKeys } from './idb.js';
+import { createDecor } from './seasons.js';
 import { createCrowd, drawPersonFast, drawBaristaFast, drawCounterCup } from './visitors.js';
 import { drawCafe, CAFE_SPRITES, CAFE_SPRITE_DRAW, createCafeAnimator, drawDrink, biteClip, drinkOf, LANTERNS, CUP, PLATE, COUNTER_Y, MACHINE, TABLET } from './cafe.js';
 import { VW, VH, W, OW, HZ, BT, TAU, rnd, seeded, H, M, C, LI, DA, mix, css, ridgeLine, rr, lin, glow, softShadow, WARM, lighting, palette, woodGrain, shade, rimOf, leaf } from './paintkit.js';
@@ -753,6 +754,7 @@ export function roomScene() {
     if (now - door.last < 2.5) return;
     door.last = now; sfx(kind === 'out' ? 'bellOut' : 'bell');
   };
+  const decor = createDecor(); // dekorasi musiman (js/seasons.js)
   const crowd = createCrowd({ onBell: () => doorEvent('in'), onDoor: doorEvent });
   const phone = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
   const cafeAnim = createCafeAnimator({ onClink: () => { try { window.dispatchEvent(new CustomEvent('cafe-sfx', { detail: 'clink' })); } catch { /* */ } } });
@@ -1020,6 +1022,7 @@ export function roomScene() {
       par.y += (ptr.y - par.y) * Math.min(1, dt * 2.5);
       const pdx = -par.x * 14; const pdy = -par.y * 7; // pemandangan bergeser sedikit (parallax)
       const night = st.time === 'night';
+      const season = (state && state.season) || null;
 
       // ---------- pemandangan luar
       c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, c.canvas.width, c.canvas.height); c.restore();
@@ -1064,6 +1067,7 @@ export function roomScene() {
       c.strokeStyle = C(DA(curP.top, 0.55), 0.8); c.lineWidth = 1.6;
       birds = birds.filter((b) => b.x < OW.x + OW.w + 40);
       for (const b of birds) { b.x += b.v * dt; const f = Math.sin(t * 9 + b.ph) * 3.5; c.beginPath(); c.moveTo(b.x - 7, b.y - f); c.quadraticCurveTo(b.x - 3, b.y - 1.5, b.x, b.y); c.quadraticCurveTo(b.x + 3, b.y - 1.5, b.x + 7, b.y - f); c.stroke(); }
+      decor.outside(c, t, dt, { season, night: night || st.time === 'dusk' }); // kembang api Tahun Baru
       // cuaca
       if (st.weather === 'rain' || st.weather === 'storm') {
         const slant = st.weather === 'storm' ? 0.32 : 0.14;
@@ -1114,7 +1118,11 @@ export function roomScene() {
       }
       c.restore();
 
-      if (placeOf(st) === 'cafe') { drawCafeInterior(c, { t, dt, w, h, lf, idk, pv, ff, layer }, state); return; }
+      if (placeOf(st) === 'cafe') {
+        drawCafeInterior(c, { t, dt, w, h, lf, idk, pv, ff, layer }, state);
+        if (season) { c.save(); c.translate(tf.ox, tf.oy); c.scale(tf.s, tf.s); decor.inside(c, t, { season, night, lf }); c.restore(); }
+        return;
+      }
       // ---------- kamar (statis)
       if (tf.oy > 0) { // layar tegak: perpanjang plafon & meja
         c.fillStyle = C(M(H('1f1916'), H('0a161e'), idk)); c.fillRect(0, 0, w, tf.oy + 1);
@@ -1159,6 +1167,7 @@ export function roomScene() {
       const sill = SILL;
       softShadow(c, 1150, sill + 2, 70, 7, 0.45);
       sprite('cat', 0, 1 + Math.sin(t * 1.6) * 0.03);
+      decor.inside(c, t, { season, night, lf });
 
       weatherDim(c);
 

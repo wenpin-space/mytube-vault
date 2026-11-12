@@ -11,6 +11,7 @@ import { escapeHtml } from './utils.js';
 import { DRINKS, FOODS } from './cafe.js';
 import { thumbUrl } from './metadata.js';
 import { locale, tr, LANG } from './i18n.js';
+import { seasonFor, SEASONS } from './seasons.js';
 import { fetchWeather, searchCity, placeName, geolocate, liveScene, describeWmo, localMinutes, minutesToNextTime, STALE_MS } from './weather.js';
 
 /** Sapaan sesuai jam. */
@@ -35,7 +36,7 @@ export function pomodoroNext(state, cfg = { work: 25, brk: 5, long: 15, every: 4
 export const FOCUS_PRESETS = [[25, 5, 15], [50, 10, 20], [15, 3, 10], [90, 15, 30]];
 export { SLEEP_PRESETS };
 
-const DEFAULTS = { room: { spot: 'room', loc: 'mountain', weather: 'rain', time: 'auto', autoSound: true, live: false, place: null }, wx: null, cafe: null, mix: null, master: 0.8, presets: [], autoHide: true, cafeSfx: true, startup: false, nickname: '', showLyrics: true, wake: true, customSounds: [], pomo: { work: 25, brk: 5, long: 15 } };
+const DEFAULTS = { room: { spot: 'room', loc: 'mountain', weather: 'rain', time: 'auto', autoSound: true, live: false, place: null }, wx: null, cafe: null, mix: null, master: 0.8, presets: [], autoHide: true, cafeSfx: true, seasonal: true, startup: false, nickname: '', showLyrics: true, wake: true, customSounds: [], pomo: { work: 25, brk: 5, long: 15 } };
 const PHASE = { work: 'Fokus', break: 'Istirahat', long: 'Istirahat panjang' };
 
 /** Satu ubin noise kecil untuk grain film (dibuat sekali, dipakai CSS). */
@@ -153,6 +154,7 @@ export function createLobby({ store, player, icon, toast, sleepTimer, getLyric, 
     if (!c.mix) c.mix = roomCfg().autoSound ? roomSoundMix(roomResolved()) : {};
     startMix(c.mix);
     save();
+    syncSeason();
     tickClock();
     clockTimer = setInterval(tickClock, 1000);
     lyricTimer = setInterval(tickLyric, 350);
@@ -530,6 +532,7 @@ export function createLobby({ store, player, icon, toast, sleepTimer, getLyric, 
       ${tog('autoHide', 'Sembunyikan tombol otomatis', 'Setelah 3 detik tanpa gerakan.')}
       ${tog('wake', 'Layar tetap menyala', 'Selama Lobby terbuka (kalau browser mendukung).')}
       ${tog('cafeSfx', 'Bunyi kafe', 'Lonceng pintu saat ada yang masuk/keluar & denting cangkir.')}
+      ${tog('seasonal', 'Dekorasi musiman', 'Hiasan Natal, kembang api Tahun Baru, lampion Imlek, ketupat Lebaran, bendera Agustusan, muncul sendiri sesuai tanggal.')}
       ${tog('startup', 'Buka Lobby saat aplikasi dibuka', '')}
       <p class="lb-hint"><kbd>B</kbd> buka/tutup · <kbd>S</kbd> suasana · <kbd>T</kbd> timer · <kbd>Spasi</kbd> putar/jeda · <kbd>N</kbd> berikutnya · <kbd>Esc</kbd> keluar</p>`;
   }
@@ -543,15 +546,23 @@ export function createLobby({ store, player, icon, toast, sleepTimer, getLyric, 
     box.setAttribute('aria-label', text);
     box.innerHTML = [...text].map((ch, i) => `<span class="${ch === ':' ? 'colon' : 'dg'}${old && old[i] !== ch ? ' roll' : ''}">${ch}</span>`).join('');
   }
+  /** Dekorasi musiman sesuai tanggal hari ini (js/seasons.js). */
+  let season = null;
+  function syncSeason() {
+    season = cfg().seasonal !== false ? seasonFor(new Date()) : null;
+    runner.setState({ season });
+  }
+
   function tickClock() {
     const now = new Date();
     const c = store.ui.lobby || cfg();
     setClock(now.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit', hour12: false }).replace('.', ':'));
     $('.lb-date-day').textContent = now.toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long' });
-    $('.lb-greet').textContent = `${greeting(now.getHours())}${c.nickname ? `, ${c.nickname}` : ''}`;
+    $('.lb-greet').textContent = season && season.peak ? `${SEASONS[season.id].greet}${c.nickname ? `, ${c.nickname}` : ''}` : `${greeting(now.getHours())}${c.nickname ? `, ${c.nickname}` : ''}`;
     tickDim();
     tickCafe();
     if (now.getSeconds() === 0) { // tiap menit: waktu/cuaca berganti? siapkan lukisan berikutnya?
+      syncSeason();
       const r = roomCfg();
       if (r.live) refreshWeather();
       if (r.live || r.time === 'auto') {
@@ -842,6 +853,7 @@ export function createLobby({ store, player, icon, toast, sleepTimer, getLyric, 
       c[t.dataset.key] = t.checked; save();
       if (t.dataset.key === 'wake') { if (t.checked) requestWake(); else releaseWake(); }
       if (t.dataset.key === 'autoHide') wake();
+      if (t.dataset.key === 'seasonal') syncSeason();
       return;
     }
     if (t.classList.contains('lb-file-snd') && t.files[0]) {

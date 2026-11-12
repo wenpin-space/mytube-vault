@@ -129,6 +129,18 @@ export class Player {
     await this.loadCurrent();
   }
 
+  /** Pulihkan antrean tersimpan (js/session.js) lalu putar dari detik `startAt`. */
+  async restore({ queue, order, pos, t = 0 }) {
+    if (!queue || !queue.length || !order || !order.length) return;
+    this.queue = queue.map((q) => ({ ...q }));
+    this.order = order.slice();
+    this.pos = Math.min(Math.max(0, pos), this.order.length - 1);
+    this.dropped = new Set();
+    this.errorStreak = 0;
+    this.emit('queue');
+    await this.loadCurrent(t);
+  }
+
   /** Titik potong lagu sekarang: {start, end} dalam detik; 0 berarti tidak dipotong di sisi itu. */
   bounds() {
     const cur = this.current;

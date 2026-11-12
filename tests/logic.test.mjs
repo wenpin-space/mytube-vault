@@ -988,3 +988,147 @@ test('v38: "Apa yang baru" — versi sekarang di atas, sisanya dilipat', async (
   assert.equal(legacy.now.length, 1);
   assert.equal(legacy.older.length, 1);
 });
+
+test('v39: lanjutkan sesi terakhir — potret, bersihkan lagu yang dihapus, kedaluwarsa, pulihkan player', async () => {
+  const { snapshotSession, readSession } = await import('../js/session.js');
+  const { Player } = await import('../js/player.js');
+  const ids = 'abcdef'.split('').map((c) => c.repeat(11));
+  const p = new Player('sess');
+  const loads = [];
+  p.yt = { loadVideoById: (o) => loads.push(o), getCurrentTime: () => 0, getPlaybackRate: () => 1, setPlaybackRate() {} };
+  p.ready = Promise.resolve();
+  p.queue = ids.map((y) => ({ key: `k-${y[0]}`, youtubeId: y }));
+  p.order = [2, 0, 4, 1, 5];            // acak; lagu ke-3 (d) sudah dibuang dari antrean
+  p.pos = 1;                            // sedang memutar "a"
+  p.queue.push({ key: 'm', youtubeId: ids[3], manual: true });
+  p.order.push(6);
+  const now = Date.parse('2026-11-12T10:00:00Z');
+  const snap = snapshotSession(p, { time: 83.7, source: { view: 'pl:x', sort: 'manual', query: '' }, now });
+  assert.equal(snap.t, 83);
+  assert.equal(snap.queue.length, 6, 'hanya lagu yang masih di antrean');
+  assert.equal(snap.queue[snap.order[snap.pos]].y, ids[0]);
+  assert.equal(snap.queue.at(-1).m, 1, 'tanda "ditambah manual" ikut tersimpan');
+  assert.equal(snapshotSession(new Player('x')), null);
+
+  // utuh
+  const all = readSession(JSON.stringify(snap), { now: now + 3600e3 });
+  assert.deepEqual(all.order.map((i) => all.queue[i].youtubeId[0]), ['c', 'a', 'e', 'b', 'f', 'd']);
+  assert.equal(all.queue[all.order[all.pos]].youtubeId, ids[0]);
+  assert.equal(all.t, 83);
+  assert.equal(all.queue.at(-1).manual, true);
+  assert.deepEqual(all.source, { view: 'pl:x', sort: 'manual', query: '' });
+
+  // lagu "e" dihapus dari library → keluar dari antrean, posisi tetap di "a"
+  const noE = readSession(snap, { now, exists: (y) => y !== ids[4] });
+  assert.deepEqual(noE.order.map((i) => noE.queue[i].youtubeId[0]), ['c', 'a', 'b', 'f', 'd']);
+  assert.equal(noE.queue[noE.order[noE.pos]].youtubeId[0], 'a');
+  assert.equal(noE.t, 83);
+
+  // lagu terakhir ("a") sudah dihapus → lanjut dari lagu berikutnya yang masih ada, dari awal
+  const noA = readSession(snap, { now, exists: (y) => y !== ids[0] && y !== ids[4] });
+  assert.equal(noA.queue[noA.order[noA.pos]].youtubeId[0], 'b');
+  assert.equal(noA.t, 0);
+
+  // semua hilang / kedaluwarsa / rusak
+  assert.equal(readSession(snap, { now, exists: () => false }), null);
+  assert.equal(readSession(snap, { now: now + 15 * 86400e3 }), null);
+  assert.equal(readSession('{oops', { now }), null);
+  assert.equal(readSession({ v: 2 }, { now }), null);
+
+  // pulihkan
+  await p.restore(all);
+  assert.equal(p.current.youtubeId, ids[0]);
+  assert.equal(p.order.length, 6);
+  assert.deepEqual(loads.at(-1), { videoId: ids[0], startSeconds: 83 });
+  assert.equal(p.startAt, 83, 'toast "Melanjutkan dari 1:23" muncul');
+  p.next();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(p.current.youtubeId, ids[4], 'lagu berikutnya sesuai urutan acak yang tersimpan');
+});
+
+test('v39: tag otomatis dari judul — tidak salah tangkap judul lagu, terapkan & urungkan', async () => {
+  const { tagsFromTitle, applyAutoTags } = await import('../js/autotag.js');
+  const cases = [
+    ["Live While We're Young - One Direction", []],
+    ['Tulus - Hati-Hati di Jalan (Live at Java Jazz 2023)', ['live']],
+    ['Mahalini - Sial | Live Session', ['live']],
+    ['Evaluasi - Hindia - Live', ['live']],
+    ['SIAL - MAHALINI (COVER BY ARIEF)', ['cover']],
+    ['Cover Me - Bruce Springsteen', []],
+    ['Golden Hour - JVKE (Remix)', ['remix']],
+    ['Remix to Ignition - R. Kelly', []],
+    ['Sorai - Nadin Amizah (Acoustic Version)', ['acoustic']],
+    ['Night Dancer - imase [Official Lyric Video]', ['lyrics']],
+    ['Komang - Raim Laode (Slowed + Reverb)', ['slowed']],
+    ['YOASOBI - Idol (Sped Up)', ['sped up']],
+    ['Lemon - Kenshi Yonezu (Piano Instrumental)', ['instrumental']],
+    ['Monokrom - Tulus Karaoke', ['karaoke']],
+    ['lofi hip hop radio - beats to relax/study to', ['lofi']],
+    ['', []],
+  ];
+  for (const [t, want] of cases) assert.deepEqual(tagsFromTitle(t).sort(), want.sort(), t);
+
+  mem.clear();
+  store.load();
+  const pid = store.data.playlists[0].id;
+  const A = 'L'.repeat(11); const B = 'M'.repeat(11); const C = 'N'.repeat(11);
+  store.addVideos([A, B, C], pid);
+  store.updateVideo(A, { title: 'Tulus - Hati-Hati di Jalan (Live)', tags: ['indo', 'LIVE'] });
+  store.updateVideo(B, { title: 'Sial (Acoustic Cover)', tags: ['indo'] });
+  store.updateVideo(C, { title: 'Hati-Hati di Jalan' });
+  const r = applyAutoTags(store, [A, B, C]);
+  assert.equal(r.videos, 1, 'A sudah punya "LIVE" (beda huruf saja), C tidak punya keterangan');
+  assert.deepEqual(store.data.videos[B].tags, ['indo', 'cover', 'acoustic']);
+  assert.deepEqual(store.data.videos[A].tags, ['indo', 'LIVE']);
+  r.undo();
+  assert.deepEqual(store.data.videos[B].tags, ['indo']);
+});
+
+test('v39: tombol bookmark membuka aplikasi dengan link video', async () => {
+  globalThis.window.matchMedia = globalThis.window.matchMedia || (() => ({ matches: false, addEventListener() {} }));
+  const { bookmarkletCode } = await import('../js/bookmarklet.js');
+  const code = bookmarkletCode('https://wenpin-space.github.io/mytube-vault/?x=1#y');
+  assert.ok(code.startsWith('javascript:'));
+  const js = decodeURIComponent(code.slice('javascript:'.length));
+  const opened = [];
+  const alerts = [];
+  const run = (href, hostname) => new Function('location', 'window', 'alert', js)({ href, hostname }, { open: (...a) => opened.push(a) }, (m) => alerts.push(m));
+  run('https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=10', 'www.youtube.com');
+  assert.equal(opened.length, 1);
+  assert.equal(opened[0][1], 'mytube-vault', 'tab yang sama dipakai ulang');
+  const url = new URL(opened[0][0]);
+  assert.equal(url.origin + url.pathname, 'https://wenpin-space.github.io/mytube-vault/');
+  assert.equal(url.searchParams.get('quick'), '1');
+  assert.equal(url.searchParams.get('share_url'), 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=10');
+  run('https://music.youtube.com/watch?v=abc', 'music.youtube.com');
+  assert.equal(opened.length, 2);
+  run('https://example.com/', 'example.com');
+  assert.equal(opened.length, 2);
+  assert.equal(alerts.length, 1, 'di luar YouTube: beri tahu, jangan buka apa-apa');
+});
+
+test('v39: dekorasi musiman menurut tanggal & jendela lirik panel Sedang diputar', async () => {
+  const { seasonFor } = await import('../js/seasons.js');
+  const at = (iso) => { const [y, m, d] = iso.split('-').map(Number); return seasonFor(new Date(y, m - 1, d, 20)); };
+  assert.equal(at('2026-11-12'), null);
+  assert.deepEqual(at('2026-12-01'), { id: 'natal', peak: false });
+  assert.deepEqual(at('2026-12-25'), { id: 'natal', peak: true });
+  assert.deepEqual(at('2026-12-31'), { id: 'tahunbaru', peak: true });
+  assert.equal(at('2027-01-03'), null);
+  assert.deepEqual(at('2027-02-06'), { id: 'imlek', peak: true });
+  assert.equal(at('2027-02-21').id, 'imlek', 'sampai Cap Go Meh');
+  assert.equal(at('2027-02-22'), null);
+  assert.deepEqual(at('2027-03-10'), { id: 'lebaran', peak: true });
+  assert.equal(at('2027-03-07').id, 'lebaran');
+  assert.equal(at('2027-03-18'), null);
+  assert.deepEqual(at('2027-08-17'), { id: 'merdeka', peak: true });
+  assert.equal(at('2029-02-13').id, 'imlek', 'Imlek & Lebaran berdekatan: yang paling dekat dengan hari H');
+  assert.equal(at('2029-02-14').id, 'lebaran');
+
+  globalThis.window.matchMedia = globalThis.window.matchMedia || (() => ({ matches: false, addEventListener() {} }));
+  const { lyricWindow } = await import('../js/nowpanel.js');
+  assert.deepEqual(lyricWindow(0, -1), [0, 0]);
+  assert.deepEqual(lyricWindow(40, -1), [0, 7]);
+  assert.deepEqual(lyricWindow(40, 10), [8, 15]);
+  assert.deepEqual(lyricWindow(40, 39), [37, 40]);
+});

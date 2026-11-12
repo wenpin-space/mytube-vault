@@ -23,6 +23,8 @@ Vanilla JavaScript (ES modules), tanpa build step, tanpa backend. Tinggal taruh 
 - Antrean: lihat, lompat, hapus, “Putar berikutnya”, “Tambah ke antrean”
 - Mini player ⇄ video besar, progress bar yang bisa diklik & ditarik (waktu tampil di kursor), volume + bisu di PC
 - Potong awal/akhir lagu untuk melewati intro & outro (per video, ikut sync)
+- Lanjutkan sesi terakhir saat aplikasi dibuka lagi; panel Sedang diputar (lirik berjalan, berikutnya, info lagu) di PC layar lebar
+- Tombol “Tambah ke Vault” untuk bilah bookmark & tag otomatis dari judul
 - Player mengambang bisa di-**minimize** (tombol ▁ di bilahnya: video dilipat, musik tetap jalan; ketuk bilah untuk menampilkan lagi) dan **digeser** ke pojok mana pun (desktop)
 - Video yang tidak boleh di-embed → pesan jelas + tombol “Buka di YouTube”, otomatis lanjut ke video berikutnya
 - Pintasan: `Spasi`/`K` putar-jeda · `N` berikutnya · `P` sebelumnya · `/` cari · `?` semua pintasan
@@ -82,6 +84,14 @@ Vanilla JavaScript (ES modules), tanpa build step, tanpa backend. Tinggal taruh 
 - **Kamar santai (v21)**: latar utama Lobby berupa ilustrasi kamar berlapis (rak buku, meja, laptop, kopi beruap, kucing tidur, tanaman yang bergoyang, lampu-lampu). Lewat tombol **Suasana**: 6 pemandangan di luar jendela (gunung & danau, kota, pantai, hutan pinus, pedesaan dengan kincir, sawah dengan gunung berasap), 6 cuaca (cerah, berawan, hujan, badai berkilat, salju, kabut) dan waktu (otomatis/pagi/siang/senja/malam) yang mengubah cahaya kamar. Suara alam otomatis ikut suasana (bisa dimatikan); ada tombol *Suasana acak*.
 - **Gaya lukisan lofi (v22)**: Kamar santai digambar ulang dengan palet teal keabuan + aksen hangat, atmospheric perspective (gunung jauh memudar ke kabut), sisi lereng terang/gelap, pantulan danau, kabut yang melayang, cahaya lampu yang tumpah ke dinding dan rim light di tepi benda, serat kayu, hujan tiga lapis dengan jejak tetes di kaca, burung sesekali, grain film halus, dan parallax pemandangan yang mengikuti mouse (dimatikan bila *reduced motion*).
 - **Lukisan sapuan kuas (v23)**: `js/paint.js` melukis ulang setiap suasana: underpainting buram → tiga lapis sapuan kuas (warna diambil dari gambar, arah mengikuti tepi benda) → tepi benda dirapikan kembali → bloom lembut + tekstur kanvas. Dikerjakan bertahap ±10 ms per frame sehingga terlihat "terlukis" dalam 1–3 detik tanpa membuat animasi tersendat. Tanaman, pot gantung, dan kucing dilukis sebagai sprite lalu digerakkan (bergoyang/bernapas).
+- **v39 — lanjutkan sesi, panel Sedang diputar, tambah cepat, dekorasi musiman, lebih ringan**:
+  - **Lanjutkan sesi terakhir** (`js/session.js`): antrean (urutan acak, lagu yang ditambah manual), lagu, posisi, dan sumber antrean disimpan di perangkat ini (`mytube_vault_session_v1`, tidak ikut sync) saat lagu/antrean berganti, tiap ±10 detik, dan saat tab ditutup/disembunyikan. Saat dibuka lagi muncul kartu *Lanjutkan* di bawah (atau tekan Spasi / palet perintah); tidak memutar sendiri. Lagu yang sudah dihapus dibuang dari antrean; kalau lagu terakhirnya sendiri hilang, lanjut dari lagu berikutnya. Sesi kedaluwarsa setelah 14 hari, dihapus saat player ditutup atau kartu ditutup. `player.restore()` memulihkan antrean.
+  - **Panel Sedang diputar** (`js/nowpanel.js`, PC ≥ 1280 px): kolom ketiga di grid `.app` berisi artwork (video melayang ditempatkan tepat di kotak artwork lewat CSS, tanpa memindah iframe), judul + favorit + tambah ke playlist, lirik berjalan (jendela 7 baris, klik untuk melompat; data dari `lyricsPanel.peek()`), lima lagu berikutnya, dan info lagu (jumlah putar, kapan ditambahkan, ada di playlist mana, potongan, tag). Tombol di player / tombol `I`, pilihan disimpan di `store.ui.npSide`.
+  - **Tombol “Tambah ke Vault”** (`js/bookmarklet.js`): bookmarklet yang membuka aplikasi di tab bernama `mytube-vault` dengan `?quick=1&share_url=…`; `handleLaunch` → `quickAdd()` langsung menambahkan ke playlist tujuan terakhir (atau memberi tahu kalau sudah ada). Dialog pemasangan di Setelan → Umum dan palet perintah.
+  - **Tag otomatis dari judul** (`js/autotag.js`): live, cover, remix, acoustic, lyrics, instrumental, karaoke, slowed, sped up, lofi. Kata kunci dicari di keterangan judul saja (dalam kurung atau setelah “ - ” / “ | ”) supaya judul seperti “Live While We're Young” tidak tertangkap. Diterapkan saat judul lagu baru dimuat (`store.ui.autoTag`, bisa dimatikan); “Terapkan ke semua lagu” dengan Urungkan (`store.setTagsMany`).
+  - **Dekorasi musiman di Lobby** (`js/seasons.js`): Natal (1–26 Des), kembang api Tahun Baru (27 Des–2 Jan), lampion Imlek (H-5 s.d. Cap Go Meh), ketupat & bulan sabit Lebaran (H-3 s.d. H+7), bendera merah putih (Agustus); tabel tanggal Imlek & Idulfitri sampai 2033. Bagian diam dilukis sekali ke kanvas kecil; kembang api berupa partikel di balik kaca jendela. Sapaan Lobby berganti di hari H. Setelan Lobby → *Dekorasi musiman*.
+  - **Ekualiser**: baris lagu yang diputar memakai batang ekualiser bergerak (diam saat jeda, menghormati *reduced motion*); di HP tampil sebagai lencana di thumbnail.
+  - **Lebih ringan**: Lobby (kamar, kafe, pengunjung, pelukis, cuaca, suara alam) dimuat lewat `import()` saat Lobby pertama dibuka / tombolnya disorot / aplikasi senggang (`js/lobby-host.js`); Setelan, palet perintah, dan cek kesehatan juga dimuat saat dipakai; kamus Inggris (`i18n-en.js`) hanya dimuat untuk pengguna bahasa Inggris. JS yang dimuat saat aplikasi dibuka: 40 file / ±762 KB (v38) → 32 file / ±376 KB (v39, sudah termasuk modul fitur baru); daftar lagu tampil ±0,1 detik lebih cepat di profil HP (CPU 4× lebih lambat). `main.js` dipecah: `js/playerbar.js` (bilah progres, volume, transisi halus, potong), `js/panels.js` (video melayang, toast, tarik antrean), `js/lobby-host.js`.
 - **v38 — player lebih enak dipakai & sampul playlist** (`js/seekbar.js`, `js/trim.js`, `js/player.js`, `js/ui.js`, `js/main.js`):
   - **Bilah progres bisa ditarik** (`js/seekbar.js`): klik atau tarik dengan mouse/jari, waktu tampil di gelembung di atas kursor, knob muncul saat hover. Lompatan baru dikirim ke YouTube saat dilepas. Di HP, layar *Sedang diputar* punya knob tetap, waktu berjalan di kiri dan durasi di kanan. Posisi digambar lewat variabel CSS `--p`.
   - **Volume di player (PC)**: tombol bisu + slider (roda mouse ±5, `↑`/`↓` ±10, `M` bisu). Volume pilihan disimpan di `store.ui.volume` dan diterapkan lagi saat lagu pertama diputar; transisi halus & timer tidur tidak mengubah nilai tersimpan. Slider disembunyikan di layar < 1180 px, seluruh kontrol di HP (pakai tombol volume perangkat).
@@ -344,6 +354,14 @@ js/lobby.js         Lobby: jam, lirik, suasana, suara alam, Fokus, timer tidur
 js/sleep.js         timer tidur bersama (menu player & Lobby)
 js/seekbar.js       bilah progres yang bisa ditarik + arsir bagian yang dipotong
 js/trim.js          dialog potong awal/akhir lagu (lewati intro & outro)
+js/playerbar.js     bilah player bawah: geser, volume, transisi halus, potong
+js/panels.js        video melayang (tempel ke pojok), ruang toast, tarik urutan antrean
+js/lobby-host.js    perantara Lobby: modul Lobby dimuat saat pertama dibutuhkan
+js/session.js       lanjutkan sesi terakhir (antrean, lagu, posisi)
+js/nowpanel.js      panel Sedang diputar di sisi kanan (PC lebar)
+js/autotag.js       tag otomatis dari judul (live, cover, remix, …)
+js/bookmarklet.js   tombol "Tambah ke Vault" untuk bilah bookmark
+js/seasons.js       dekorasi musiman Lobby (Natal, Tahun Baru, Imlek, Lebaran, Agustusan)
 js/weather.js       cuaca & waktu nyata untuk Lobby (Open-Meteo, cari kota, GPS)
 js/cafe.js          Kafe: interior, sprite, barista, kopi & roti di meja kita, pelayan
 js/visitors.js      pengunjung Kafe (gambar orang + siklus masuk/pesan/duduk/pulang)

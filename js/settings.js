@@ -197,6 +197,13 @@ export async function openSettings(initialTab = 'cloud') {
             <p class="hint">Pintasan keyboard: <kbd>Spasi</kbd>/<kbd>K</kbd> putar/jeda · <kbd>N</kbd> berikutnya · <kbd>P</kbd> sebelumnya · <kbd>/</kbd> cari</p>
           </section>
           <section class="card">
+            <h3>Tambah lebih cepat</h3>
+            <p class="muted">Pasang tombol “Tambah ke Vault” di bilah bookmark: klik saat membuka video YouTube, videonya langsung masuk ke playlist tujuan terakhir.</p>
+            <div class="row"><button type="button" class="btn" data-act="bookmarklet">${icon('pin')}Pasang tombol bookmark</button></div>
+            <label class="check"><input type="checkbox" data-gen="autoTag" ${store.ui.autoTag !== false ? 'checked' : ''}><span>Beri tag otomatis dari judul lagu baru (live, cover, remix, acoustic, lyrics, …)</span></label>
+            <div class="row"><button type="button" class="btn" data-act="autotag-all">${icon('tag')}Terapkan ke semua lagu</button></div>
+          </section>
+          <section class="card">
             <h3>Pencarian YouTube</h3>
             <p class="muted">Untuk mencari lagu langsung dari aplikasi (Tambah → Cari di YouTube). Butuh YouTube Data API key gratis milikmu sendiri, disimpan hanya di perangkat ini.</p>
             <div class="row"><input type="text" id="yt-key" placeholder="AIza…" value="${escapeHtml(getApiKey())}" aria-label="YouTube API key">
@@ -392,6 +399,8 @@ export async function openSettings(initialTab = 'cloud') {
             toast(k ? 'API key disimpan.' : 'API key dihapus.', 'success');
             break;
           }
+          case 'bookmarklet': window.dispatchEvent(new Event('mtv-bookmarklet')); break;
+          case 'autotag-all': window.dispatchEvent(new Event('mtv-autotag-all')); break;
           case 'clear-all':
             if (await confirmDialog('Hapus semua data di browser ini?',
               'Semua playlist, pengaturan, token GitHub, dan passphrase di browser ini dihapus. Gist di GitHub TIDAK ikut terhapus.',
@@ -407,6 +416,7 @@ export async function openSettings(initialTab = 'cloud') {
         else if (t.dataset.set === 'debounceMs') store.setSyncSetting('debounceMs', Number(t.value));
         else if (t.dataset.player) store.setPlayerSetting(t.dataset.player, t.checked);
         else if (t.dataset.gen === 'theme') { store.ui.theme = t.value; store.saveUi(); }
+        else if (t.dataset.gen === 'autoTag') { store.ui.autoTag = t.checked; store.saveUiQuiet(); }
         else if (t.dataset.gen === 'lang' && t.value !== LANG) setLang(t.value);
         else if (t.id === 'import-file' && t.files && t.files[0]) {
           const file = t.files[0];

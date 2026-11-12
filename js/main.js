@@ -4,25 +4,24 @@ import { store, normalizeData } from './store.js';
 import { sync } from './sync.js';
 import { Player } from './player.js';
 import { extractYouTubeId, parseMany, extractPlaylistId } from './parser.js';
-import { createMetaQueue, watchUrl, installThumbFallback } from './metadata.js';
+import { createMetaQueue, watchUrl, installThumbFallback, thumbUrl } from './metadata.js';
 import { openEnvelope, summarize } from './envelope.js';
 import {
   toast, modal, confirmDialog, promptDialog, positionDialog, passphraseDialog, conflictDialog, pickPlaylistDialog, openMenu,
 } from './dialogs.js';
-import { openSettings } from './settings.js';
 import * as ui from './ui.js';
 import { icon } from './icons.js';
 import { applyTint } from './tint.js';
-import { openPalette } from './palette.js';
-import { healthCheckDialog } from './health.js';
-import { createLobby } from './lobby.js';
 import { enableRowDrag } from './rowdrag.js';
-import { createSeekbar } from './seekbar.js';
-import { trimDialog } from './trim.js';
+import { createPlayerBar } from './playerbar.js';
+import { createLobbyHost, once } from './lobby-host.js';
+import { snapshotSession, loadSession, saveSession } from './session.js';
+import { createNowPanel } from './nowpanel.js';
+import { missingAutoTags, applyAutoTags } from './autotag.js';
+import { enableStageFloat, trackStageSpace, enableQueueDrag } from './panels.js';
 import { createSleepTimer, SLEEP_PRESETS } from './sleep.js';
-import * as ambient from './ambient.js';
 import { renderQuickstart, toggleQuickstart, maybeShowWhatsNew, showWhatsNew } from './onboard.js';
-import { sortEntries, filterEntries, quickFilter, QUICK_FILTERS, animateOut, copyText, downloadText, escapeHtml, slugify, formatDuration } from './utils.js';
+import { sortEntries, filterEntries, quickFilter, QUICK_FILTERS, animateOut, copyText, downloadText, escapeHtml, slugify, formatDuration, timeAgo } from './utils.js';
 import {
   isPhone, overlay, setupPwa, promptInstall, isStandalone, takeLaunchParams,
 } from './mobile.js';
@@ -32,8 +31,15 @@ import { logPlay, addListen, openStatsDialog } from './stats.js';
 import { createLyricsPanel, guessArtistTrack, rememberLyrics } from './lyrics.js';
 import { startTranslator, LANG, setLang } from './i18n.js';
 
-startTranslator();
+await startTranslator(); // bahasa Inggris: tunggu kamusnya dulu supaya teks Indonesia tidak sempat tampil
 installThumbFallback();
+
+// Dialog besar yang jarang dibuka dimuat saat pertama dipakai (bukan saat aplikasi dibuka).
+const later = (path, name) => { const load = once(() => import(path)); return (...a) => load().then((m) => m[name](...a)); };
+const openSettings = later('./settings.js', 'openSettings');
+const openPalette = later('./palette.js', 'openPalette');
+const healthCheckDialog = later('./health.js', 'healthCheckDialog');
+const bookmarkletDialog = later('./bookmarklet.js', 'bookmarkletDialog');
 
 const PAGE = 200;
 const $ = (id) => document.getElementById(id);
@@ -45,13 +51,32 @@ const local = {
   playedTrack: null,                     // untuk mencatat riwayat sekali per lagu
 };
 
-// Timer tidur bersama (menu player & Lobby)
-const sleepTimer = createSleepTimer({ player, amb: ambient, toast, getMaster: () => { const m = ((store.ui && store.ui.lobby) || {}).master; return m == null ? 0.8 : m; } });
+// Timer tidur bersama (menu player & Lobby). Suara alam baru dimuat bersama Lobby, jadi timer memakai
+// perantara yang tidak berbuat apa-apa selama modul suara belum ada.
+const ambLater = { mod: null, setMaster(...a) { if (this.mod) this.mod.setMaster(...a); }, stopAll() { if (this.mod) this.mod.stopAll(); } };
+const sleepTimer = createSleepTimer({ player, amb: ambLater, toast, getMaster: () => { const m = ((store.ui && store.ui.lobby) || {}).master; return m == null ? 0.8 : m; } });
+
+let nowPanel = null; // panel Sedang diputar (PC lebar), dibuat setelah panel lirik ada
+/** Player bawah + panel Sedang diputar. */
+function renderDockAll() {
+  ui.renderDock(player, store, dockOpts());
+  if (nowPanel) nowPanel.render();
+}
+
+// Bilah player bawah (js/playerbar.js) & panel yang bisa digeser (js/panels.js)
+const bar = createPlayerBar({ player, store, ui, toast });
+enableStageFloat({ store });
+trackStageSpace();
+enableQueueDrag({ player });
 
 const metaQueue = createMetaQueue((id, meta) => {
   const v = store.data.videos[id];
   if (!v) return;
-  if (meta && !v.title) store.updateVideo(id, { title: meta.title, channel: v.channel || meta.channel });
+  if (meta && !v.title) {
+    // tag otomatis dari judul (live, cover, remix, …) untuk lagu yang baru ditambahkan
+    const auto = store.ui.autoTag !== false ? missingAutoTags({ title: meta.title, tags: v.tags }) : [];
+    store.updateVideo(id, { title: meta.title, channel: v.channel || meta.channel, ...(auto.length ? { tags: [...v.tags, ...auto] } : {}) });
+  }
   else renderMain();
 });
 
@@ -175,7 +200,7 @@ function render() {
   renderQS();
   ui.renderBanner(store, sync);
   ui.renderSyncBadge(sync, store);
-  ui.renderDock(player, store, dockOpts());
+  renderDockAll();
   ui.renderQueue(player, store);
   renderBottomNav();
   renderSelectBar();
@@ -352,6 +377,22 @@ function handleAdd(e) {
     return;
   }
   if (addIds([id], target)) $('add-input').value = '';
+}
+
+/** Dari tombol bookmark "Tambah ke Vault": tambahkan langsung ke playlist tujuan terakhir. false = biarkan form Tambah yang menangani. */
+function quickAdd(text) {
+  const id = extractYouTubeId(text);
+  if (!id) return false;
+  renderAddTarget();
+  const target = $('add-target').value;
+  const pl = store.getPlaylist(target);
+  if (!pl) return false;
+  if (pl.items.some((it) => it.youtubeId === id)) {
+    toast(`Video ini sudah ada di “${pl.name}”.`, 'info', 5000, { label: 'Tunjukkan', fn: () => { store.setView(`pl:${pl.id}`); setTimeout(() => flashVideos([id]), 200); } });
+    return true;
+  }
+  addIds([id], target);
+  return true;
 }
 
 /** Tambahkan video ke playlist + umpan balik. Banyak video sekaligus dapat tombol "Batalkan". */
@@ -820,6 +861,15 @@ function tagsDialog(ids) {
   }).then((res) => { if (single && res) store.setTags(ids[0], res); });
 }
 
+/** Beri tag otomatis (live, cover, remix, …) ke semua lagu di library, dengan Urungkan. */
+function autoTagAll() {
+  const r = applyAutoTags(store, Object.keys(store.data.videos));
+  if (!r.videos) { toast('Tidak ada tag baru: semua lagu sudah bertag sesuai judulnya.', 'info'); return; }
+  toast(`${r.tags} tag ditambahkan ke ${r.videos} lagu.`, 'success', 8000, { label: 'Urungkan', fn: () => { r.undo(); toast('Tag otomatis dibatalkan.', 'info'); } });
+}
+window.addEventListener('mtv-autotag-all', autoTagAll);
+window.addEventListener('mtv-bookmarklet', () => bookmarkletDialog({ toast }));
+
 // ---------- pilih banyak video ----------
 function startSelect(firstKey) {
   if (!local.selecting) {
@@ -972,7 +1022,7 @@ function openPlayerMenu(anchor) {
         applyTint(player.current ? player.current.youtubeId : null, store.ui.tint);
       },
     },
-    player.current && { label: store.getTrim(player.current.youtubeId) ? 'Ubah potongan awal/akhir…' : 'Potong awal/akhir lagu…', icon: 'scissors', action: () => editTrim() },
+    player.current && { label: store.getTrim(player.current.youtubeId) ? 'Ubah potongan awal/akhir…' : 'Potong awal/akhir lagu…', icon: 'scissors', action: () => bar.editTrim() },
     player.current && { label: 'Ganti ke versi audio (lirik pas)…', icon: 'music', action: () => findAudioVersion() },
     player.current && { label: 'Buka video ini di YouTube', icon: 'external', action: () => window.open(watchUrl(player.current.youtubeId), '_blank', 'noopener') },
   ]);
@@ -996,7 +1046,7 @@ function openSleepMenu(anchor) {
 let lastSleepLabel = '';
 sleepTimer.onChange(() => {
   const l = sleepTimer.label();
-  if (l !== lastSleepLabel) { lastSleepLabel = l; ui.renderDock(player, store, dockOpts()); }
+  if (l !== lastSleepLabel) { lastSleepLabel = l; renderDockAll(); }
 });
 
 // ---------- shortcut keyboard ----------
@@ -1014,6 +1064,7 @@ function showShortcuts() {
       ${k(['Y'], 'Tampilkan / tutup lirik')}
       ${k(['B'], 'Buka / tutup Lobby (suasana santai + suara alam)')}
       ${k(['V'], 'Tampilkan / sembunyikan video')}
+      ${k(['I'], 'Tampilkan / sembunyikan panel Sedang diputar (PC layar lebar)')}
       ${k(['Q'], 'Buka / tutup antrean')}${k(['F'], 'Favoritkan lagu yang diputar')}
       ${k(['[', ']'], 'Geser waktu lirik −/+ 0,5 detik')}
       ${k(['/'], 'Cari di library')}
@@ -1071,7 +1122,7 @@ function applyLyrics(on) {
   $('lyrics-panel').hidden = !on;
   document.body.classList.toggle('lyrics-open', on);
   if (on) { lyricsPanel.load(); setTimeout(() => lyricsPanel.tick(player.time()), 60); }
-  ui.renderDock(player, store, dockOpts());
+  renderDockAll();
 }
 function toggleLyrics(force) {
   const panel = $('lyrics-panel');
@@ -1237,8 +1288,8 @@ document.addEventListener('click', async (e) => {
     case 'banner-resolve': sync.syncNow(); break;
     case 'banner-dismiss': store.ui.bannerDismissed = true; store.saveUi(); break;
     case 'dock-play': player.toggle(); break;
-    case 'dock-mute': if (player.current) { player.toggleMute(); renderVol(); } break;
-    case 'trim-edit': editTrim(); break;
+    case 'dock-mute': if (player.current) { player.toggleMute(); bar.renderVol(); } break;
+    case 'trim-edit': bar.editTrim(); break;
     case 'dock-next': player.next(); break;
     case 'dock-prev': player.prev(); break;
     case 'dock-shuffle': store.setPlayerSetting('shuffle', !store.data.settings.player.shuffle); break;
@@ -1259,6 +1310,9 @@ document.addEventListener('click', async (e) => {
       break;
     case 'stage-close': openNowPlaying(false); player.stop(); toggleQueue(false); break;
     case 'stage-min': toggleVideo(); break;
+    case 'resume-session': resumeSession(); break;
+    case 'np-side-toggle': nowPanel.toggle(); break;
+    case 'resume-dismiss': hideResume(); saveSession(null); break;
     case 'queue-toggle': toggleQueue(); break;
     case 'queue-jump': player.jumpTo(Number(el.dataset.pos)); break;
     case 'thumb-queue':
@@ -1324,48 +1378,6 @@ enableRowDrag($('video-list'), {
   },
 });
 
-// ---------- player mengambang: geser ke pojok mana pun (desktop/tablet lebar) ----------
-(() => {
-  const stage = $('stage');
-  const bar = stage.querySelector('.stage-bar');
-  let drag = null;
-  bar.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0 || e.target.closest('button') || window.innerWidth <= 860) return;
-    const r = stage.getBoundingClientRect();
-    drag = { dx: e.clientX - r.left, dy: e.clientY - r.top, moved: false, x0: e.clientX, y0: e.clientY };
-    bar.setPointerCapture(e.pointerId);
-  });
-  bar.addEventListener('pointermove', (e) => {
-    if (!drag) return;
-    if (!drag.moved && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 5) return;
-    drag.moved = true;
-    stage.classList.add('dragging');
-    const w = stage.offsetWidth;
-    const h = stage.offsetHeight;
-    const x = Math.max(0, Math.min(window.innerWidth - w, e.clientX - drag.dx));
-    const y = Math.max(0, Math.min(window.innerHeight - h, e.clientY - drag.dy));
-    Object.assign(stage.style, { left: `${x}px`, top: `${y}px`, right: 'auto', bottom: 'auto' });
-  });
-  const end = (e) => {
-    if (!drag) return;
-    const d = drag;
-    drag = null;
-    stage.classList.remove('dragging');
-    stage.style.left = ''; stage.style.top = ''; stage.style.right = ''; stage.style.bottom = '';
-    if (!d.moved) {
-      if (store.ui.stageMin !== false) { store.ui.stageMin = false; store.saveUi(); } // ketuk bilah saat diminimize = tampilkan lagi
-      return;
-    }
-    // Tempel ke pojok terdekat.
-    const cx = e.clientX < window.innerWidth / 2 ? 'l' : 'r';
-    const cy = e.clientY < window.innerHeight / 2 ? 't' : 'b';
-    store.ui.stageCorner = cy + cx;
-    store.saveUi();
-  };
-  bar.addEventListener('pointerup', end);
-  bar.addEventListener('pointercancel', end);
-})();
-
 // PC: panel Tambah melayang di bawah bar atas, selebar area daftar lagu.
 function placeAddPopover() {
   const panel = $('add-form');
@@ -1379,64 +1391,6 @@ function placeAddPopover() {
 }
 window.addEventListener('resize', () => { if (isPhone()) openAddSheet(false); placeAddPopover(); });
 $('add-form').addEventListener('keydown', (e) => { if (e.key === 'Escape' && !isPhone()) { e.preventDefault(); openAddSheet(false); } });
-
-// ---------- toast di pojok kanan bawah, tepat di atas video melayang ----------
-(() => {
-  const stage = $('stage');
-  const update = () => {
-    const cs = getComputedStyle(stage);
-    const visible = !stage.hidden && cs.position === 'fixed' && cs.opacity !== '0' && !document.body.classList.contains('np-open');
-    document.body.style.setProperty('--stage-space', visible ? `${stage.offsetHeight + 12}px` : '0px');
-  };
-  if ('ResizeObserver' in window) new ResizeObserver(update).observe(stage);
-  new MutationObserver(update).observe(stage, { attributes: true, attributeFilter: ['hidden', 'class'] });
-  update();
-})();
-
-// ---------- geser untuk mengubah urutan antrean (mouse & sentuh) ----------
-(() => {
-  const box = $('queue-list');
-  let d = null;
-  const clear = () => box.querySelectorAll('.drop-before, .drop-after').forEach((n) => n.classList.remove('drop-before', 'drop-after'));
-  box.addEventListener('pointerdown', (e) => {
-    const grip = e.target.closest('.q-grip');
-    if (!grip || (e.pointerType === 'mouse' && e.button !== 0)) return;
-    const row = grip.closest('.q-row');
-    e.preventDefault();
-    try { grip.setPointerCapture(e.pointerId); } catch { /* abaikan */ }
-    d = { row, from: Number(row.dataset.pos), target: null, after: false };
-    row.classList.add('dragging');
-    if (navigator.vibrate && e.pointerType !== 'mouse') navigator.vibrate(10);
-  });
-  box.addEventListener('pointermove', (e) => {
-    if (!d) return;
-    const el = document.elementFromPoint(e.clientX, e.clientY);
-    const row = el && el.closest('.q-upcoming .q-row');
-    clear();
-    if (row && row !== d.row && box.contains(row)) {
-      const r = row.getBoundingClientRect();
-      d.after = e.clientY > r.top + r.height / 2;
-      d.target = row;
-      row.classList.add(d.after ? 'drop-after' : 'drop-before');
-    } else d.target = null;
-    const b = box.getBoundingClientRect();
-    if (e.clientY < b.top + 40) box.scrollTop -= 12;
-    else if (e.clientY > b.bottom - 40) box.scrollTop += 12;
-  });
-  const end = (commit) => {
-    if (!d) return;
-    const { row, from, target, after } = d;
-    d = null;
-    row.classList.remove('dragging');
-    clear();
-    if (!commit || !target) return;
-    let to = Number(target.dataset.pos) + (after ? 1 : 0);
-    if (to > from) to--;
-    player.moveInQueue(from, to);
-  };
-  box.addEventListener('pointerup', () => end(true));
-  box.addEventListener('pointercancel', () => end(false));
-})();
 
 // ---------- form tambah & pencarian ----------
 $('add-form').addEventListener('submit', handleAdd);
@@ -1513,41 +1467,6 @@ $('search').addEventListener('paste', (e) => {
 });
 $('search').addEventListener('blur', () => setTimeout(() => searchHint(''), 150));
 
-// ---------- bilah progres (tarik untuk melompat) & volume ----------
-const seekbar = createSeekbar($('dock-progress'), {
-  duration: () => player.duration(),
-  seek: (t) => { player.seek(t); requestAnimationFrame(renderTime); },
-  onPreview: (t) => { $('dock-cur').textContent = formatDuration(t) || '0:00'; },
-});
-function renderTime() {
-  if (!player.current) return;
-  const t = player.time();
-  const d = player.duration();
-  seekbar.set(t, d);
-  if (!seekbar.dragging) ui.renderProgress(t, d);
-}
-/** Arsir bagian intro/outro yang dipotong di bilah progres. */
-function renderCuts() {
-  const cur = player.current;
-  const v = cur && store.data.videos[cur.youtubeId];
-  seekbar.setCuts(v ? v.trim : null, player.duration() || (v && v.duration) || 0);
-}
-
-/** Volume yang dipilih pengguna (0–100); diingat antar-sesi. Fade/timer tidur tidak mengubah nilai ini. */
-const userVolume = () => (Number.isFinite(store.ui.volume) ? store.ui.volume : player.volume());
-function renderVol() { ui.renderVolume(userVolume(), player.isMuted()); }
-function setUserVolume(v) {
-  const vol = Math.max(0, Math.min(100, Math.round(v)));
-  store.ui.volume = vol;
-  store.saveUiQuiet();
-  player.setVolume(vol);
-  fade.base = vol; fade.applied = null;
-  renderVol();
-  return vol;
-}
-$('dock-volume').addEventListener('input', (e) => setUserVolume(Number(e.target.value)));
-$('dock-volume').addEventListener('wheel', (e) => { e.preventDefault(); setUserVolume(userVolume() + (e.deltaY < 0 ? 5 : -5)); }, { passive: false });
-
 document.addEventListener('keydown', (e) => {
   if ((e.key === 'k' || e.key === 'K') && (e.ctrlKey || e.metaKey) && !e.altKey && !document.querySelector('dialog.palette[open]')) {
     e.preventDefault();
@@ -1583,9 +1502,9 @@ document.addEventListener('keydown', (e) => {
     case 'a': case 'A': e.preventDefault(); openAddSheet(true); return;
     case 'ArrowLeft': if (player.current) { e.preventDefault(); player.seek(Math.max(0, player.time() - 5)); } return;
     case 'ArrowRight': if (player.current) { e.preventDefault(); player.seek(player.time() + 5); } return;
-    case 'ArrowUp': if (player.current) { e.preventDefault(); toast(`Volume ${setUserVolume(userVolume() + 10)}%`); } return;
-    case 'ArrowDown': if (player.current) { e.preventDefault(); toast(`Volume ${setUserVolume(userVolume() - 10)}%`); } return;
-    case 'm': case 'M': if (player.current) { toast(player.toggleMute() ? 'Suara aktif' : 'Dibisukan'); renderVol(); } return;
+    case 'ArrowUp': if (player.current) { e.preventDefault(); toast(`Volume ${bar.setUserVolume(bar.userVolume() + 10)}%`); } return;
+    case 'ArrowDown': if (player.current) { e.preventDefault(); toast(`Volume ${bar.setUserVolume(bar.userVolume() - 10)}%`); } return;
+    case 'm': case 'M': if (player.current) { toast(player.toggleMute() ? 'Suara aktif' : 'Dibisukan'); bar.renderVol(); } return;
     case 'l': case 'L': {
       const next = store.data.settings.player.repeat === 'one' ? 'all' : 'one';
       store.setPlayerSetting('repeat', next);
@@ -1611,9 +1530,10 @@ document.addEventListener('keydown', (e) => {
   }
   switch (e.key) {
     case ' ': case 'k': case 'K':
-      if (player.current) { e.preventDefault(); player.toggle(); }
+      if (player.current) { e.preventDefault(); player.toggle(); } else if (resumeOffer) { e.preventDefault(); resumeSession(); }
       break;
     case 'n': case 'N': player.next(); break;
+    case 'i': case 'I': if (window.innerWidth >= 1280 && player.current) fire('np-side-toggle'); break;
     case 'p': case 'P': player.prev(); break;
     case '/': e.preventDefault(); $('search').focus(); break;
     case 'Escape':
@@ -1650,6 +1570,8 @@ store.on((type, detail) => {
 });
 
 player.on((type) => { try { lobby.update(type); } catch { /* Lobby belum siap */ } });
+// animasi ekualiser di baris lagu: bergerak hanya saat benar-benar diputar
+player.on(() => document.body.classList.toggle('is-playing', !!player.current && player.isPlaying));
 player.on((type, data) => {
   if (type === 'ended' && data && store.data.settings.player.autoMarkWatched) {
     const v = store.data.videos[data.youtubeId];
@@ -1685,12 +1607,6 @@ player.on((type, data) => {
       player.startAt = 0;
     }
   }
-  if (type === 'playing' && !local.volumeApplied) {
-    // volume terakhir yang dipilih di aplikasi ini (player YouTube tidak selalu mengingatnya)
-    local.volumeApplied = true;
-    if (Number.isFinite(store.ui.volume) && !player.isMuted() && Math.abs(player.volume() - store.ui.volume) > 1) player.setVolume(store.ui.volume);
-  }
-  if (type === 'track' || type === 'playing') { renderCuts(); renderVol(); }
   if (type === 'ended' && data) store.setPosition(data.youtubeId, 0);
   if (type === 'state' && player.state === 'paused') savePosition(player.current && player.current.youtubeId);
   if (type === 'sleep') sleepTimer.trackEnded();
@@ -1701,7 +1617,7 @@ player.on((type, data) => {
     store.setAvailability({ [data.id]: data.code === 100 ? 'gone' : 'embed' });
   }
   if (type === 'error') toast(data && data.skipping ? `${player.error} Melewati ke video berikutnya…` : player.error, 'error', 5000);
-  ui.renderDock(player, store, dockOpts());
+  renderDockAll();
   ui.renderQueue(player, store);
   // cukup tandai baris yang diputar (daftar tidak dibangun ulang setiap play/jeda)
   if (type === 'track' || type === 'state' || type === 'playing') ui.updatePlaying(player.current ? player.current.youtubeId : null, player.isPlaying);
@@ -1739,11 +1655,12 @@ setInterval(() => {
   lastListenAt = nowMs;
   if (!player.current) return;
   if (document.visibilityState === 'visible') {
-    renderTime();
+    bar.renderTime();
     if (!$('lyrics-panel').hidden) lyricsPanel.tick(player.time());
+    if (nowPanel) nowPanel.tick();
   }
   tick++;
-  if (tick % 20 === 0 && player.isPlaying) savePosition(player.current.youtubeId); // tiap ±10 detik
+  if (tick % 20 === 0 && player.isPlaying) { savePosition(player.current.youtubeId); persistSession(); } // tiap ±10 detik
 }, 500);
 
 let listenBuf = 0;
@@ -1778,6 +1695,9 @@ function openCommandPalette() {
     { group: 'Lobby', label: 'Fokus (Pomodoro)', icon: 'timer', keywords: 'lobby fokus pomodoro belajar kerja', hideEmpty: true, run: () => lobby.openFocus() },
     { group: 'Lobby', label: 'Timer tidur', icon: 'moon', keywords: 'lobby tidur sleep timer', hideEmpty: true, run: () => lobby.openSleep() },
     { group: 'Lobby', label: 'Suara alam (mixer)', icon: 'sliders', keywords: 'hujan rain ambient noise suara', run: () => lobby.openMixer() },
+    { group: 'Aksi', label: 'Pasang tombol “Tambah ke Vault” di bookmark', icon: 'pin', keywords: 'bookmarklet bookmark tombol browser tambah cepat', hideEmpty: true, run: () => bookmarkletDialog({ toast }) },
+    { group: 'Aksi', label: 'Tag otomatis dari judul untuk semua lagu', icon: 'tag', keywords: 'tag otomatis live cover remix acoustic lyrics', hideEmpty: true, run: () => autoTagAll() },
+    resumeOffer && { group: 'Aksi', label: 'Lanjutkan sesi terakhir', icon: 'play', keywords: 'resume lanjut terakhir sesi continue', run: () => resumeSession() },
     { group: 'Aksi', label: 'Tambah lagu (tempel link)', icon: 'link', keywords: 'add tambah video', run: () => openAddSheet(true) },
     { group: 'Aksi', label: 'Cari lagu di YouTube', icon: 'search', keywords: 'search youtube', run: () => fire('yt-search') },
     { group: 'Aksi', label: 'Import playlist YouTube', icon: 'download', keywords: 'import', run: () => fire('yt-import') },
@@ -1823,6 +1743,8 @@ const lyricsPanel = createLyricsPanel($('lyrics-panel'), {
   onFindAudio: (info) => findAudioVersion(info),
 });
 
+nowPanel = createNowPanel({ store, player, lyrics: lyricsPanel, upcoming: () => player.upcoming() });
+
 /** Ganti lagu yang sedang diputar (biasanya MV) dengan versi audionya supaya lirik pas. */
 async function findAudioVersion(info = {}) {
   if (!player.current) return;
@@ -1843,65 +1765,7 @@ async function findAudioVersion(info = {}) {
   if (entry) playFromEntry(entry); else playVideoById(res.id);
   toast(res.mode === 'after' ? 'Versi audio ditambahkan setelah MV dan sedang diputar.' : 'Diganti ke versi audio. MV tetap ada di Semua video.', 'success', 6000);
 }
-// ---------- transisi halus antar lagu (fade out di akhir, fade in di awal) ----------
-// Player YouTube hanya satu, jadi crossfade sejati tidak mungkin; yang bisa: volume turun pelan
-// di detik-detik terakhir lalu naik pelan di awal lagu berikutnya.
-const FADE_OUT = 4;
-const FADE_IN = 2;
-const fade = { base: null, applied: null };
-setInterval(() => {
-  if (store.ui.fade !== true || !player.current || !player.isPlaying) {
-    if (fade.applied != null && fade.base != null) { player.setVolume(fade.base); fade.applied = null; }
-    return;
-  }
-  if (player.isMuted()) return;
-  const d = player.duration();
-  if (!d || d < 20) return;
-  const cut = player.bounds();
-  const t = player.time() - cut.start;      // waktu sejak titik mulai (intro yang dipotong tidak dihitung)
-  const left = (cut.end || d) - player.time();
-  let factor = 1;
-  if (left < FADE_OUT) factor = Math.max(0.05, left / FADE_OUT);
-  else if (t >= 0 && t < FADE_IN) factor = Math.max(0.15, t / FADE_IN);
-  if (factor >= 1) {
-    if (fade.applied != null) { player.setVolume(fade.base); fade.applied = null; }
-    else fade.base = player.volume(); // ikuti volume yang diatur pengguna
-    return;
-  }
-  if (fade.base == null) fade.base = player.volume();
-  const v = Math.round(fade.base * factor);
-  if (v !== fade.applied) { player.setVolume(v); fade.applied = v; }
-}, 150);
-
-// ---------- potong awal/akhir lagu (lewati intro & outro) ----------
-player.trimLookup = (id) => store.getTrim(id);
-setInterval(() => { if (player.isPlaying) player.checkTrim(); }, 250);
-
-async function editTrim() {
-  const cur = player.current;
-  if (!cur) { toast('Putar lagunya dulu, lalu buka menu ⋮ di player.', 'info'); return; }
-  const id = cur.youtubeId;
-  const v = store.data.videos[id] || {};
-  player.trimPaused = true; // selama dialog terbuka lagu boleh lewat dari titik akhir (untuk mencari titik baru)
-  let res;
-  try {
-    res = await trimDialog({ title: v.title || '', trim: store.getTrim(id), duration: player.duration() || v.duration || 0, player });
-  } finally { player.trimPaused = false; }
-  if (res == null) return;
-  const before = store.getTrim(id);
-  const saved = res === 'clear' ? store.setTrim(id, 0, 0) : store.setTrim(id, res.start, res.end);
-  renderCuts();
-  const undo = { label: 'Urungkan', fn: () => { store.setTrim(id, before ? before[0] : 0, before ? before[1] : 0); renderCuts(); } };
-  if (!saved) { toast(before ? 'Potongan dihapus: lagu diputar penuh lagi.' : 'Tidak ada yang dipotong.', 'info', 5000, before ? undo : null); return; }
-  const parts = [];
-  if (saved[0]) parts.push(`mulai ${formatDuration(saved[0])}`);
-  if (saved[1]) parts.push(`berakhir ${formatDuration(saved[1])}`);
-  toast(`Potongan disimpan: ${parts.join(', ')}.`, 'success', 6000, undo);
-  // sedang di bagian intro yang baru dipotong → langsung lompat ke titik mulai
-  if (player.current && player.current.youtubeId === id && saved[0] && player.time() < saved[0]) player.seek(saved[0]);
-}
-
-// ---------- Lobby ----------
+// ---------- Lobby (js/lobby-host.js: modulnya baru dimuat saat Lobby pertama dibuka) ----------
 /** Baris lirik yang sedang dinyanyikan (dipakai Lobby). */
 function currentLyricLine() {
   if (!player.current) return '';
@@ -1913,8 +1777,8 @@ function currentLyricLine() {
   clone.querySelectorAll('.lyr-tr').forEach((n) => n.remove());
   return clone.textContent.trim();
 }
-const lobby = createLobby({
-  store, player, icon, toast, sleepTimer,
+const lobby = createLobbyHost({
+  store, player, icon, toast, sleepTimer, isPhone,
   openLyrics: lyricsFromLobby,
   getLyric: currentLyricLine,
   playSomething: () => {
@@ -1926,9 +1790,11 @@ const lobby = createLobby({
     if (open) overlay.open('lobby', () => lobby.close());
     else overlay.close('lobby');
   },
-  isPhone,
+  onAmbient: (amb) => {
+    ambLater.mod = amb;
+    amb.onChange(() => document.body.classList.toggle('ambient-on', amb.isPlaying()));
+  },
 });
-ambient.onChange(() => document.body.classList.toggle('ambient-on', ambient.isPlaying()));
 
 // Sorot lirik lebih rapat (±0,2 dtk) selama panel lirik terbuka dan lagu berjalan.
 setInterval(() => {
@@ -1951,6 +1817,58 @@ player.resumeLookup = (id) => {
 };
 document.addEventListener('visibilitychange', () => { if (document.hidden && player.current) savePosition(player.current.youtubeId); });
 window.addEventListener('pagehide', () => { if (player.current) savePosition(player.current.youtubeId); });
+
+// ---------- lanjutkan sesi terakhir (js/session.js) ----------
+let resumeOffer = null;
+let sessionTimer = 0;
+function persistSession() {
+  clearTimeout(sessionTimer);
+  sessionTimer = 0;
+  if (!player.current) return;
+  const time = player.state === 'ended' ? 0 : player.time();
+  saveSession(snapshotSession(player, { time, source: local.queueSource }));
+}
+const persistSoon = () => { clearTimeout(sessionTimer); sessionTimer = setTimeout(persistSession, 1200); };
+player.on((type, data) => {
+  if (type === 'track' && !data) { clearTimeout(sessionTimer); saveSession(null); return; } // player dihentikan
+  if (type === 'track' || type === 'queue' || type === 'state') persistSoon();
+  if (type === 'track' && resumeOffer) hideResume();
+});
+window.addEventListener('pagehide', persistSession);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') persistSession(); });
+
+function offerResume(s) {
+  const id = s.queue[s.order[s.pos]].youtubeId;
+  const v = store.data.videos[id] || {};
+  const d = v.duration || 0;
+  if (d && s.t >= d - 5) s.t = 0;     // sudah di ujung lagu → mulai lagi dari awal
+  if (s.t < 5) s.t = 0;
+  resumeOffer = s;
+  $('resume-thumb').src = thumbUrl(id, 'mqdefault');
+  $('resume-title').textContent = v.title || 'Memuat judul…';
+  const left = s.order.length - s.pos - 1;
+  const parts = [];
+  if (s.t) parts.push(d ? `${formatDuration(s.t)} / ${formatDuration(d)}` : formatDuration(s.t));
+  if (left > 0) parts.push(`${left} lagu berikutnya`);
+  parts.push(timeAgo(new Date(s.at).toISOString()));
+  $('resume-sub').textContent = parts.join(' · ');
+  $('resume-fill').style.width = `${d && s.t ? Math.min(100, (s.t / d) * 100) : 0}%`;
+  $('resume-card').hidden = false;
+  document.body.classList.add('has-resume');
+}
+function hideResume() {
+  resumeOffer = null;
+  $('resume-card').hidden = true;
+  document.body.classList.remove('has-resume');
+}
+function resumeSession() {
+  const s = resumeOffer;
+  hideResume();
+  if (!s) return;
+  const src = s.source;
+  local.queueSource = src && typeof src.view === 'string' && (!src.view.startsWith('pl:') || store.getPlaylist(src.view.slice(3))) ? src : null;
+  player.restore(s);
+}
 
 // ---------- offline, error tak terduga, kapasitas penyimpanan ----------
 window.addEventListener('online', () => { ui.renderBanner(store, sync); toast('Kembali online.', 'success'); });
@@ -1985,7 +1903,11 @@ document.addEventListener('click', (e) => {
 });
 
 // Lobby pernah dipakai → siapkan lukisannya di latar belakang supaya langsung tampil saat dibuka
-setTimeout(() => { if (store.ui.lobby && !lobby.isOpen() && !document.hidden) lobby.prewarm(); }, 3500);
+setTimeout(() => {
+  if (!store.ui.lobby || lobby.isOpen() || document.hidden) return;
+  const go = () => { if (!lobby.isOpen() && !document.hidden) lobby.prewarm(); };
+  if ('requestIdleCallback' in window) requestIdleCallback(go, { timeout: 4000 }); else go();
+}, 3500);
 
 // ---------- start ----------
 async function onboarding() {
@@ -2009,6 +1931,7 @@ async function onboarding() {
 function handleLaunch() {
   const p = takeLaunchParams();
   if (p.view && ['all', 'favorites', 'unwatched'].includes(p.view)) store.setView(p.view);
+  if (p.shared && p.quick && quickAdd(p.shared)) return true;
   if (p.shared) {
     openAddSheet(true);
     fillAdd(p.shared);
@@ -2039,3 +1962,7 @@ if (shareCode) receiveShare(shareCode);
 if (store.isFresh && !launched) onboarding();
 maybeShowWhatsNew({ fresh: store.isFresh || launched });
 if (!store.isFresh && !launched && store.ui.lobby && store.ui.lobby.startup) setTimeout(() => lobby.open(), 300);
+if (!store.isFresh && !launched && !player.current) {
+  const last = loadSession({ exists: (id) => !!store.data.videos[id] });
+  if (last) offerResume(last);
+}

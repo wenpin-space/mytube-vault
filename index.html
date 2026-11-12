@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-title" content="MyTube Vault">
   <link rel="preload" href="fonts/poppins-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/poppins-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="css/style.css?v=38">
+  <link rel="stylesheet" href="css/style.css?v=39">
 </head>
 <body>
   <a class="skip-link" href="#main">Lewati ke daftar video</a>
@@ -97,6 +97,32 @@
       <div class="list-empty" id="list-empty" hidden></div>
       <div class="list-more" id="list-more"></div>
     </main>
+
+    <aside class="np-side" id="np-side" hidden aria-label="Sedang diputar">
+      <div class="nps-art">
+        <img alt="" decoding="async">
+        <button type="button" class="nps-video-btn" data-video-toggle data-action="stage-min" aria-label="Tampilkan video"></button>
+      </div>
+      <div class="nps-scroll">
+        <div class="nps-head">
+          <div class="nps-text"><h2 class="nps-title" translate="no"></h2><p class="nps-channel" translate="no"></p></div>
+          <button type="button" class="icon-btn" data-action="dock-fav" aria-label="Favorit"></button>
+          <button type="button" class="icon-btn" data-action="dock-add" data-icon="plus" aria-label="Tambah ke playlist" title="Tambah ke playlist"></button>
+        </div>
+        <section class="nps-sec nps-lyrics">
+          <header><h3>Lirik</h3><button type="button" class="link-btn" data-action="lyrics-toggle">Buka lirik</button></header>
+          <div class="nps-lines" translate="no"></div>
+        </section>
+        <section class="nps-sec nps-next">
+          <header><h3>Berikutnya</h3><button type="button" class="link-btn" data-action="queue-toggle">Lihat antrean</button></header>
+          <ol></ol>
+        </section>
+        <section class="nps-sec nps-about">
+          <header><h3>Tentang lagu ini</h3></header>
+          <ul></ul>
+        </section>
+      </div>
+    </aside>
   </div>
 
   <section class="stage" id="stage" hidden aria-label="Video yang sedang diputar">
@@ -136,6 +162,18 @@
     <div class="lyrics-body"></div>
     <p class="lyrics-credit">Lirik dari <a href="https://lrclib.net" target="_blank" rel="noopener">LRCLIB</a></p>
   </section>
+
+  <div class="resume-card" id="resume-card" role="region" aria-label="Lanjutkan sesi terakhir" hidden>
+    <img class="resume-thumb" id="resume-thumb" alt="" decoding="async">
+    <div class="resume-text">
+      <span class="resume-label">Lanjutkan dari terakhir</span>
+      <b id="resume-title" translate="no"></b>
+      <span class="resume-sub" id="resume-sub"></span>
+    </div>
+    <button type="button" class="btn btn-primary sm resume-go" data-action="resume-session" data-icon="play" title="Lanjutkan (Spasi)"><span>Lanjutkan</span></button>
+    <button type="button" class="icon-btn sm" data-action="resume-dismiss" data-icon="x" aria-label="Tutup" title="Tutup"></button>
+    <span class="resume-bar" aria-hidden="true"><span id="resume-fill"></span></span>
+  </div>
 
   <footer class="dock" id="dock" hidden>
     <div class="np-head only-phone">
@@ -183,6 +221,7 @@
       <button type="button" class="icon-btn dock-video-d" data-video-toggle data-action="stage-min" aria-label="Tampilkan video"></button>
       <button type="button" class="icon-btn" id="dock-lyrics" data-action="lyrics-toggle" data-icon="mic" aria-label="Lirik layar penuh" title="Lirik (Y)" aria-pressed="false"></button>
       <button type="button" class="icon-btn" data-action="queue-toggle" data-icon="queue" aria-label="Antrean" title="Antrean (Q)"></button>
+      <button type="button" class="icon-btn np-side-btn" data-action="np-side-toggle" data-icon="panelRight" aria-label="Panel Sedang diputar"></button>
     </div>
     <section class="np-upnext" id="np-upnext" aria-label="Berikutnya"></section>
     <div class="np-extra only-phone">
@@ -202,6 +241,6 @@
   </nav>
 
   <noscript><p style="padding:24px">MyTube Vault butuh JavaScript.</p></noscript>
-  <script type="module" src="js/main.js?v=38"></script>
+  <script type="module" src="js/main.js?v=39"></script>
 </body>
 </html>

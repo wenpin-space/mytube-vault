@@ -206,6 +206,7 @@ export function createLyricsPanel(host, { getTrack, seek, getTime = () => 0, onF
     st.lines = null;
     st.active = -1;
     st.rec = rec || null;
+    st.status = !rec ? 'none' : rec.syncedLyrics ? 'synced' : rec.plainLyrics ? 'plain' : rec.instrumental ? 'instrumental' : 'none';
     if (!rec) {
       body.innerHTML = art(`<p class="lv-msg">Lirik tidak ditemukan untuk “${escapeHtml(st.query)}”.</p>
         <p class="lv-sub">Ubah kata kunci di atas (mis. “Artis Judul”), lalu cari lagi.</p>
@@ -323,7 +324,8 @@ export function createLyricsPanel(host, { getTrack, seek, getTime = () => 0, onF
     const tr = getTrack();
     st.query = q;
     input.value = q;
-    if (!q) { body.innerHTML = art('<p class="lv-msg">Judul lagu belum tersedia.</p><p class="lv-sub">Ketik artis + judul di kolom pencarian di atas.</p>'); return; }
+    if (!q) { st.status = 'none'; body.innerHTML = art('<p class="lv-msg">Judul lagu belum tersedia.</p><p class="lv-sub">Ketik artis + judul di kolom pencarian di atas.</p>'); return; }
+    st.status = 'loading';
     body.innerHTML = art(`<p class="lv-msg">Mencari lirik…</p>${skeletonRows(3, { thumb: false })}`);
     try {
       st.results = await searchLyrics(q);
@@ -334,6 +336,7 @@ export function createLyricsPanel(host, { getTrack, seek, getTime = () => 0, onF
       if (tr) recCache.set(tr.youtubeId, { rec: best, results: st.results, query: q });
       renderLyrics(best);
     } catch (e) {
+      if (st.status === 'loading') st.status = 'error';
       body.innerHTML = art(`<p class="lv-msg">Tidak bisa menghubungi layanan lirik (lrclib.net).</p>
         <p class="lv-sub">${navigator.onLine === false ? 'Kamu sedang offline.' : 'Mungkin diblokir jaringan/ekstensi, atau layanannya sedang gangguan.'}</p>
         <a class="btn sm" href="https://lrclib.net/search/${encodeURIComponent(q)}" target="_blank" rel="noopener">${icon('external')}Buka di lrclib.net</a>`);
@@ -347,6 +350,9 @@ export function createLyricsPanel(host, { getTrack, seek, getTime = () => 0, onF
     st.videoId = tr.youtubeId;
     st.offset = getOffset(tr.youtubeId);
     st.results = [];
+    st.status = 'loading';
+    st.lines = null;
+    st.rec = null;
     const { artist, track } = guessArtistTrack(tr.title || '', tr.channel || '');
     const q = `${artist ? `${artist} ` : ''}${track}`.trim();
     const cached = recCache.get(tr.youtubeId);
@@ -410,6 +416,16 @@ export function createLyricsPanel(host, { getTrack, seek, getTime = () => 0, onF
 
   return {
     load: loadForCurrent,
+    /**
+     * Lirik lagu sekarang untuk tampilan lain (panel Sedang diputar) tanpa menyentuh DOM panel lirik.
+     * state: loading | synced | plain | instrumental | none | error | idle
+     */
+    peek(time = 0) {
+      const state = st.videoId ? st.status || 'loading' : 'idle';
+      if (state === 'synced' && st.lines) return { state, lines: st.lines, active: lineAt(st.lines, time - st.offset) };
+      if (state === 'plain' && st.rec) return { state, text: String(st.rec.plainLyrics || '') };
+      return { state };
+    },
     /** Dipanggil berkala dengan posisi lagu → sorot & gulir ke baris aktif. */
     /** Geser waktu lirik (dipakai tombol keyboard [ dan ]). */
     nudge(d) { if (st.lines) applyOffset(st.offset + d); },

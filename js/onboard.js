@@ -4,7 +4,7 @@ import { modal } from './dialogs.js';
 import { icon } from './icons.js';
 import { escapeHtml } from './utils.js';
 
-export const APP_VERSION = 'v38';
+export const APP_VERSION = 'v39';
 const SEEN_KEY = 'mytube_vault_seen_version';
 
 /** Langkah mulai cepat dan statusnya (murni, mudah diuji). */
@@ -50,6 +50,12 @@ export function renderQuickstart(host, state, { installable = false } = {}) {
 
 // [ikon, judul, penjelasan, versi?] — entri bertanda versi sekarang tampil penuh; sisanya dilipat di "Pembaruan sebelumnya".
 const CHANGES = [
+  ['play', 'Lanjutkan dari terakhir', 'Saat aplikasi dibuka lagi, kartu Lanjutkan muncul di bawah: lagu, posisi, dan antrean terakhir kembali persis seperti saat ditinggal (tekan Spasi juga bisa). Tidak pernah memutar sendiri.', 'v39'],
+  ['panelRight', 'Panel Sedang diputar', 'Di layar lebar (PC) ada kolom kanan berisi artwork atau video, lirik yang berjalan, lima lagu berikutnya, dan info lagu (berapa kali diputar, ada di playlist mana). Sembunyikan lewat tombol di player atau tekan I.', 'v39'],
+  ['pin', 'Tombol “Tambah ke Vault”', 'Pasang tombol di bilah bookmark browser (Setelan → Umum). Klik saat membuka video YouTube: lagunya langsung masuk ke playlist tujuan terakhir.', 'v39'],
+  ['tag', 'Tag otomatis dari judul', 'Lagu baru otomatis diberi tag live, cover, remix, acoustic, lyrics, dan lainnya sesuai judulnya. Untuk lagu yang sudah ada: Setelan → Umum → Terapkan ke semua lagu.', 'v39'],
+  ['gift', 'Dekorasi musiman di Lobby', 'Hiasan Natal, kembang api Tahun Baru, lampion Imlek, ketupat Lebaran, dan bendera Agustusan muncul sendiri sesuai tanggal, di Kamar santai maupun Kafe.', 'v39'],
+  ['bolt', 'Lebih cepat dibuka', 'Lobby, Setelan, dan kamus bahasa Inggris kini dimuat hanya saat dibutuhkan, jadi kode yang dimuat saat aplikasi dibuka turun dari ±760 KB ke ±380 KB. Lagu yang sedang diputar ditandai batang ekualiser yang bergerak.', 'v39'],
   ['sliders', 'Player: geser, waktu & volume', 'Bilah progres di player kini bisa ditarik dengan mouse atau jari, dan menampilkan waktu tepat di bawah kursor. Di HP, layar Sedang diputar punya knob yang mudah digeser. Di PC ada tombol bisu dan slider volume; volumenya diingat.', 'v38'],
   ['scissors', 'Lewati intro & outro', 'Menu ⋮ di player → Potong awal/akhir lagu. Cari titiknya dengan pemutar kecil di dialog, lalu tekan Mulai dari sini atau Akhiri di sini. Lagu itu selalu diputar di antara dua titik tersebut, di semua playlist dan semua perangkat yang tersinkron.', 'v38'],
   ['image', 'Sampul playlist', 'Setiap playlist punya sampul mosaik dari empat lagu pertamanya, di kepala halaman dan di daftar playlist, supaya lebih mudah dikenali.', 'v38'],
@@ -58,12 +64,6 @@ const CHANGES = [
   ['users', 'Barista yang hidup & proporsi yang pas', 'Barista kini dilukis dengan gaya yang sama seperti pengunjung, dengan ukuran yang sepadan. Ia punya ekspresi: tersenyum & mengobrol saat menerima pesanan, mengangguk saat mendengarkan, berkedip, serius saat mengelap konter sambil bersenandung, dan tersenyum lebar saat menyajikan. Kopi dibuat sesuai pesanan; pengunjung menunggu di konter sampai cangkirnya siap. Pengunjung yang duduk di bangku bar kini benar-benar duduk (kaki di pijakan bangku), dan gerakan berhenti, berbalik, serta duduk lebih halus.'],
   ['sparkle', 'Gerak pengunjung lebih alami', 'Kaki benar-benar menapak saat berjalan (tidak lagi meluncur), pinggul naik-turun & lengan berayun berlawanan dengan kaki. Saat minum, tangan meraih cangkir di meja, mengangkatnya melengkung ke mulut, memiringkannya, lalu meletakkannya kembali; sebagian pengunjung juga memesan roti dan memakannya gigitan demi gigitan. Bayangan kini lembut di lantai, kepala tidak lagi lepas saat duduk.'],
   ['sparkle', 'Pengunjung kafe yang dilukis', 'Pengunjung kini dilukis dengan kuas yang sama seperti latar: bentuk tubuh alami, lipatan baju, rambut bertekstur, dan cahaya tepi dari jendela atau lampu. Gerakannya lebih nyata: lutut & siku menekuk saat berjalan, mulai dan berhenti perlahan, berbalik dengan luwes, duduk & berdiri dengan kaki menapak, menunjuk menu saat memesan, dan mengangkat cangkir ke mulut.'],
-  ['users', 'Kafe yang hidup', 'Pengunjung datang lewat pintu (lonceng berbunyi), antre & memesan di konter, membawa minumannya ke bangku bar atau berdua ke meja bundar untuk minum & mengobrol bergantian, lalu pulang. Ramai pagi sampai sore, sepi di malam hari; saat hujan mereka membawa payung.'],
-  ['coffee', 'Tempat baru: Kafe', 'Lobby → Suasana → Tempat → Kafe. Kafe Jepang modern yang hangat: lampu kertas, barista yang membuat kopi, noren di pintu, jam dinding sungguhan, dan pemandangan & cuaca di jendela besar.'],
-  ['sparkle', 'Kopi & roti di meja kita', 'Minuman berkurang seteguk demi seteguk dan roti tergigit pelan-pelan; setelah habis, pelayan mengantar pesanan baru (latte, matcha, kopi susu, ocha; croissant, melon pan, sando). Saat Fokus aktif, satu porsi habis tepat di akhir sesi dan pesanan baru datang saat istirahat.'],
-  ['cloud', 'Cuaca & waktu nyata di Lobby', 'Suasana → Pemandangan → "Ikuti cuaca & waktu nyata". Pakai GPS atau cari kota: hujan, cerah, kabut, atau badai di luar jendela mengikuti cuaca di sana, dan pagi/senja mengikuti jam matahari terbit & terbenam. Diperbarui tiap ±30 menit.'],
-  ['sparkle', 'Cuaca berganti tanpa melukis ulang', 'Berawan, hujan, badai, dan kabut memakai satu lukisan; bedanya digambar bergerak di atasnya. Lukisan untuk waktu berikutnya (mis. senja) disiapkan ±20 menit sebelumnya.'],
-  ['bolt', 'Lobby jauh lebih mulus', 'Animasi Lobby di HP dua kali lebih lancar dan lukisan pertama selesai ±2× lebih cepat. Ganti suasana tidak lagi "melukis dari nol": lukisan lama tetap tampil lalu memudar ke yang baru, lampu menyala & padam perlahan.'],
 ];
 
 /** Tampilkan "Apa yang baru" sekali setelah update (bukan untuk pengguna baru). */

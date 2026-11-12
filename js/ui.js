@@ -159,6 +159,10 @@ function highlight(text, q) {
  * Tandai lagu yang sedang diputar tanpa membangun ulang daftar (dipanggil setiap play/jeda/ganti lagu).
  * Hanya baris yang berubah yang disentuh.
  */
+/** Batang ekualiser di baris lagu yang diputar (hanya hiasan: browser tidak mengizinkan membaca audio YouTube). */
+const EQ = '<span class="eq" aria-label="Sedang diputar"><i></i><i></i><i></i><i></i></span>';
+const EQ_BADGE = '<span class="eq-badge" aria-hidden="true"><span class="eq"><i></i><i></i><i></i><i></i></span></span>'; // HP (kolom nomor disembunyikan)
+
 export function updatePlaying(playingId, isPlaying) {
   const list = document.getElementById('video-list');
   if (!list) return;
@@ -168,7 +172,11 @@ export function updatePlaying(playingId, isPlaying) {
     r.dataset.ps = want;
     r.classList.toggle('playing', on);
     const idx = r.querySelector('.idx');
-    if (idx) idx.innerHTML = on ? icon('volume') : String(Number(r.dataset.i) + 1);
+    if (idx) idx.innerHTML = on ? EQ : String(Number(r.dataset.i) + 1);
+    const th = r.querySelector('.thumb');
+    const badge = th && th.querySelector('.eq-badge');
+    if (on && th && !badge) th.insertAdjacentHTML('beforeend', EQ_BADGE);
+    else if (!on && badge) badge.remove();
     const b = r.querySelector('.thumb-play');
     if (b) {
       b.innerHTML = icon(on && isPlaying ? 'pause' : 'play', 'fill');
@@ -195,12 +203,12 @@ function row(e, i, opt) {
   return `<li${playing ? ` data-ps="p${opt.isPlaying ? 1 : 0}"` : ''} class="vrow${playing ? ' playing' : ''}${v.watched ? ' watched' : ''}${picked ? ' selected' : ''}${fresh ? ' flash' : ''}" data-key="${escapeHtml(e.key)}" data-yt="${escapeHtml(v.youtubeId)}" data-i="${i}"${sel ? ` aria-selected="${picked}"` : ''}>
     ${sel ? `<span class="pick" data-action="select-toggle" role="checkbox" aria-checked="${picked}" aria-label="Pilih">${icon(picked ? 'checkCircle' : 'circle')}</span>` : ''}
     ${reorder ? `<span class="grip" title="${sel ? 'Tarik untuk memindah semua lagu yang dipilih' : 'Tarik untuk mengubah urutan'}">${icon('grip')}</span>` : ''}
-    ${reorder && !sel ? `<span class="idx idx-edit" data-action="idx-edit" role="button" tabindex="0" title="Klik untuk mengetik nomor urutan baru">${playing ? icon('volume') : i + 1}</span>` : `<span class="idx">${playing ? icon('volume') : i + 1}</span>`}
+    ${reorder && !sel ? `<span class="idx idx-edit" data-action="idx-edit" role="button" tabindex="0" title="Klik untuk mengetik nomor urutan baru">${playing ? EQ : i + 1}</span>` : `<span class="idx">${playing ? EQ : i + 1}</span>`}
     <div class="thumb" data-action="play">
       <img src="${thumbUrl(v.youtubeId)}" alt="" loading="lazy" decoding="async" draggable="false">
       ${v.duration ? `<span class="dur">${formatDuration(v.duration)}</span>` : ''}
       ${prog ? `<span class="thumb-progress${v.watched ? ' done' : ''}" title="${v.watched ? 'Sudah ditonton' : `Ditonton ${Math.round(prog * 100)}%`}"><i style="width:${Math.max(4, Math.round(prog * 100))}%"></i></span>` : ''}
-      <span class="thumb-overlay">
+      ${playing ? EQ_BADGE : ''}<span class="thumb-overlay">
         <button type="button" class="thumb-play" data-action="play" aria-label="${playing && opt.isPlaying ? 'Jeda' : 'Putar'} ${escapeHtml(v.title || '')}">${icon(playing && opt.isPlaying ? 'pause' : 'play', 'fill')}</button>
         <span class="thumb-actions">
           <button type="button" class="thumb-act" data-action="thumb-queue" aria-label="Tambah ke antrean" title="Tambah ke antrean">${icon('queue')}</button>
@@ -296,6 +304,7 @@ export function renderDock(player, store, opts = {}) {
   const dock = $('dock');
   const stage = $('stage');
   document.body.classList.toggle('has-player', !!cur);
+  document.body.classList.toggle('is-playing', !!cur && player.isPlaying);
   dock.hidden = !cur;
   stage.hidden = !cur;
   if (!cur) return;

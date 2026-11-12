@@ -4,7 +4,6 @@
 // teks yang muncul belakangan (toast, dialog, menu). Konten milik pengguna (judul lagu, nama playlist,
 // lirik) ditandai translate="no" sehingga tidak ikut diubah.
 
-import { EN } from './i18n-en.js';
 
 const KEY = 'mytube_vault_lang';
 const hasLS = () => { try { return typeof localStorage !== 'undefined'; } catch { return false; } };
@@ -34,16 +33,23 @@ export function setLang(l) {
 }
 
 // ---------------------------------------------------------------- kamus
+// Kamus (±80 KB) hanya dimuat bila bahasa Inggris dipakai: pengguna berbahasa Indonesia tidak perlu memuatnya.
 const exact = new Map();
 const patterns = [];
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-for (const [k, v] of Object.entries(EN)) {
-  if (!/\{\d+\}/.test(k)) { exact.set(k, v); continue; }
-  const order = [];
-  const re = esc(k).replace(/\\\{(\d+)\\\}/g, (_, n) => { order.push(Number(n)); return '([\\s\\S]*?)'; });
-  patterns.push({ re: new RegExp(`^${re}$`), order, out: v, weight: k.replace(/\{\d+\}/g, '').length });
+let dictReady = false;
+export function useDictionary(EN) {
+  exact.clear();
+  patterns.length = 0;
+  for (const [k, v] of Object.entries(EN)) {
+    if (!/\{\d+\}/.test(k)) { exact.set(k, v); continue; }
+    const order = [];
+    const re = esc(k).replace(/\\\{(\d+)\\\}/g, (_, n) => { order.push(Number(n)); return '([\\s\\S]*?)'; });
+    patterns.push({ re: new RegExp(`^${re}$`), order, out: v, weight: k.replace(/\{\d+\}/g, '').length });
+  }
+  patterns.sort((a, b) => b.weight - a.weight);
+  dictReady = true;
 }
-patterns.sort((a, b) => b.weight - a.weight);
 
 const SINGULAR = { videos: 'video', songs: 'song', minutes: 'minute', playlists: 'playlist', links: 'link', days: 'day', weeks: 'week', months: 'month', years: 'year', favorites: 'favorite', lyrics: 'lyric', 'invalid links': 'invalid link', 'more songs': 'more song' };
 const fixPlural = (s) => s.replace(/(^|[^\d.,])1 (videos|songs|minutes|playlists|links|days|weeks|months|years|favorites|invalid links|more songs)\b/g, (m, pre, w) => `${pre}1 ${SINGULAR[w]}`).replace(/\bplayed 1 times\b/, 'played once');
@@ -73,7 +79,7 @@ function translateCore(core) {
 /** Terjemahkan satu teks (untuk prompt(), notifikasi, dll.). */
 const cache = new Map();
 export function tr(s) {
-  if (LANG !== 'en' || typeof s !== 'string') return s;
+  if (LANG !== 'en' || !dictReady || typeof s !== 'string') return s;
   if (cache.has(s)) return cache.get(s);
   const m = /^(\s*)([\s\S]*?)(\s*)$/.exec(s);
   let out = s;
@@ -127,8 +133,9 @@ function walk(root) {
   while (n) { if (n.nodeType === 3) doText(n); else doAttrs(n); n = tw.nextNode(); }
 }
 
-export function startTranslator() {
+export async function startTranslator() {
   if (LANG !== 'en' || typeof document === 'undefined') return;
+  if (!dictReady) useDictionary((await import('./i18n-en.js')).EN);
   document.documentElement.lang = 'en';
   walk(document.body);
   const obs = new MutationObserver((muts) => {

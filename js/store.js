@@ -539,6 +539,20 @@ export const store = {
     this.ensureViewValid();
     this.commit('tags');
   },
+  /** Ganti tag banyak video sekaligus (Map id → daftar tag), satu commit. */
+  setTagsMany(map) {
+    let n = 0;
+    const t = nowISO();
+    for (const [id, tags] of map) {
+      const v = this.data.videos[id];
+      if (!v) continue;
+      v.tags = cleanTags(tags);
+      v.updatedAt = t;
+      n++;
+    }
+    if (n) { this.ensureViewValid(); this.commit('tags-many'); }
+    return n;
+  },
   addTagMany(ids, tag) {
     const name = cleanTags([tag])[0];
     if (!name) return 0;
