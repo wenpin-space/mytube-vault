@@ -75,6 +75,7 @@ export function computeStats(data, raw = load(), now = new Date()) {
 
 const mins = (s) => Math.round(s / 60);
 function bars(values, labels, fmt, { highlight = -1 } = {}) {
+  if (!values.some((v) => v > 0)) return '<p class="bars-empty muted small">Belum ada data di perangkat ini. Grafik terisi sendiri saat kamu memutar lagu.</p>';
   const max = Math.max(1, ...values);
   return `<div class="bars">${values.map((v, i) => `
     <div class="bar-col${i === highlight ? ' hl' : ''}" title="${escapeHtml(labels[i].title)}: ${escapeHtml(fmt(v))}">
@@ -86,7 +87,6 @@ function bars(values, labels, fmt, { highlight = -1 } = {}) {
 export function openStatsDialog(store, { onPlay } = {}) {
   const s = computeStats(store.data);
   const tile = (label, value, sub = '') => `<div class="stat-tile"><span class="muted small">${label}</span><b>${value}</b>${sub ? `<span class="muted small">${sub}</span>` : ''}</div>`;
-  const empty = !s.totalPlays && !s.week;
   return modal({
     title: 'Statistik',
     wide: true,
@@ -97,7 +97,6 @@ export function openStatsDialog(store, { onPlay } = {}) {
         ${tile('Total diputar', `${s.totalPlays.toLocaleString(locale())}×`)}
         ${tile('Library', `${s.videos} lagu`, `${s.playlists} playlist · ${s.favorites} favorit${s.libDuration ? ` · ±${formatTotal(s.libDuration)}` : ''}`)}
       </div>
-      ${empty ? `<p class="muted pad">Belum ada data dengar. Putar beberapa lagu, statistik akan terisi otomatis.</p>` : ''}
       <section class="stat-sec"><h3>${icon('chart')}Menit mendengarkan, 14 hari terakhir</h3>
         ${bars(s.days.map((d) => mins(d.seconds)), s.days.map((d) => ({ short: d.date, title: `${d.label} ${d.key}` })), (v) => `${v} menit`, { highlight: 13 })}</section>
       <section class="stat-sec"><h3>${icon('clock')}Jam favorit${s.peakHour >= 0 ? ` <span class="muted small">— paling sering pukul ${String(s.peakHour).padStart(2, '0')}.00</span>` : ''}</h3>

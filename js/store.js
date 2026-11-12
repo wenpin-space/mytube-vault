@@ -92,7 +92,25 @@ export function cleanTags(list) {
 }
 const iso = (v, fallback) => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? v : fallback);
 
+/**
+ * Titik potong lagu: [mulai, akhir] dalam detik utuh; 0 = sisi itu tidak dipotong.
+ * Hasil null bila tidak ada potongan sama sekali (field `trim` lalu tidak disimpan).
+ */
+export function normTrim(raw, duration = 0) {
+  if (!Array.isArray(raw) || raw.length < 2) return null;
+  const n = (x) => (Number.isFinite(x) && x > 0 ? Math.min(86400, Math.round(x)) : 0);
+  let start = n(raw[0]);
+  let end = n(raw[1]);
+  if (duration > 0) {
+    if (start >= duration - 1) start = 0;   // mulai di luar lagu → abaikan
+    if (end >= duration) end = 0;            // akhir = akhir lagu → sama saja tidak dipotong
+  }
+  if (end && end <= start + 1) end = 0;
+  return start || end ? [start, end] : null;
+}
+
 function normVideo(id, v = {}, t = nowISO()) {
+  const trim = normTrim(v.trim);
   return {
     youtubeId: id,
     title: typeof v.title === 'string' && v.title.trim() ? v.title.trim().slice(0, 300) : null,
@@ -106,6 +124,7 @@ function normVideo(id, v = {}, t = nowISO()) {
     unavailable: v.unavailable === 'gone' || v.unavailable === 'embed' ? v.unavailable : null,
     firstAddedAt: iso(v.firstAddedAt ?? v.addedAt, t),
     updatedAt: iso(v.updatedAt, t),
+    ...(trim ? { trim } : {}),
   };
 }
 
@@ -285,6 +304,7 @@ export const store = {
       cur.playCount = Math.max(cur.playCount || 0, v.playCount || 0);
       cur.tags = cleanTags([...cur.tags, ...v.tags]);
       if (v.lastPlayedAt && (!cur.lastPlayedAt || v.lastPlayedAt > cur.lastPlayedAt)) cur.lastPlayedAt = v.lastPlayedAt;
+      if (!cur.trim && v.trim) cur.trim = v.trim;
     }
     for (const p of inc.playlists) {
       const target = this.getPlaylist(p.id) ||
@@ -457,6 +477,20 @@ export const store = {
     if (!v) return;
     Object.assign(v, patch, { updatedAt: nowISO() });
     this.commit('video-update');
+  },
+  /** Simpan titik potong awal/akhir lagu (detik). Keduanya 0 → potongan dihapus. Hasil: trim yang tersimpan atau null. */
+  setTrim(id, start, end) {
+    const v = this.data.videos[id];
+    if (!v) return null;
+    const trim = normTrim([start, end], v.duration || 0);
+    if (trim) v.trim = trim; else delete v.trim;
+    v.updatedAt = nowISO();
+    this.commit('video-update');
+    return trim;
+  },
+  getTrim(id) {
+    const v = this.data.videos[id];
+    return (v && v.trim) || null;
   },
   toggleFavorite(id) {
     const v = this.data.videos[id];

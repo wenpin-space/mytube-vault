@@ -32,6 +32,16 @@ export function formatDuration(sec) {
   return h ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 }
 
+/** "1:23", "1:02:03" atau "83" → detik. Kosong → 0. Tidak dikenali → NaN. */
+export function parseClock(text) {
+  const t = String(text ?? '').trim().replace(/[.,]/g, ':');
+  if (!t) return 0;
+  if (!/^\d{1,5}(:\d{1,2}){0,2}$/.test(t)) return NaN;
+  const parts = t.split(':').map(Number);
+  if (parts.length > 1 && parts.slice(1).some((x) => x > 59)) return NaN;
+  return parts.reduce((s, x) => s * 60 + x, 0);
+}
+
 export function formatTotal(sec) {
   if (!sec) return '';
   const h = Math.floor(sec / 3600);

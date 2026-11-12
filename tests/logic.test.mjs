@@ -848,3 +848,143 @@ test('v36: pindah banyak lagu sekaligus, ke nomor tertentu, geser satu langkah, 
   assert.equal(order(), 'icdefghjab');
   assert.ok(store.nudgeItems(pid, [item('b')], 1) === false);
 });
+
+test('v38: potong awal/akhir — simpan & normalisasi, isian dialog, player berhenti di titik akhir', async () => {
+  const { normTrim } = await import('../js/store.js');
+  const { parseClock } = await import('../js/utils.js');
+  const { readTrimInput, trimmedDuration } = await import('../js/trim.js');
+  const { cutPercents } = await import('../js/seekbar.js');
+  const { Player } = await import('../js/player.js');
+  const settle = () => new Promise((r) => setTimeout(r, 0));
+
+  // normalisasi
+  assert.deepEqual(normTrim([12.4, 200.6]), [12, 201]);
+  assert.equal(normTrim([0, 0]), null);
+  assert.equal(normTrim(null), null);
+  assert.deepEqual(normTrim([30, 20]), [30, 0], 'akhir sebelum mulai diabaikan');
+  assert.deepEqual(normTrim([10, 240], 240), [10, 0], 'akhir = durasi sama saja tidak dipotong');
+  assert.equal(normTrim([500, 0], 240), null, 'mulai di luar lagu diabaikan');
+
+  // waktu yang diketik
+  assert.equal(parseClock('1:23'), 83);
+  assert.equal(parseClock('1:02:03'), 3723);
+  assert.equal(parseClock('45'), 45);
+  assert.equal(parseClock(''), 0);
+  assert.ok(Number.isNaN(parseClock('abc')));
+  assert.ok(Number.isNaN(parseClock('1:75')));
+  assert.deepEqual(readTrimInput('0:20', '3:10', 240), { start: 20, end: 190 });
+  assert.deepEqual(readTrimInput('', '', 240), { start: 0, end: 0 });
+  assert.deepEqual(readTrimInput('0:20', '9:00', 240), { start: 20, end: 0 }, 'akhir melewati durasi = tidak dipotong');
+  assert.ok(readTrimInput('2:00', '1:00', 240).error);
+  assert.ok(readTrimInput('5:00', '', 240).error);
+  assert.ok(readTrimInput('x', '', 240).error);
+  assert.equal(trimmedDuration([20, 190], 240), 170);
+  assert.equal(trimmedDuration([20, 0], 240), 220);
+  assert.equal(trimmedDuration(null, 240), 240);
+  assert.deepEqual(cutPercents([24, 180], 240), { a: 10, b: 25 });
+  assert.deepEqual(cutPercents(null, 240), { a: 0, b: 0 });
+
+  // store: tersimpan, ikut normalizeData (sync/impor), bisa dihapus
+  mem.clear();
+  store.load();
+  const pid = store.data.playlists[0].id;
+  const A = 'A'.repeat(11); const B = 'B'.repeat(11); const C = 'C'.repeat(11);
+  store.addVideos([A, B, C], pid);
+  store.updateVideo(A, { duration: 240 });
+  assert.deepEqual(store.setTrim(A, 20, 190), [20, 190]);
+  assert.deepEqual(store.getTrim(A), [20, 190]);
+  assert.deepEqual(normalizeData(JSON.parse(JSON.stringify(store.data))).videos[A].trim, [20, 190]);
+  assert.equal('trim' in store.data.videos[B], false, 'lagu tanpa potongan tidak membawa field trim');
+  assert.equal(store.setTrim(B, 0, 0), null);
+
+  // player dengan YouTube tiruan
+  const S = { ENDED: 0, PLAYING: 1, PAUSED: 2, BUFFERING: 3, CUED: 5 };
+  globalThis.YT = { PlayerState: S };
+  const mk = () => {
+    const p = new Player('trim');
+    const yt = {
+      t: 0, loads: [], paused: 0,
+      loadVideoById(a) { const o = typeof a === 'string' ? { videoId: a } : a; this.loads.push(o); this.t = o.startSeconds || 0; p.onState({ data: S.PLAYING }); },
+      seekTo(t) { this.t = t; },
+      playVideo() { p.onState({ data: S.PLAYING }); },
+      pauseVideo() { this.paused++; p.onState({ data: S.PAUSED }); },
+      getCurrentTime() { return this.t; }, getDuration() { return 240; },
+      getPlaybackRate() { return 1; }, setPlaybackRate() {}, getVideoData() { return {}; },
+    };
+    p.yt = yt; p.ready = Promise.resolve();
+    p.trimLookup = (id) => store.getTrim(id);
+    return { p, yt };
+  };
+  const entries = [A, B, C].map((id) => ({ key: `k${id[0]}`, youtubeId: id }));
+
+  let { p, yt } = mk();
+  await p.playList(entries, 0);
+  assert.deepEqual(yt.loads.at(-1), { videoId: A, startSeconds: 20 }, 'mulai dari titik potong awal');
+  assert.equal(p.startAt, 0, 'melewati intro bukan "melanjutkan" (tanpa toast)');
+  yt.t = 100;
+  assert.equal(p.checkTrim(), false);
+  p.trimPaused = true; yt.t = 191;
+  assert.equal(p.checkTrim(), false, 'dialog potong terbuka: tidak diakhiri');
+  p.trimPaused = false;
+  const events = [];
+  p.on((type) => events.push(type));
+  assert.equal(p.checkTrim(), true);
+  await settle();
+  assert.ok(events.includes('ended'), 'dihitung selesai (ditandai ditonton, statistik)');
+  assert.equal(p.current.youtubeId, B, 'lanjut ke lagu berikutnya');
+  assert.deepEqual(yt.loads.at(-1), { videoId: B });
+
+  // Sebelumnya (prev) pada lagu yang dipotong: kembali ke titik mulai, bukan 0
+  p.prev(); await settle();
+  assert.equal(p.current.youtubeId, A);
+  yt.t = 60; p.prev();
+  assert.equal(yt.t, 20);
+
+  // ulang satu lagu: berputar di dalam rentang
+  p.repeat = 'one'; yt.t = 190.2;
+  assert.equal(p.checkTrim(), true);
+  assert.equal(p.current.youtubeId, A);
+  assert.equal(yt.t, 20);
+  assert.equal(p.state, 'playing');
+
+  // lagu terakhir, tanpa ulang: video dijeda di titik akhir; Putar mengulang dari titik mulai
+  ({ p, yt } = mk());
+  p.repeat = 'off';
+  await p.playList([entries[0]], 0);
+  yt.t = 195;
+  assert.equal(p.checkTrim(), true);
+  assert.equal(yt.paused, 1);
+  assert.equal(p.state, 'ended');
+  p.toggle();
+  assert.equal(yt.t, 20);
+  assert.equal(p.state, 'playing');
+
+  // posisi tersimpan (video panjang) setelah titik akhir → mulai dari titik potong awal
+  ({ p, yt } = mk());
+  p.resumeLookup = () => 188;
+  await p.playList([entries[0]], 0);
+  assert.deepEqual(yt.loads.at(-1), { videoId: A, startSeconds: 20 });
+  p.resumeLookup = () => 90;
+  await p.playList([entries[0]], 0);
+  assert.deepEqual(yt.loads.at(-1), { videoId: A, startSeconds: 90 });
+  assert.equal(p.startAt, 90, 'benar-benar melanjutkan → toast "Melanjutkan dari"');
+
+  // tanpa potongan perilaku lama tidak berubah
+  ({ p, yt } = mk());
+  await p.playList([entries[1], entries[2]], 0);
+  assert.deepEqual(yt.loads.at(-1), { videoId: B });
+  yt.t = 239; assert.equal(p.checkTrim(), false);
+  p.onState({ data: S.ENDED }); await settle();
+  assert.equal(p.current.youtubeId, C);
+});
+
+test('v38: "Apa yang baru" — versi sekarang di atas, sisanya dilipat', async () => {
+  const { splitChanges, APP_VERSION } = await import('../js/onboard.js');
+  const { now, older } = splitChanges();
+  assert.ok(now.length >= 1 && now.every((c) => c[3] === APP_VERSION));
+  assert.ok(older.length >= 1 && older.every((c) => c[3] !== APP_VERSION));
+  assert.ok(now.length + older.length <= 15, 'daftar CHANGES tetap ringkas');
+  const legacy = splitChanges([['a', 'A', 'x'], ['b', 'B', 'y']], 'v99');
+  assert.equal(legacy.now.length, 1);
+  assert.equal(legacy.older.length, 1);
+});

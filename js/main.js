@@ -17,6 +17,8 @@ import { openPalette } from './palette.js';
 import { healthCheckDialog } from './health.js';
 import { createLobby } from './lobby.js';
 import { enableRowDrag } from './rowdrag.js';
+import { createSeekbar } from './seekbar.js';
+import { trimDialog } from './trim.js';
 import { createSleepTimer, SLEEP_PRESETS } from './sleep.js';
 import * as ambient from './ambient.js';
 import { renderQuickstart, toggleQuickstart, maybeShowWhatsNew, showWhatsNew } from './onboard.js';
@@ -219,7 +221,7 @@ function renderMain() {
   const visible = sortEntries(quickFilter(searched, local.qf), sort);
   const duration = all.reduce((s, e) => s + (e.video.duration || 0), 0);
   const pl = store.currentPlaylist();
-  ui.renderViewHead(store, { sort, total: all.length, visible: visible.length, query: local.query, filtered: !!(local.query.trim() || local.qf), duration, density: density() });
+  ui.renderViewHead(store, { sort, total: all.length, visible: visible.length, query: local.query, filtered: !!(local.query.trim() || local.qf), duration, density: density(), coverIds: all.slice(0, 4).map((e) => e.youtubeId) });
   ui.renderQuickFilters(searched, {
     active: local.qf, view, filters: QUICK_FILTERS,
     tags: view.startsWith('tag:') ? [] : topTagsOf(searched),
@@ -970,6 +972,7 @@ function openPlayerMenu(anchor) {
         applyTint(player.current ? player.current.youtubeId : null, store.ui.tint);
       },
     },
+    player.current && { label: store.getTrim(player.current.youtubeId) ? 'Ubah potongan awal/akhir…' : 'Potong awal/akhir lagu…', icon: 'scissors', action: () => editTrim() },
     player.current && { label: 'Ganti ke versi audio (lirik pas)…', icon: 'music', action: () => findAudioVersion() },
     player.current && { label: 'Buka video ini di YouTube', icon: 'external', action: () => window.open(watchUrl(player.current.youtubeId), '_blank', 'noopener') },
   ]);
@@ -1234,6 +1237,8 @@ document.addEventListener('click', async (e) => {
     case 'banner-resolve': sync.syncNow(); break;
     case 'banner-dismiss': store.ui.bannerDismissed = true; store.saveUi(); break;
     case 'dock-play': player.toggle(); break;
+    case 'dock-mute': if (player.current) { player.toggleMute(); renderVol(); } break;
+    case 'trim-edit': editTrim(); break;
     case 'dock-next': player.next(); break;
     case 'dock-prev': player.prev(); break;
     case 'dock-shuffle': store.setPlayerSetting('shuffle', !store.data.settings.player.shuffle); break;
@@ -1508,12 +1513,40 @@ $('search').addEventListener('paste', (e) => {
 });
 $('search').addEventListener('blur', () => setTimeout(() => searchHint(''), 150));
 
-$('dock-progress').addEventListener('click', (e) => {
-  const d = player.duration();
-  if (!d) return;
-  const r = e.currentTarget.getBoundingClientRect();
-  player.seek(((e.clientX - r.left) / r.width) * d);
+// ---------- bilah progres (tarik untuk melompat) & volume ----------
+const seekbar = createSeekbar($('dock-progress'), {
+  duration: () => player.duration(),
+  seek: (t) => { player.seek(t); requestAnimationFrame(renderTime); },
+  onPreview: (t) => { $('dock-cur').textContent = formatDuration(t) || '0:00'; },
 });
+function renderTime() {
+  if (!player.current) return;
+  const t = player.time();
+  const d = player.duration();
+  seekbar.set(t, d);
+  if (!seekbar.dragging) ui.renderProgress(t, d);
+}
+/** Arsir bagian intro/outro yang dipotong di bilah progres. */
+function renderCuts() {
+  const cur = player.current;
+  const v = cur && store.data.videos[cur.youtubeId];
+  seekbar.setCuts(v ? v.trim : null, player.duration() || (v && v.duration) || 0);
+}
+
+/** Volume yang dipilih pengguna (0–100); diingat antar-sesi. Fade/timer tidur tidak mengubah nilai ini. */
+const userVolume = () => (Number.isFinite(store.ui.volume) ? store.ui.volume : player.volume());
+function renderVol() { ui.renderVolume(userVolume(), player.isMuted()); }
+function setUserVolume(v) {
+  const vol = Math.max(0, Math.min(100, Math.round(v)));
+  store.ui.volume = vol;
+  store.saveUiQuiet();
+  player.setVolume(vol);
+  fade.base = vol; fade.applied = null;
+  renderVol();
+  return vol;
+}
+$('dock-volume').addEventListener('input', (e) => setUserVolume(Number(e.target.value)));
+$('dock-volume').addEventListener('wheel', (e) => { e.preventDefault(); setUserVolume(userVolume() + (e.deltaY < 0 ? 5 : -5)); }, { passive: false });
 
 document.addEventListener('keydown', (e) => {
   if ((e.key === 'k' || e.key === 'K') && (e.ctrlKey || e.metaKey) && !e.altKey && !document.querySelector('dialog.palette[open]')) {
@@ -1550,9 +1583,9 @@ document.addEventListener('keydown', (e) => {
     case 'a': case 'A': e.preventDefault(); openAddSheet(true); return;
     case 'ArrowLeft': if (player.current) { e.preventDefault(); player.seek(Math.max(0, player.time() - 5)); } return;
     case 'ArrowRight': if (player.current) { e.preventDefault(); player.seek(player.time() + 5); } return;
-    case 'ArrowUp': if (player.current) { e.preventDefault(); const v = Math.min(100, player.volume() + 10); player.setVolume(v); toast(`Volume ${v}%`); } return;
-    case 'ArrowDown': if (player.current) { e.preventDefault(); const v = Math.max(0, player.volume() - 10); player.setVolume(v); toast(`Volume ${v}%`); } return;
-    case 'm': case 'M': if (player.current) toast(player.toggleMute() ? 'Suara aktif' : 'Dibisukan'); return;
+    case 'ArrowUp': if (player.current) { e.preventDefault(); toast(`Volume ${setUserVolume(userVolume() + 10)}%`); } return;
+    case 'ArrowDown': if (player.current) { e.preventDefault(); toast(`Volume ${setUserVolume(userVolume() - 10)}%`); } return;
+    case 'm': case 'M': if (player.current) { toast(player.toggleMute() ? 'Suara aktif' : 'Dibisukan'); renderVol(); } return;
     case 'l': case 'L': {
       const next = store.data.settings.player.repeat === 'one' ? 'all' : 'one';
       store.setPlayerSetting('repeat', next);
@@ -1648,10 +1681,16 @@ player.on((type, data) => {
     logPlay(data.youtubeId);
     if (player.startAt > 0) {
       const from = player.startAt;
-      toast(`Melanjutkan dari ${formatDuration(from)}.`, 'info', 6000, { label: 'Dari awal', fn: () => player.seek(0) });
+      toast(`Melanjutkan dari ${formatDuration(from)}.`, 'info', 6000, { label: 'Dari awal', fn: () => player.seek(player.bounds().start) });
       player.startAt = 0;
     }
   }
+  if (type === 'playing' && !local.volumeApplied) {
+    // volume terakhir yang dipilih di aplikasi ini (player YouTube tidak selalu mengingatnya)
+    local.volumeApplied = true;
+    if (Number.isFinite(store.ui.volume) && !player.isMuted() && Math.abs(player.volume() - store.ui.volume) > 1) player.setVolume(store.ui.volume);
+  }
+  if (type === 'track' || type === 'playing') { renderCuts(); renderVol(); }
   if (type === 'ended' && data) store.setPosition(data.youtubeId, 0);
   if (type === 'state' && player.state === 'paused') savePosition(player.current && player.current.youtubeId);
   if (type === 'sleep') sleepTimer.trackEnded();
@@ -1700,7 +1739,7 @@ setInterval(() => {
   lastListenAt = nowMs;
   if (!player.current) return;
   if (document.visibilityState === 'visible') {
-    ui.renderProgress(player.time(), player.duration());
+    renderTime();
     if (!$('lyrics-panel').hidden) lyricsPanel.tick(player.time());
   }
   tick++;
@@ -1816,13 +1855,14 @@ setInterval(() => {
     return;
   }
   if (player.isMuted()) return;
-  const t = player.time();
   const d = player.duration();
   if (!d || d < 20) return;
-  const left = d - t;
+  const cut = player.bounds();
+  const t = player.time() - cut.start;      // waktu sejak titik mulai (intro yang dipotong tidak dihitung)
+  const left = (cut.end || d) - player.time();
   let factor = 1;
   if (left < FADE_OUT) factor = Math.max(0.05, left / FADE_OUT);
-  else if (t < FADE_IN) factor = Math.max(0.15, t / FADE_IN);
+  else if (t >= 0 && t < FADE_IN) factor = Math.max(0.15, t / FADE_IN);
   if (factor >= 1) {
     if (fade.applied != null) { player.setVolume(fade.base); fade.applied = null; }
     else fade.base = player.volume(); // ikuti volume yang diatur pengguna
@@ -1832,6 +1872,34 @@ setInterval(() => {
   const v = Math.round(fade.base * factor);
   if (v !== fade.applied) { player.setVolume(v); fade.applied = v; }
 }, 150);
+
+// ---------- potong awal/akhir lagu (lewati intro & outro) ----------
+player.trimLookup = (id) => store.getTrim(id);
+setInterval(() => { if (player.isPlaying) player.checkTrim(); }, 250);
+
+async function editTrim() {
+  const cur = player.current;
+  if (!cur) { toast('Putar lagunya dulu, lalu buka menu ⋮ di player.', 'info'); return; }
+  const id = cur.youtubeId;
+  const v = store.data.videos[id] || {};
+  player.trimPaused = true; // selama dialog terbuka lagu boleh lewat dari titik akhir (untuk mencari titik baru)
+  let res;
+  try {
+    res = await trimDialog({ title: v.title || '', trim: store.getTrim(id), duration: player.duration() || v.duration || 0, player });
+  } finally { player.trimPaused = false; }
+  if (res == null) return;
+  const before = store.getTrim(id);
+  const saved = res === 'clear' ? store.setTrim(id, 0, 0) : store.setTrim(id, res.start, res.end);
+  renderCuts();
+  const undo = { label: 'Urungkan', fn: () => { store.setTrim(id, before ? before[0] : 0, before ? before[1] : 0); renderCuts(); } };
+  if (!saved) { toast(before ? 'Potongan dihapus: lagu diputar penuh lagi.' : 'Tidak ada yang dipotong.', 'info', 5000, before ? undo : null); return; }
+  const parts = [];
+  if (saved[0]) parts.push(`mulai ${formatDuration(saved[0])}`);
+  if (saved[1]) parts.push(`berakhir ${formatDuration(saved[1])}`);
+  toast(`Potongan disimpan: ${parts.join(', ')}.`, 'success', 6000, undo);
+  // sedang di bagian intro yang baru dipotong → langsung lompat ke titik mulai
+  if (player.current && player.current.youtubeId === id && saved[0] && player.time() < saved[0]) player.seek(saved[0]);
+}
 
 // ---------- Lobby ----------
 /** Baris lirik yang sedang dinyanyikan (dipakai Lobby). */

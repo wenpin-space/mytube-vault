@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-title" content="MyTube Vault">
   <link rel="preload" href="fonts/poppins-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/poppins-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="css/style.css?v=37">
+  <link rel="stylesheet" href="css/style.css?v=38">
 </head>
 <body>
   <a class="skip-link" href="#main">Lewati ke daftar video</a>
@@ -147,7 +147,12 @@
         <button type="button" class="icon-btn" data-action="queue-toggle" data-icon="queue" aria-label="Antrean"></button>
       </span>
     </div>
-    <div class="dock-progress" id="dock-progress" title="Klik untuk melompat"><div class="dock-bar" id="dock-bar"></div></div>
+    <div class="dock-progress" id="dock-progress" role="slider" tabindex="0" aria-label="Posisi lagu" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <span class="dock-cut a"></span><span class="dock-cut b"></span>
+      <div class="dock-bar" id="dock-bar"></div>
+      <span class="dock-knob"></span>
+      <span class="dock-tip" hidden></span>
+    </div>
     <div class="dock-track" data-action="np-open">
       <img id="dock-thumb" class="dock-thumb" alt="">
       <div class="dock-meta">
@@ -168,7 +173,11 @@
       <button type="button" class="icon-btn" id="dock-repeat" data-action="dock-repeat" aria-label="Ulangi"></button>
     </div>
     <div class="dock-extra">
-      <span class="dock-time" id="dock-time"></span>
+      <span class="dock-time" id="dock-time"><span id="dock-cur"></span><span class="dock-time-sep"> / </span><span id="dock-dur"></span></span>
+      <div class="dock-vol" id="dock-vol">
+        <button type="button" class="icon-btn" id="dock-mute" data-action="dock-mute" aria-label="Bisukan"></button>
+        <input type="range" class="vol-range" id="dock-volume" min="0" max="100" step="1" value="100" aria-label="Volume" title="Volume (↑/↓)">
+      </div>
       <button type="button" class="icon-btn" data-action="player-menu" data-icon="more" aria-label="Opsi player" title="Kecepatan, timer tidur, dll."></button>
       <button type="button" class="icon-btn" id="dock-ambient" data-action="lobby-mixer" data-icon="sliders" title="Suara alam sedang berbunyi — atur di Lobby" aria-label="Atur suara alam"></button>
       <button type="button" class="icon-btn dock-video-d" data-video-toggle data-action="stage-min" aria-label="Tampilkan video"></button>
@@ -193,6 +202,6 @@
   </nav>
 
   <noscript><p style="padding:24px">MyTube Vault butuh JavaScript.</p></noscript>
-  <script type="module" src="js/main.js?v=37"></script>
+  <script type="module" src="js/main.js?v=38"></script>
 </body>
 </html>

@@ -61,6 +61,9 @@ export class Player {
     this.rate = 1;
     this.stopAfterCurrent = false; // timer tidur "akhir lagu ini"
     this.startAt = 0; // detik awal untuk lagu yang sedang dimuat (lanjut dari posisi terakhir)
+    this.trimLookup = null; // (youtubeId) => [mulai, akhir] dalam detik (0 = tidak dipotong), atau null
+    this.trimPaused = false; // dialog potong sedang terbuka: jangan akhiri lagu di titik potong
+    this.trimHalt = false;
     this.listeners = new Set();
   }
 
@@ -126,12 +129,25 @@ export class Player {
     await this.loadCurrent();
   }
 
+  /** Titik potong lagu sekarang: {start, end} dalam detik; 0 berarti tidak dipotong di sisi itu. */
+  bounds() {
+    const cur = this.current;
+    const t = cur && typeof this.trimLookup === 'function' ? this.trimLookup(cur.youtubeId) : null;
+    const start = t && t[0] > 0 ? t[0] : 0;
+    const end = t && t[1] > start ? t[1] : 0;
+    return { start, end };
+  }
+
   /** startAt null → tanyakan resumeLookup (lanjut dari posisi terakhir untuk video panjang). */
   async loadCurrent(startAt = null) {
     const cur = this.current;
     if (!cur) return;
+    const b = this.bounds();
     if (startAt == null) startAt = typeof this.resumeLookup === 'function' ? (this.resumeLookup(cur.youtubeId) || 0) : 0;
-    this.startAt = startAt;
+    if (b.end && startAt >= b.end - 5) startAt = 0; // posisi tersimpan sudah di bagian yang dipotong
+    this.startAt = startAt > b.start ? startAt : 0; // > 0 hanya bila benar-benar melanjutkan (bukan sekadar melewati intro)
+    const from = Math.max(startAt, b.start);
+    this.trimHalt = false;
     clearTimeout(this.skipTimer);
     this.error = null;
     this.state = 'loading';
@@ -145,8 +161,44 @@ export class Player {
       return;
     }
     if (this.current !== cur) return; // user sudah pindah lagu saat API dimuat
-    if (this.startAt > 0) this.yt.loadVideoById({ videoId: cur.youtubeId, startSeconds: this.startAt });
+    if (from > 0) this.yt.loadVideoById({ videoId: cur.youtubeId, startSeconds: from });
     else this.yt.loadVideoById(cur.youtubeId);
+  }
+
+  /** Ulangi lagu sekarang dari awal (atau dari titik potong awal). */
+  restart() {
+    try { this.yt.seekTo(this.bounds().start, true); this.yt.playVideo(); } catch { /* abaikan */ }
+  }
+
+  /**
+   * Lagu selesai: secara alami (YouTube mengirim ENDED) atau karena sampai di titik potong akhir.
+   * Pada kasus kedua video masih berjalan, jadi kalau tidak ada lagu berikutnya video dijeda.
+   */
+  finishTrack(natural = true) {
+    const cur = this.current;
+    if (!cur) return;
+    const halt = () => {
+      if (natural) return;
+      this.trimHalt = true;
+      this.pauseIntentAt = Date.now();
+      try { this.yt.pauseVideo(); } catch { /* abaikan */ }
+    };
+    this.state = 'ended';
+    this.emit('ended', cur);
+    if (this.stopAfterCurrent) { this.stopAfterCurrent = false; halt(); this.emit('sleep'); this.emit('state'); return; }
+    if (this.repeat === 'one') { this.restart(); return; }
+    if (this.autoNext) { this.next(true); if (this.current === cur && this.state === 'ended') halt(); return; }
+    halt();
+    this.emit('state');
+  }
+
+  /** Dipanggil berkala saat lagu berjalan: akhiri lagu begitu melewati titik potong akhir. */
+  checkTrim() {
+    if (this.trimPaused || this.state !== 'playing' || !this.yt) return false;
+    const { end } = this.bounds();
+    if (!end || this.time() < end) return false;
+    this.finishTrack(false);
+    return true;
   }
 
   onState(e) {
@@ -160,19 +212,17 @@ export class Player {
         this.emit('state');
         this.emit('playing', this.current);
         break;
-      case S.PAUSED: this.state = 'paused'; this.emit('state'); break;
+      case S.PAUSED:
+        // dijeda oleh kita di titik potong akhir → tetap dianggap "selesai" supaya Putar mengulang dari awal
+        if (this.trimHalt) { this.trimHalt = false; this.state = 'ended'; } else this.state = 'paused';
+        this.emit('state');
+        break;
       case S.CUED:
       case -1: // belum mulai (mis. autoplay ditahan browser saat aplikasi di latar belakang)
         if (this.state === 'loading') this.emit('unstarted', this.current);
         break;
       case S.BUFFERING: this.state = 'buffering'; this.emit('state'); break;
-      case S.ENDED:
-        this.state = 'ended';
-        this.emit('ended', this.current);
-        if (this.stopAfterCurrent) { this.stopAfterCurrent = false; this.emit('sleep'); this.emit('state'); break; }
-        if (this.repeat === 'one') { this.yt.seekTo(0, true); this.yt.playVideo(); } else if (this.autoNext) this.next(true);
-        else this.emit('state');
-        break;
+      case S.ENDED: this.finishTrack(true); break;
       default: break;
     }
   }
@@ -214,17 +264,18 @@ export class Player {
 
   prev() {
     if (!this.order.length) return;
-    if (this.time() > 3) { this.seek(0); return; }
+    const { start } = this.bounds();
+    if (this.time() - start > 3) { this.seek(start); return; }
     if (this.pos > 0) this.pos--;
     else if (this.repeat === 'all') this.pos = this.order.length - 1;
-    else { this.seek(0); return; }
+    else { this.seek(start); return; }
     this.loadCurrent();
   }
 
   toggle() {
     if (!this.yt || !this.current) return;
     if (this.isPlaying) { this.pauseIntentAt = Date.now(); this.yt.pauseVideo(); }
-    else if (this.state === 'ended') { this.yt.seekTo(0, true); this.yt.playVideo(); } else this.yt.playVideo();
+    else if (this.state === 'ended') this.restart(); else this.yt.playVideo();
   }
 
   setShuffle(on) {

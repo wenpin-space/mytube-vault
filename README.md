@@ -21,7 +21,8 @@ Vanilla JavaScript (ES modules), tanpa build step, tanpa backend. Tinggal taruh 
 - Play/pause, next/prev (prev mengulang lagu bila sudah > 3 detik), auto-next
 - Shuffle (urutan asli kembali saat dimatikan), repeat off / semua / satu
 - Antrean: lihat, lompat, hapus, “Putar berikutnya”, “Tambah ke antrean”
-- Mini player ⇄ video besar, progress bar yang bisa diklik
+- Mini player ⇄ video besar, progress bar yang bisa diklik & ditarik (waktu tampil di kursor), volume + bisu di PC
+- Potong awal/akhir lagu untuk melewati intro & outro (per video, ikut sync)
 - Player mengambang bisa di-**minimize** (tombol ▁ di bilahnya: video dilipat, musik tetap jalan; ketuk bilah untuk menampilkan lagi) dan **digeser** ke pojok mana pun (desktop)
 - Video yang tidak boleh di-embed → pesan jelas + tombol “Buka di YouTube”, otomatis lanjut ke video berikutnya
 - Pintasan: `Spasi`/`K` putar-jeda · `N` berikutnya · `P` sebelumnya · `/` cari · `?` semua pintasan
@@ -81,6 +82,12 @@ Vanilla JavaScript (ES modules), tanpa build step, tanpa backend. Tinggal taruh 
 - **Kamar santai (v21)**: latar utama Lobby berupa ilustrasi kamar berlapis (rak buku, meja, laptop, kopi beruap, kucing tidur, tanaman yang bergoyang, lampu-lampu). Lewat tombol **Suasana**: 6 pemandangan di luar jendela (gunung & danau, kota, pantai, hutan pinus, pedesaan dengan kincir, sawah dengan gunung berasap), 6 cuaca (cerah, berawan, hujan, badai berkilat, salju, kabut) dan waktu (otomatis/pagi/siang/senja/malam) yang mengubah cahaya kamar. Suara alam otomatis ikut suasana (bisa dimatikan); ada tombol *Suasana acak*.
 - **Gaya lukisan lofi (v22)**: Kamar santai digambar ulang dengan palet teal keabuan + aksen hangat, atmospheric perspective (gunung jauh memudar ke kabut), sisi lereng terang/gelap, pantulan danau, kabut yang melayang, cahaya lampu yang tumpah ke dinding dan rim light di tepi benda, serat kayu, hujan tiga lapis dengan jejak tetes di kaca, burung sesekali, grain film halus, dan parallax pemandangan yang mengikuti mouse (dimatikan bila *reduced motion*).
 - **Lukisan sapuan kuas (v23)**: `js/paint.js` melukis ulang setiap suasana: underpainting buram → tiga lapis sapuan kuas (warna diambil dari gambar, arah mengikuti tepi benda) → tepi benda dirapikan kembali → bloom lembut + tekstur kanvas. Dikerjakan bertahap ±10 ms per frame sehingga terlihat "terlukis" dalam 1–3 detik tanpa membuat animasi tersendat. Tanaman, pot gantung, dan kucing dilukis sebagai sprite lalu digerakkan (bergoyang/bernapas).
+- **v38 — player lebih enak dipakai & sampul playlist** (`js/seekbar.js`, `js/trim.js`, `js/player.js`, `js/ui.js`, `js/main.js`):
+  - **Bilah progres bisa ditarik** (`js/seekbar.js`): klik atau tarik dengan mouse/jari, waktu tampil di gelembung di atas kursor, knob muncul saat hover. Lompatan baru dikirim ke YouTube saat dilepas. Di HP, layar *Sedang diputar* punya knob tetap, waktu berjalan di kiri dan durasi di kanan. Posisi digambar lewat variabel CSS `--p`.
+  - **Volume di player (PC)**: tombol bisu + slider (roda mouse ±5, `↑`/`↓` ±10, `M` bisu). Volume pilihan disimpan di `store.ui.volume` dan diterapkan lagi saat lagu pertama diputar; transisi halus & timer tidur tidak mengubah nilai tersimpan. Slider disembunyikan di layar < 1180 px, seluruh kontrol di HP (pakai tombol volume perangkat).
+  - **Potong awal/akhir lagu** (`js/trim.js`): menu ⋮ di player → *Potong awal/akhir lagu…*. Dialog punya pemutar kecil (geser, −5/+5 detik, putar/jeda) lalu *Mulai dari sini* / *Akhiri di sini*, atau ketik waktu (`0:45`, `1:02:03`). Disimpan per video sebagai `trim: [mulai, akhir]` detik (hanya ada bila dipotong; ikut sync, ekspor & gabung data), berlaku di semua playlist. Player memulai lewat `startSeconds`, dan `player.checkTrim()` (tiap 250 ms) mengakhiri lagu di titik akhir: lanjut ke lagu berikutnya, mengulang di dalam rentang saat *ulang satu*, atau menjeda di lagu terakhir. *Sebelumnya* dan *Dari awal* kembali ke titik mulai; transisi halus mengikuti titik potong; selama dialog terbuka pemotongan dijeda supaya bisa mencari titik baru. Bagian yang dipotong diarsir di bilah progres dan baris lagu diberi tanda ✂ dengan rentangnya.
+  - **Sampul playlist**: mosaik 2×2 dari empat lagu pertama (satu gambar bila kurang dari empat) di kepala halaman playlist & tag, ubin ikon bergradasi untuk koleksi otomatis, dan sampul kecil di daftar playlist sidebar. Sampul di kepala halaman hanya digambar ulang bila isinya berubah.
+  - **"Apa yang baru" lebih ringkas**: catatan versi sekarang tampil penuh, versi lama dilipat di *Pembaruan sebelumnya*. Grafik Statistik yang belum punya data menampilkan keterangan, bukan grafik kosong.
 - **v37 — kafe yang lebih hidup & rapi** (`js/cafe.js`, `js/visitors.js`, `js/room.js`, `js/ambient.js`, `js/lobby.js`):
   - **Bangku bar**: dinaikkan (`STOOL_SEAT` 650→622, cincin pijakan `STOOL_RING`) supaya dudukan ±0,45 tinggi orang dan meja bar ±1/5 tinggi orang di atas dudukan — sebelumnya meja bar setinggi bahu sehingga pengunjung tampak berdiri kaku. Pose dari belakang: siku bertumpu di meja bar, ujung baju dipotong di dudukan, titik berdiri sebelum duduk tepat di depan kaki bangku.
   - **Pesanan di meja bar**: cangkir berasap di kanan & piring roti di kiri badan (`BAR_Y` diekspor); saat minum/makan barangnya terangkat dari meja dan tampak menyembul di sisi kepala.
@@ -291,6 +298,8 @@ File di Gist (dan file export) memakai format yang sama:
 
 Dengan enkripsi, `data` diganti `crypto` (`kdf`, `iterations`, `cipher`, `salt`, `iv`) + `payload` (base64). `updatedAt` sengaja tetap terbuka supaya deteksi konflik bisa jalan tanpa passphrase.
 
+Video yang awal/akhirnya dipotong punya field tambahan `"trim": [mulai, akhir]` dalam detik (0 = sisi itu tidak dipotong); video lain tidak membawa field ini.
+
 Model `videos` (library global) + `playlists[].items` (urutan & referensi) dipilih supaya favorit/ditonton konsisten walau satu video ada di banyak playlist. Import juga menerima format sederhana lama (`playlists[].videos[]`).
 
 Key di LocalStorage:
@@ -333,6 +342,8 @@ js/health.js        cek video dihapus/privat (YouTube API / oEmbed)
 js/onboard.js       kartu Mulai cepat + Apa yang baru
 js/lobby.js         Lobby: jam, lirik, suasana, suara alam, Fokus, timer tidur
 js/sleep.js         timer tidur bersama (menu player & Lobby)
+js/seekbar.js       bilah progres yang bisa ditarik + arsir bagian yang dipotong
+js/trim.js          dialog potong awal/akhir lagu (lewati intro & outro)
 js/weather.js       cuaca & waktu nyata untuk Lobby (Open-Meteo, cari kota, GPS)
 js/cafe.js          Kafe: interior, sprite, barista, kopi & roti di meja kita, pelayan
 js/visitors.js      pengunjung Kafe (gambar orang + siklus masuk/pesan/duduk/pulang)
