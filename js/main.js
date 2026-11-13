@@ -18,7 +18,6 @@ import { createLobbyHost, once } from './lobby-host.js';
 import { snapshotSession, loadSession, saveSession } from './session.js';
 import { createNowPanel } from './nowpanel.js';
 import { createMediaSession } from './mediasession.js';
-import { enableVideoTaps } from './videotap.js';
 import { enableSwipe } from './swipe.js';
 import { enableNavDrag } from './navdrag.js';
 import { missingAutoTags, applyAutoTags } from './autotag.js';
@@ -1591,7 +1590,7 @@ enableRowDrag($('video-list'), {
   },
 });
 
-// ---------- gestur v41: geser baris (HP), tarik urutan playlist, ketuk video ----------
+// ---------- gestur v41: geser baris (HP), tarik urutan playlist ----------
 enableSwipe($('video-list'), {
   enabled: () => !local.selecting && density() !== 'grid' && !local.rowDrag,
   icon,
@@ -1607,7 +1606,6 @@ enableNavDrag($('playlist-nav'), {
     if (before && pl) offerUndo(`“${pl.name}” dipindah ke nomor ${to + 1} di daftar playlist.`, () => store.setPlaylistOrder(before), { type: 'success', ms: 5000 });
   },
 });
-enableVideoTaps(document.querySelector('.stage-video'), { player, icon, onToggle: () => player.toggle() });
 
 // PC: panel Tambah melayang di bawah bar atas, selebar area daftar lagu.
 function placeAddPopover() {

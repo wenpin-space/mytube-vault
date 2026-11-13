@@ -102,8 +102,6 @@ const P = {
   filter: '<path d="M3 5h18l-7 8.5V19l-4 2v-7.5z"/>',
   merge: '<circle cx="6" cy="5" r="2.2"/><circle cx="6" cy="19" r="2.2"/><circle cx="18" cy="12" r="2.2"/><path d="M6 7.2v9.6"/><path d="M6 7.5c0 3 3 4.5 9.8 4.5"/>',
   leaf: '<path d="M11 20A7 7 0 0 1 4 13c0-6 6-9 16-10-1 10-4 16-10 16"/><path d="M4 21c3-6 6-9 11-12"/>',
-  rewind: '<path d="M11 18l-7-6 7-6z"/><path d="M20 18l-7-6 7-6z"/>',
-  forward: '<path d="M13 18l7-6-7-6z"/><path d="M4 18l7-6-7-6z"/>',
 };
 
 export function icon(name, cls = '') {

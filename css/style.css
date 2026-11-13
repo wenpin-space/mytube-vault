@@ -1897,19 +1897,6 @@ body:has(dialog[open]) .eq i, body:has(dialog[open]) .thumb { animation-play-sta
 .sync-badge.ok .sync-dot, .sync-badge.warn .sync-dot, .sync-badge.err .sync-dot { display: block; }
 .sync-badge.muted .sync-dot { display: none; }
 
-/* ketuk video: sekali putar/jeda, dua kali di sisi = ±10 detik */
-.video-tap { position: absolute; left: 0; right: 0; top: 0; bottom: 48px; z-index: 2; touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; }
-.stage.min .video-tap, .stage.dragging .video-tap { display: none; }
-.vt-bubble { position: absolute; top: 50%; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 18px; border-radius: 999px; background: rgba(0, 0, 0, .55); color: #fff; font-size: 13px; font-weight: 600; opacity: 0; transform: translateY(-50%) scale(.9); pointer-events: none; transition: opacity .18s, transform .18s; }
-.vt-bubble .i { width: 22px; height: 22px; fill: #fff; stroke: none; }
-.vt-bubble.back { left: 8%; }
-.vt-bubble.fwd { right: 8%; }
-.vt-bubble.show { opacity: 1; transform: translateY(-50%) scale(1); }
-.vt-center { position: absolute; left: 50%; top: 50%; display: grid; place-items: center; width: 60px; height: 60px; margin: -30px 0 0 -30px; border-radius: 50%; background: rgba(0, 0, 0, .5); color: #fff; opacity: 0; pointer-events: none; }
-.vt-center .i { width: 26px; height: 26px; }
-.vt-center.show { animation: vt-pop .55s ease-out; }
-@keyframes vt-pop { 0% { opacity: 0; transform: scale(.8); } 25% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.15); } }
-
 /* geser baris lagu (HP) */
 .video-list { position: relative; }
 @media (pointer: coarse) { .video-list:not([data-density="grid"]) .vrow { touch-action: pan-y pinch-zoom; } }

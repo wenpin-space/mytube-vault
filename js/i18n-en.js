@@ -1065,6 +1065,8 @@ export const EN = {
   'Navigasi': 'Navigation',
   'Bahasa / Language': 'Bahasa / Language',
   // v41
+  'Tombol video YouTube bisa diklik lagi': 'YouTube video buttons are clickable again',
+  'Pengaturan kualitas, teks (CC), layar penuh, dan tombol lain di video YouTube kembali bisa diklik. Lapisan “ketuk video” dari v41 yang menutupinya dihapus; putar/jeda tetap lewat tombol di video atau player bawah.': 'Quality settings, captions (CC), fullscreen and the other buttons on the YouTube video can be clicked again. The v41 “tap the video” layer that covered them has been removed; play/pause works as usual through the video or the bottom player.',
   'Ubah judul…': 'Edit title…',
   'Cari lagu yang sama…': 'Find the same song…',
   'Di daftar, tempelan seperti “(Official Video)” disembunyikan otomatis.': 'In lists, add-ons like “(Official Video)” are hidden automatically.',
@@ -1192,7 +1194,7 @@ export const EN = {
   'Tambah lagu lebih mudah': 'Easier adding',
   'Banyak link kini menampilkan pratinjau sebelum disimpan: mana yang baru, sudah ada di library, sudah di playlist ini, dobel, atau tidak valid. Import playlist YouTube kini bisa tanpa API key (±200 lagu pertama).': 'Multiple links now shows a preview before saving: which are new, already in the library, already in this playlist, repeated or invalid. YouTube playlists can now be imported without an API key (first ±200 songs).',
   'Gestur & kontrol media': 'Gestures & media controls',
-  'Ketuk video untuk putar/jeda, ketuk dua kali di sisi kiri/kanan untuk mundur/maju 10 detik. Di HP, geser lagu ke kanan untuk Putar berikutnya dan ke kiri untuk Tambah ke playlist. Urutan playlist di daftar samping bisa ditarik. Judul, sampul, sebelumnya/berikutnya, dan geser posisi tampil di notifikasi, layar kunci, dan tombol media keyboard.': 'Tap the video to play/pause, double-tap the left/right side to skip back/forward 10 seconds. On phones, swipe a song right to Play next and left to Add to playlist. Playlists in the side list can be dragged into order. Title, artwork, previous/next and seeking show up in notifications, the lock screen and keyboard media keys.',
+  'Di HP, geser lagu ke kanan untuk Putar berikutnya dan ke kiri untuk Tambah ke playlist. Urutan playlist di daftar samping bisa ditarik. Judul, sampul, sebelumnya/berikutnya, dan geser posisi tampil di notifikasi, layar kunci, dan tombol media keyboard.': 'On phones, swipe a song right to Play next and left to Add to playlist. Playlists in the side list can be dragged into order. Title, artwork, previous/next and seeking show up in notifications, the lock screen and keyboard media keys.',
   'Mode hemat & status sinkron': 'Lite mode & sync status',
   'Setelan → Umum → Mode hemat: tanpa animasi, thumbnail kecil, Lobby 20 fps. Klik ikon awan di atas untuk melihat status sinkron, waktu sinkron terakhir, dan Sinkron sekarang.': 'Settings → General → Lite mode: no animations, small thumbnails, Lobby at 20 fps. Click the cloud icon at the top to see the sync status, the last sync time and Sync now.',
   'Opsi lainnya': 'More options',

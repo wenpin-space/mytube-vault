@@ -4,7 +4,7 @@ import { modal } from './dialogs.js';
 import { icon } from './icons.js';
 import { escapeHtml } from './utils.js';
 
-export const APP_VERSION = 'v41';
+export const APP_VERSION = 'v42';
 const SEEN_KEY = 'mytube_vault_seen_version';
 
 /** Langkah mulai cepat dan statusnya (murni, mudah diuji). */
@@ -50,12 +50,13 @@ export function renderQuickstart(host, state, { installable = false } = {}) {
 
 // [ikon, judul, penjelasan, versi?] — entri bertanda versi sekarang tampil penuh; sisanya dilipat di "Pembaruan sebelumnya".
 const CHANGES = [
+  ['video', 'Tombol video YouTube bisa diklik lagi', 'Pengaturan kualitas, teks (CC), layar penuh, dan tombol lain di video YouTube kembali bisa diklik. Lapisan “ketuk video” dari v41 yang menutupinya dihapus; putar/jeda tetap lewat tombol di video atau player bawah.', 'v42'],
   ['more', 'Menu & tombol lebih ringkas', 'Menu ⋮ lagu kini dimulai dengan empat tombol besar (Berikutnya, Antrean, Playlist, Favorit); yang jarang dipakai ada di Lainnya. Menu player hanya berisi hal soal lagu yang diputar: kecepatan, timer tidur, Berhenti setelah lagu ini, dan potong lagu. Tombol ⋮ player kini paling kanan dan diberi titik bila ada yang aktif. Di HP, mini player cukup Putar & Berikutnya.', 'v41'],
   ['undo', 'Urungkan di mana-mana', 'Hapus dari library, hapus atau kosongkan playlist, pindah ke playlist lain, dan aksi di mode pilih kini langsung jalan tanpa dialog konfirmasi, dengan tombol Urungkan di notifikasi (atau Ctrl+Z). Di PC, Ctrl+klik dan Shift+klik memilih beberapa lagu sekaligus.', 'v41'],
   ['merge', 'Lagu ganda & judul bersih', 'Lagu yang sama dengan video berbeda (mis. MV dan versi audio) dikenali saat ditambahkan, dan bisa digabung lewat ⋮ → Cari lagu ganda: playlist, favorit, tag, dan jumlah putarnya ikut digabung. Tempelan seperti “(Official Video)” atau “[HD]” disembunyikan dari judul; judul aslinya tetap tersimpan.', 'v41'],
   ['filter', 'Filter gabungan', 'Chip filter di atas daftar kini bisa dinyalakan beberapa sekaligus, mis. #lofi + Belum pernah diputar + < 5 menit, lalu tekan Acak. Tag lain bisa ditambahkan lewat chip Tag lain.', 'v41'],
   ['link', 'Tambah lagu lebih mudah', 'Banyak link kini menampilkan pratinjau sebelum disimpan: mana yang baru, sudah ada di library, sudah di playlist ini, dobel, atau tidak valid. Import playlist YouTube kini bisa tanpa API key (±200 lagu pertama).', 'v41'],
-  ['video', 'Gestur & kontrol media', 'Ketuk video untuk putar/jeda, ketuk dua kali di sisi kiri/kanan untuk mundur/maju 10 detik. Di HP, geser lagu ke kanan untuk Putar berikutnya dan ke kiri untuk Tambah ke playlist. Urutan playlist di daftar samping bisa ditarik. Judul, sampul, sebelumnya/berikutnya, dan geser posisi tampil di notifikasi, layar kunci, dan tombol media keyboard.', 'v41'],
+  ['video', 'Gestur & kontrol media', 'Di HP, geser lagu ke kanan untuk Putar berikutnya dan ke kiri untuk Tambah ke playlist. Urutan playlist di daftar samping bisa ditarik. Judul, sampul, sebelumnya/berikutnya, dan geser posisi tampil di notifikasi, layar kunci, dan tombol media keyboard.', 'v41'],
   ['leaf', 'Mode hemat & status sinkron', 'Setelan → Umum → Mode hemat: tanpa animasi, thumbnail kecil, Lobby 20 fps. Klik ikon awan di atas untuk melihat status sinkron, waktu sinkron terakhir, dan Sinkron sekarang.', 'v41'],
   ['bolt', 'Setelan lebih ringan', 'Dialog Setelan & dialog lain tidak lagi memakai efek kaca buram selebar layar, dan kilau “sedang dimuat” di thumbnail berhenti begitu gambarnya tampil. Membuka Setelan, menggulir daftar lagu, dan memutar video jauh lebih ringan. Tombol bookmark “Tambah ke Vault” dihapus.', 'v40'],
   ['play', 'Lanjutkan dari terakhir', 'Saat aplikasi dibuka lagi, kartu Lanjutkan muncul di bawah: lagu, posisi, dan antrean terakhir kembali persis seperti saat ditinggal (tekan Spasi juga bisa). Tidak pernah memutar sendiri.', 'v39'],
@@ -63,7 +64,6 @@ const CHANGES = [
   ['tag', 'Tag otomatis dari judul', 'Lagu baru otomatis diberi tag live, cover, remix, acoustic, lyrics, dan lainnya sesuai judulnya. Untuk lagu yang sudah ada: Setelan → Umum → Terapkan ke semua lagu.', 'v39'],
   ['gift', 'Dekorasi musiman di Lobby', 'Hiasan Natal, kembang api Tahun Baru, lampion Imlek, ketupat Lebaran, dan bendera Agustusan muncul sendiri sesuai tanggal, di Kamar santai maupun Kafe.', 'v39'],
   ['sliders', 'Player: geser, waktu & volume', 'Bilah progres di player kini bisa ditarik dengan mouse atau jari, dan menampilkan waktu tepat di bawah kursor. Di HP, layar Sedang diputar punya knob yang mudah digeser. Di PC ada tombol bisu dan slider volume; volumenya diingat.', 'v38'],
-  ['scissors', 'Lewati intro & outro', 'Menu ⋮ di player → Potong awal/akhir lagu. Cari titiknya dengan pemutar kecil di dialog, lalu tekan Mulai dari sini atau Akhiri di sini. Lagu itu selalu diputar di antara dua titik tersebut, di semua playlist dan semua perangkat yang tersinkron.', 'v38'],
 ];
 
 /** Tampilkan "Apa yang baru" sekali setelah update (bukan untuk pengguna baru). */
