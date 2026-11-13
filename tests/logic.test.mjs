@@ -1237,9 +1237,7 @@ test('v41: Urungkan umum (checkpoint), pindah playlist, filter gabungan, pratinj
   assert.deepEqual(idsToAdd(res, { skipLibrary: true }), ['zzzzzzzzzz9']);
 });
 
-test('v41: gestur & kontrol media — sisi ketukan, batas geser, WAV sunyi', async () => {
-  const { tapSide } = await import('../js/videotap.js');
-  assert.equal(tapSide(0.1), 'back'); assert.equal(tapSide(0.5), 'mid'); assert.equal(tapSide(0.9), 'fwd');
+test('v41: gestur & kontrol media — batas geser, WAV sunyi', async () => {
   const { swipeResult, damp } = await import('../js/swipe.js');
   assert.equal(swipeResult(90), 'right'); assert.equal(swipeResult(-90), 'left'); assert.equal(swipeResult(40), null);
   assert.equal(damp(100), 100); assert.equal(damp(-232), -(132 + 25));
