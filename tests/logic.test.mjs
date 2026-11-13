@@ -1109,3 +1109,145 @@ test('v39: dekorasi musiman menurut tanggal & jendela lirik panel Sedang diputar
   assert.deepEqual(lyricWindow(40, 10), [8, 15]);
   assert.deepEqual(lyricWindow(40, 39), [37, 40]);
 });
+
+test('v41: judul bersih — tempelan promosi dibuang, versi & judul asli aman', async () => {
+  const { cleanTitle, titleOf, setCleanTitles } = await import('../js/titles.js');
+  const c = (t) => cleanTitle(t);
+  assert.equal(c('Tulus - Hati-Hati di Jalan (Official Music Video)'), 'Tulus - Hati-Hati di Jalan');
+  assert.equal(c('Song Name [HD]'), 'Song Name');
+  assert.equal(c('Song (Official Video) [4K]'), 'Song');
+  assert.equal(c('Song | Official Audio'), 'Song');
+  assert.equal(c('Artist - Song - Official Video'), 'Artist - Song');
+  assert.equal(c("BTS (방탄소년단) 'Dynamite' Official MV"), "BTS (방탄소년단) 'Dynamite'");
+  assert.equal(c('[MV] IU(아이유) _ Celebrity'), 'IU(아이유) _ Celebrity');
+  assert.equal(c('Artist - Song【Official Video】'), 'Artist - Song');
+  assert.equal(c('Mahalini - Sial (Video Lirik)'), 'Mahalini - Sial');
+  // yang bukan tempelan tetap
+  assert.equal(c('Song (Live at Wembley)'), 'Song (Live at Wembley)');
+  assert.equal(c('Artist - Song (Sped Up)'), 'Artist - Song (Sped Up)');
+  assert.equal(c('Artist - Song (Remastered 2011)'), 'Artist - Song (Remastered 2011)');
+  assert.equal(c('Video Killed the Radio Star'), 'Video Killed the Radio Star');
+  assert.equal(c('Audio'), 'Audio', 'judul yang hanya berisi kata tempelan tidak dikosongkan');
+  assert.equal(titleOf({ title: 'A (Official Video)' }), 'A');
+  setCleanTitles(false);
+  assert.equal(titleOf({ title: 'A (Official Video)' }), 'A (Official Video)');
+  setCleanTitles(true);
+  assert.equal(titleOf({ title: null }), null);
+});
+
+test('v41: lagu ganda — kunci lagu, kelompok, gabung dengan Urungkan', async () => {
+  const { songKey, findDuplicates, similarTo } = await import('../js/dupes.js');
+  assert.equal(songKey('The Weeknd - Blinding Lights (Official Video)', 'TheWeekndVEVO'), songKey('Blinding Lights', 'The Weeknd - Topic'));
+  assert.equal(songKey('Ed Sheeran - Perfect (feat. Beyoncé) [Official Video]', 'x'), songKey('Ed Sheeran - Perfect ft. Beyonce', 'Ed Sheeran'));
+  assert.notEqual(songKey('The Weeknd - Blinding Lights (Live)', ''), songKey('The Weeknd - Blinding Lights', ''), 'versi live bukan lagu yang sama');
+  assert.notEqual(songKey('Hello', 'Adele - Topic'), songKey('Hello', 'Lionel Richie - Topic'), 'judul sama, artis beda');
+  assert.equal(songKey(null, 'x'), '');
+
+  const A = 'aaaaaaaaaa1'; const B = 'bbbbbbbbbb2'; const C = 'cccccccccc3'; const D = 'dddddddddd4';
+  store.replaceData({
+    playlists: [
+      { id: 'p1', name: 'Satu', items: [{ itemId: 'i1', youtubeId: A }, { itemId: 'i2', youtubeId: C }, { itemId: 'i3', youtubeId: B }] },
+      { id: 'p2', name: 'Dua', items: [{ itemId: 'j1', youtubeId: B }, { itemId: 'j2', youtubeId: D }] },
+    ],
+    videos: {
+      [A]: { title: 'Tulus - Gajah (Official Music Video)', channel: 'TULUS', playCount: 3, tags: ['indo'] },
+      [B]: { title: 'Gajah', channel: 'Tulus - Topic', playCount: 5, favorite: true, tags: ['santai'] },
+      [C]: { title: 'Lain - Lagu', channel: 'x' },
+      [D]: { title: 'Tulus - Gajah (Live)', channel: 'TULUS' },
+    },
+  });
+  const g = findDuplicates(store.data.videos, store.data.playlists);
+  assert.equal(g.length, 1);
+  assert.deepEqual(g[0].ids, [B, A], 'yang ada di lebih banyak playlist disarankan disimpan');
+  assert.deepEqual(similarTo(store.data.videos, A), [B]);
+
+  const cp = store.checkpoint();
+  assert.equal(store.mergeVideos(B, [A]), 1);
+  assert.equal(store.data.videos[A], undefined);
+  const v = store.data.videos[B];
+  assert.equal(v.playCount, 8);
+  assert.equal(v.favorite, true);
+  assert.deepEqual([...v.tags].sort(), ['indo', 'santai']);
+  // p1 sudah berisi B → item A dibuang (B tetap di posisinya); p2 tidak berubah
+  assert.deepEqual(store.getPlaylist('p1').items.map((i) => i.youtubeId), [C, B]);
+  assert.deepEqual(store.getPlaylist('p2').items.map((i) => i.youtubeId), [B, D]);
+  store.restoreCheckpoint(cp);
+  assert.ok(store.data.videos[A]);
+  assert.deepEqual(store.getPlaylist('p1').items.map((i) => i.youtubeId), [A, C, B]);
+  assert.equal(store.data.videos[B].playCount, 5);
+
+  // gabung ke video yang belum ada di playlist: posisi item lama dipakai
+  store.mergeVideos(A, [B]);
+  assert.deepEqual(store.getPlaylist('p2').items.map((i) => i.youtubeId), [A, D]);
+});
+
+test('v41: Urungkan umum (checkpoint), pindah playlist, filter gabungan, pratinjau banyak link', async () => {
+  const { quickFilter, toggleFilter } = await import('../js/utils.js');
+  const { classifyLinks, idsToAdd } = await import('../js/addpreview.js');
+  const A = 'aaaaaaaaaa1'; const B = 'bbbbbbbbbb2'; const C = 'cccccccccc3';
+  store.replaceData({
+    playlists: [
+      { id: 'p1', name: 'Satu', items: [{ itemId: 'i1', youtubeId: A }, { itemId: 'i2', youtubeId: B }] },
+      { id: 'p2', name: 'Dua', items: [] }, { id: 'p3', name: 'Tiga', items: [{ itemId: 'k1', youtubeId: C }] },
+    ],
+    videos: { [A]: { title: 'A', tags: ['lofi'], duration: 200 }, [B]: { title: 'B', tags: ['lofi'], playCount: 2, duration: 700 }, [C]: { title: 'C' } },
+  });
+  // hapus dari library lalu urungkan: judul yang dimuat sementara itu tidak hilang
+  const cp = store.checkpoint();
+  store.deleteVideo(A);
+  store.data.videos[B].title = 'B baru';
+  store.restoreCheckpoint(cp);
+  assert.ok(store.data.videos[A]);
+  assert.deepEqual(store.getPlaylist('p1').items.map((i) => i.youtubeId), [A, B]);
+  // hapus playlist lalu urungkan (view ikut kembali)
+  store.setView('pl:p3');
+  const cp2 = store.checkpoint();
+  store.deletePlaylist('p3');
+  assert.notEqual(store.ui.view, 'pl:p3');
+  store.restoreCheckpoint(cp2, { restoreView: true });
+  assert.equal(store.ui.view, 'pl:p3');
+
+  // urutan playlist
+  const before = store.movePlaylistTo('p3', 0);
+  assert.deepEqual(store.data.playlists.map((p) => p.id), ['p3', 'p1', 'p2']);
+  assert.equal(store.movePlaylistTo('p3', 0), null, 'sudah di posisi itu');
+  store.setPlaylistOrder(before);
+  assert.deepEqual(store.data.playlists.map((p) => p.id), ['p1', 'p2', 'p3']);
+  const { dropIndex } = await import('../js/navdrag.js');
+  assert.equal(dropIndex([10, 30, 50], 5), 0);
+  assert.equal(dropIndex([10, 30, 50], 35), 2);
+  assert.equal(dropIndex([10, 30, 50], 99), 3);
+
+  // filter gabungan: semua harus cocok; kelompok durasi saling menggantikan
+  const ents = store.viewEntries('all');
+  assert.deepEqual(quickFilter(ents, ['tag:lofi', 'never']).map((e) => e.youtubeId), [A]);
+  assert.deepEqual(quickFilter(ents, ['tag:lofi', 'long']).map((e) => e.youtubeId), [B]);
+  assert.equal(quickFilter(ents, 'tag:lofi').length, 2, 'satu id (string) tetap didukung');
+  assert.deepEqual(toggleFilter(['short', 'never'], 'long'), ['never', 'long']);
+  assert.deepEqual(toggleFilter(['never'], 'never'), []);
+
+  // pratinjau banyak link
+  const text = `https://youtu.be/${A}\nhttps://youtu.be/${C} https://youtu.be/${C}\nhttps://youtu.be/zzzzzzzzzz9 https://www.youtube.com/playlist?list=PLabcdefghijk https://example.com/x/y`;
+  const res = classifyLinks(text, { videos: store.data.videos, inTarget: new Set([A]) });
+  assert.deepEqual(res.rows.map((r) => r.status), ['here', 'lib', 'new']);
+  assert.equal(res.dup, 1);
+  assert.deepEqual(res.lists, ['PLabcdefghijk']);
+  assert.equal(res.invalid.length, 1);
+  assert.deepEqual(idsToAdd(res), [C, 'zzzzzzzzzz9']);
+  assert.deepEqual(idsToAdd(res, { skipLibrary: true }), ['zzzzzzzzzz9']);
+});
+
+test('v41: gestur & kontrol media — sisi ketukan, batas geser, WAV sunyi', async () => {
+  const { tapSide } = await import('../js/videotap.js');
+  assert.equal(tapSide(0.1), 'back'); assert.equal(tapSide(0.5), 'mid'); assert.equal(tapSide(0.9), 'fwd');
+  const { swipeResult, damp } = await import('../js/swipe.js');
+  assert.equal(swipeResult(90), 'right'); assert.equal(swipeResult(-90), 'left'); assert.equal(swipeResult(40), null);
+  assert.equal(damp(100), 100); assert.equal(damp(-232), -(132 + 25));
+  const { silentWav } = await import('../js/mediasession.js');
+  const buf = silentWav(6, 8000);
+  const dv = new DataView(buf);
+  assert.equal(buf.byteLength, 44 + 48000);
+  assert.equal(String.fromCharCode(...new Uint8Array(buf, 0, 4)), 'RIFF');
+  assert.equal(dv.getUint32(24, true), 8000);
+  assert.ok(new Uint8Array(buf, 44).every((x) => x === 128), 'isinya hening');
+});
