@@ -10,6 +10,7 @@ import { LOCATIONS, WEATHERS, TIMES, resolveTime, roomSoundMix, prewarmRoom, pau
 import { escapeHtml } from './utils.js';
 import { DRINKS, FOODS } from './cafe.js';
 import { thumbUrl } from './metadata.js';
+import { titleOf } from './titles.js';
 import { locale, tr, LANG } from './i18n.js';
 import { seasonFor, SEASONS } from './seasons.js';
 import { fetchWeather, searchCity, placeName, geolocate, liveScene, describeWmo, localMinutes, minutesToNextTime, STALE_MS } from './weather.js';
@@ -597,7 +598,7 @@ export function createLobby({ store, player, icon, toast, sleepTimer, getLyric, 
     box.innerHTML = `
       <button type="button" class="lb-np-main" data-lb="to-lyrics" title="Buka lirik" aria-label="Buka lirik">
         <img data-id="${escapeHtml(cur.youtubeId)}" data-q="mqdefault" src="${thumbUrl(cur.youtubeId, 'mqdefault')}" alt="">
-        <span class="lb-np-text" translate="no"><b>${escapeHtml(v.title || 'Memuat judul…')}</b><span>${escapeHtml(v.channel || '')}</span></span>
+        <span class="lb-np-text" translate="no"><b>${escapeHtml(titleOf(v) || 'Memuat judul…')}</b><span>${escapeHtml(v.channel || '')}</span></span>
         <span class="lb-np-lyr" aria-hidden="true">${icon('mic')}</span>
       </button>
       <div class="lb-np-ctl">

@@ -7,6 +7,7 @@ import { modal, toast } from './dialogs.js';
 import { icon } from './icons.js';
 import { escapeHtml, formatDuration, skeletonRows } from './utils.js';
 import { thumbUrl } from './metadata.js';
+import { titleOf } from './titles.js';
 import { extractPlaylistId } from './parser.js';
 
 const KEY_STORE = 'mytube_vault_yt_key';
@@ -34,7 +35,7 @@ export function libraryPicker(store, targetId) {
         ${vids.map((v) => `<label class="lib-item" data-q="${escapeHtml(`${v.title || ''} ${v.channel || ''}`.toLowerCase())}">
           <input type="checkbox" value="${escapeHtml(v.youtubeId)}">
           <img src="${thumbUrl(v.youtubeId, 'default')}" alt="" loading="lazy">
-          <span class="lib-text"><b>${escapeHtml(v.title || v.youtubeId)}</b><small class="muted">${escapeHtml(v.channel || '')}${v.duration ? ` · ${formatDuration(v.duration)}` : ''}</small></span>
+          <span class="lib-text"><b>${escapeHtml(titleOf(v) || v.youtubeId)}</b><small class="muted">${escapeHtml(v.channel || '')}${v.duration ? ` · ${formatDuration(v.duration)}` : ''}</small></span>
         </label>`).join('')}
        </div>`
     : `<p class="muted">Semua video di library sudah ada di “${escapeHtml(pl.name)}”. Tambahkan lagu baru lewat link atau <b>Cari di YouTube</b>.</p>`;
@@ -274,7 +275,7 @@ export async function fetchYouTubePlaylist(listId, key, onProgress = () => {}) {
 }
 
 /** Dialog import: tempel link playlist → pilih tujuan → tarik semua video. */
-export function ytPlaylistImportDialog(store, { url = '', targetId = null } = {}) {
+export function ytPlaylistImportDialog(store, { url = '', targetId = null, onAdded = () => {} } = {}) {
   const cur = store.getPlaylist(targetId);
   return modal({
     title: 'Import playlist YouTube',
@@ -283,7 +284,7 @@ export function ytPlaylistImportDialog(store, { url = '', targetId = null } = {}
         <input type="url" name="u" placeholder="https://www.youtube.com/playlist?list=PL…" value="${escapeHtml(url)}" aria-label="Link playlist YouTube">
         <button type="submit" class="btn btn-primary">${icon('download')}<span>Ambil</span></button>
       </form>
-      <p class="hint">Semua video di playlist publik/unlisted ikut di-import (maks. 1000), lengkap dengan judulnya. Mix/Radio otomatis YouTube tidak didukung.</p>
+      <p class="hint">${getApiKey() ? 'Semua video di playlist publik/unlisted ikut di-import (maks. 1000), lengkap dengan judulnya.' : 'Tanpa API key: ±200 video pertama dari playlist publik/unlisted. Judulnya dimuat setelah di-import.'} Mix/Radio otomatis YouTube tidak didukung.</p>
       <div class="yt-results"></div>`,
     actions: [{ label: 'Tutup', value: null }],
     onOpen: (b, finish) => {
@@ -310,7 +311,8 @@ export function ytPlaylistImportDialog(store, { url = '', targetId = null } = {}
         const existing = store.data.playlists.find((p) => p.name.toLowerCase() === f.title.toLowerCase());
         box.innerHTML = `<div class="card">
           <h3>${icon('music')}${escapeHtml(f.title)}</h3>
-          <p class="muted">${escapeHtml(f.channel)} · ${f.videos.length} video bisa di-import${f.count > f.videos.length ? ` (dari ${f.count}; sisanya dihapus/privat atau melebihi batas)` : ''}</p>
+          <p class="muted">${f.channel ? `${escapeHtml(f.channel)} · ` : ''}${f.videos.length} video bisa di-import${f.count > f.videos.length ? ` (dari ${f.count}; sisanya dihapus/privat atau melebihi batas)` : ''}</p>
+          ${f.noKey && f.videos.length >= 195 ? '<p class="hint">Tanpa API key hanya ±200 video pertama yang terbaca. Untuk playlist lebih besar, simpan YouTube API key di Setelan → Umum.</p>' : ''}
           <label class="field"><span>Masukkan ke</span>
             <select class="imp-target">
               <option value="__new__">Playlist baru: “${escapeHtml(f.title)}”</option>
@@ -327,28 +329,37 @@ export function ytPlaylistImportDialog(store, { url = '', targetId = null } = {}
             if (cur2 && !cur2.title) { cur2.title = v.title; if (!cur2.channel && v.channel) cur2.channel = v.channel; }
           }
           store.commit('import-yt-playlist');
-          toast(`${r.added} video di-import ke “${store.getPlaylist(target).name}”${r.skipped ? ` · ${r.skipped} sudah ada` : ''}.`, 'success', 6000);
+          onAdded(ids);
           finish({ target, added: r.added });
+          toast(`${r.added} video di-import ke “${store.getPlaylist(target).name}”${r.skipped ? ` · ${r.skipped} sudah ada` : ''}.`, 'success', 6000);
         });
       };
 
+      box.addEventListener('click', (e) => { if (e.target.closest('[data-k=want-key]')) needKey(); });
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const listId = extractPlaylistId(input.value);
         if (!listId) { box.innerHTML = '<p class="error-text pad">Bukan link playlist YouTube. Contoh: https://www.youtube.com/playlist?list=PL…</p>'; return; }
         if (/^RD/.test(listId)) { box.innerHTML = '<p class="error-text pad">Ini Mix/Radio otomatis YouTube (list=RD…). YouTube tidak mengizinkan Mix diambil lewat API. Simpan dulu sebagai playlist di YouTube, lalu import link playlist-nya.</p>'; return; }
         const key = getApiKey();
-        if (!key) { needKey(); return; }
         if (navigator.onLine === false) { box.innerHTML = '<p class="error-text pad">Kamu sedang offline.</p>'; return; }
         box.innerHTML = '<p class="muted pad"><span class="spinner"></span> Mengambil playlist…</p>';
         try {
-          fetched = await fetchYouTubePlaylist(listId, key, (n, total) => {
-            box.innerHTML = `<p class="muted pad"><span class="spinner"></span> Mengambil video ${n}${total ? ` dari ${total}` : ''}…</p>`;
-          });
+          if (key) {
+            fetched = await fetchYouTubePlaylist(listId, key, (n, total) => {
+              box.innerHTML = `<p class="muted pad"><span class="spinner"></span> Mengambil video ${n}${total ? ` dari ${total}` : ''}…</p>`;
+            });
+          } else {
+            // tanpa API key: baca daftar video lewat player YouTube tersembunyi (js/ytlist.js)
+            const { playlistIdsViaPlayer, playlistTitle } = await import('./ytlist.js');
+            const [ids, meta] = await Promise.all([playlistIdsViaPlayer(listId), playlistTitle(listId)]);
+            fetched = { title: (meta && meta.title) || 'Playlist YouTube', channel: (meta && meta.channel) || '', count: ids.length, videos: ids.map((id) => ({ id, title: '', channel: '' })), noKey: true };
+          }
           if (!fetched.videos.length) { box.innerHTML = '<p class="muted pad">Playlist ini kosong atau semua videonya privat/dihapus.</p>'; return; }
           showResult();
         } catch (err) {
           box.innerHTML = `<p class="error-text pad">${escapeHtml(err.message || String(err))}</p>`;
+          if (!key) box.insertAdjacentHTML('beforeend', '<p class="pad"><button type="button" class="btn sm" data-k="want-key">Pakai API key…</button></p>');
         }
       });
       if (url && extractPlaylistId(url)) form.requestSubmit(); else input.focus();

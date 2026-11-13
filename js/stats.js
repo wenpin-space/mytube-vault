@@ -5,6 +5,7 @@ import { modal } from './dialogs.js';
 import { icon } from './icons.js';
 import { escapeHtml, formatTotal } from './utils.js';
 import { thumbUrl } from './metadata.js';
+import { titleOf } from './titles.js';
 import { locale } from './i18n.js';
 
 const KEY = 'mytube_vault_stats_v1';
@@ -104,7 +105,7 @@ export function openStatsDialog(store, { onPlay } = {}) {
       <div class="stat-two">
         <section class="stat-sec"><h3>${icon('music')}Paling sering diputar</h3>
           ${s.top.length ? `<ol class="stat-top">${s.top.map((v) => `<li><button type="button" class="stat-song" data-play="${escapeHtml(v.youtubeId)}">
-            <img src="${thumbUrl(v.youtubeId, 'default')}" alt="" loading="lazy"><span class="lib-text"><b>${escapeHtml(v.title || v.youtubeId)}</b><small class="muted">${escapeHtml(v.channel || '')}</small></span><span class="pill">${v.playCount}×</span></button></li>`).join('')}</ol>` : '<p class="muted small">Belum ada.</p>'}
+            <img src="${thumbUrl(v.youtubeId, 'default')}" alt="" loading="lazy"><span class="lib-text"><b>${escapeHtml(titleOf(v) || v.youtubeId)}</b><small class="muted">${escapeHtml(v.channel || '')}</small></span><span class="pill">${v.playCount}×</span></button></li>`).join('')}</ol>` : '<p class="muted small">Belum ada.</p>'}
         </section>
         <section class="stat-sec"><h3>${icon('volume')}Channel teratas</h3>
           ${s.channels.length ? `<ul class="stat-list">${s.channels.map((c) => `<li><span>${escapeHtml(c.name)}</span><span class="pill">${c.plays}×</span></li>`).join('')}</ul>` : '<p class="muted small">Belum ada.</p>'}

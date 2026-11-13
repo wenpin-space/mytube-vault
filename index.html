@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-title" content="MyTube Vault">
   <link rel="preload" href="fonts/poppins-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/poppins-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="css/style.css?v=40">
+  <link rel="stylesheet" href="css/style.css?v=41">
 </head>
 <body>
   <a class="skip-link" href="#main">Lewati ke daftar video</a>
@@ -79,6 +79,7 @@
             <select id="add-target" aria-label="Tambahkan ke playlist" translate="no"></select></label>
           <button type="submit" class="btn btn-primary add-submit" data-icon="plus"><span>Tambah</span></button>
         </div>
+        <div class="add-preview" id="add-preview" hidden aria-live="polite"></div>
         <div class="add-foot">
           <div class="add-chips" role="group" aria-label="Cara lain menambah lagu">
             <button type="button" class="chip" data-action="yt-search" data-icon="search"><span>Cari di YouTube</span></button>
@@ -181,8 +182,8 @@
       <span>Sedang diputar</span>
       <span class="np-head-right">
         <button type="button" class="icon-btn" data-action="lyrics-toggle" data-icon="mic" aria-label="Lirik"></button>
-        <button type="button" class="icon-btn" data-action="player-menu" data-icon="more" aria-label="Opsi player"></button>
         <button type="button" class="icon-btn" data-action="queue-toggle" data-icon="queue" aria-label="Antrean"></button>
+        <button type="button" class="icon-btn" data-action="player-menu" data-icon="more" aria-label="Opsi player"></button>
       </span>
     </div>
     <div class="dock-progress" id="dock-progress" role="slider" tabindex="0" aria-label="Posisi lagu" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
@@ -203,7 +204,6 @@
       <button type="button" class="icon-btn" data-action="dock-add" data-icon="plus" aria-label="Tambah ke playlist" title="Tambah ke playlist"></button>
     </div>
     <div class="dock-controls">
-      <button type="button" class="icon-btn" id="dock-video" data-video-toggle data-action="stage-min" aria-label="Tampilkan video" title="Tampilkan / sembunyikan video"></button>
       <button type="button" class="icon-btn" id="dock-shuffle" data-action="dock-shuffle" aria-label="Acak"></button>
       <button type="button" class="icon-btn" data-action="dock-prev" data-icon="prev" aria-label="Sebelumnya" title="Sebelumnya (P)"></button>
       <button type="button" class="play-btn" id="dock-play" data-action="dock-play" aria-label="Putar"></button>
@@ -216,12 +216,13 @@
         <button type="button" class="icon-btn" id="dock-mute" data-action="dock-mute" aria-label="Bisukan"></button>
         <input type="range" class="vol-range" id="dock-volume" min="0" max="100" step="1" value="100" aria-label="Volume" title="Volume (↑/↓)">
       </div>
-      <button type="button" class="icon-btn" data-action="player-menu" data-icon="more" aria-label="Opsi player" title="Kecepatan, timer tidur, dll."></button>
       <button type="button" class="icon-btn" id="dock-ambient" data-action="lobby-mixer" data-icon="sliders" title="Suara alam sedang berbunyi — atur di Lobby" aria-label="Atur suara alam"></button>
       <button type="button" class="icon-btn dock-video-d" data-video-toggle data-action="stage-min" aria-label="Tampilkan video"></button>
       <button type="button" class="icon-btn" id="dock-lyrics" data-action="lyrics-toggle" data-icon="mic" aria-label="Lirik layar penuh" title="Lirik (Y)" aria-pressed="false"></button>
       <button type="button" class="icon-btn" data-action="queue-toggle" data-icon="queue" aria-label="Antrean" title="Antrean (Q)"></button>
       <button type="button" class="icon-btn np-side-btn" data-action="np-side-toggle" data-icon="panelRight" aria-label="Panel Sedang diputar"></button>
+      <span class="dock-sep" aria-hidden="true"></span>
+      <button type="button" class="icon-btn dock-more" data-action="player-menu" data-icon="more" aria-label="Opsi player" title="Kecepatan, timer tidur, potong lagu, dll."></button>
     </div>
     <section class="np-upnext" id="np-upnext" aria-label="Berikutnya"></section>
     <div class="np-extra only-phone">
@@ -241,6 +242,6 @@
   </nav>
 
   <noscript><p style="padding:24px">MyTube Vault butuh JavaScript.</p></noscript>
-  <script type="module" src="js/main.js?v=40"></script>
+  <script type="module" src="js/main.js?v=41"></script>
 </body>
 </html>

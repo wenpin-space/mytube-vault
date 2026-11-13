@@ -685,6 +685,87 @@ export const store = {
     [arr[i], arr[j]] = [arr[j], arr[i]];
     this.commit('playlist-reorder');
   },
+  /** Pindahkan playlist ke posisi `to` (0 = paling atas). Hasil: urutan lama (id) untuk Urungkan, atau null. */
+  movePlaylistTo(id, to) {
+    const arr = this.data.playlists;
+    const i = arr.findIndex((p) => p.id === id);
+    if (i < 0) return null;
+    const at = Math.max(0, Math.min(arr.length - 1, Math.round(to)));
+    if (at === i) return null;
+    const before = arr.map((p) => p.id);
+    const [p] = arr.splice(i, 1);
+    arr.splice(at, 0, p);
+    this.commit('playlist-reorder');
+    return before;
+  },
+  setPlaylistOrder(order) {
+    const rank = new Map(order.map((id, i) => [id, i]));
+    this.data.playlists = [...this.data.playlists].sort((a, b) => (rank.get(a.id) ?? 1e9) - (rank.get(b.id) ?? 1e9));
+    this.commit('playlist-reorder');
+  },
+
+  // ---------- Urungkan umum (v41) ----------
+  /**
+   * Salinan library & playlist sebelum perubahan besar (hapus, pindah, gabung, kosongkan).
+   * restoreCheckpoint mengembalikannya; judul/durasi yang baru dimuat sementara itu tidak ikut hilang.
+   */
+  checkpoint() {
+    const clone = typeof structuredClone === 'function' ? structuredClone : (x) => JSON.parse(JSON.stringify(x));
+    return { videos: clone(this.data.videos), playlists: clone(this.data.playlists), view: this.ui.view };
+  },
+  restoreCheckpoint(cp, { restoreView = false } = {}) {
+    if (!cp) return;
+    for (const [id, v] of Object.entries(cp.videos)) {
+      const now = this.data.videos[id];
+      if (!now) continue;
+      if (!v.title && now.title) v.title = now.title;
+      if (!v.channel && now.channel) v.channel = now.channel;
+      if (!v.duration && now.duration) v.duration = now.duration;
+    }
+    this.data.videos = cp.videos;
+    this.data.playlists = cp.playlists;
+    if (restoreView && cp.view) this.ui.view = cp.view;
+    this.ensureViewValid();
+    this.commit('undo');
+  },
+
+  /**
+   * Gabungkan lagu ganda: `dropIds` diganti `keepId` di semua playlist (posisi tetap; kalau keepId sudah
+   * ada di playlist itu, item ganda dibuang), favorit/tag/riwayat putar digabung, lalu dropIds dihapus.
+   */
+  mergeVideos(keepId, dropIds) {
+    const keep = this.data.videos[keepId];
+    const drops = dropIds.filter((id) => id !== keepId && this.data.videos[id]);
+    if (!keep || !drops.length) return 0;
+    const t = nowISO();
+    const set = new Set(drops);
+    for (const id of drops) {
+      const d = this.data.videos[id];
+      keep.favorite = keep.favorite || d.favorite;
+      keep.watched = keep.watched || d.watched;
+      keep.playCount = (keep.playCount || 0) + (d.playCount || 0);
+      keep.tags = cleanTags([...keep.tags, ...d.tags]);
+      if (d.lastPlayedAt && (!keep.lastPlayedAt || d.lastPlayedAt > keep.lastPlayedAt)) keep.lastPlayedAt = d.lastPlayedAt;
+      if (d.firstAddedAt < keep.firstAddedAt) keep.firstAddedAt = d.firstAddedAt;
+    }
+    keep.updatedAt = t;
+    for (const p of this.data.playlists) {
+      let has = p.items.some((it) => it.youtubeId === keepId);
+      const next = [];
+      let changed = false;
+      for (const it of p.items) {
+        if (!set.has(it.youtubeId)) { next.push(it); continue; }
+        changed = true;
+        if (has) continue;
+        next.push({ ...it, youtubeId: keepId });
+        has = true;
+      }
+      if (changed) { p.items = next; p.updatedAt = t; }
+    }
+    for (const id of drops) delete this.data.videos[id];
+    this.commit('merge-duplicates');
+    return drops.length;
+  },
 
   // ---------- posisi terakhir (hanya di perangkat ini, tidak disinkronkan) ----------
   getPosition(id) {

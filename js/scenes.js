@@ -55,7 +55,9 @@ export function createSceneRunner(canvas) {
     raf = requestAnimationFrame(frame);
     // saat lukisan baru sedang disiapkan di belakang, animasi diperlambat supaya CPU dipakai melukis
     const busy = scene && scene.busy;
-    const minGap = reduce ? 500 : coarse() || busy ? 1000 / 30 : 1000 / 60;
+    // Mode hemat (v41, body.lite): 20 fps di mana pun
+    const lite = document.body.classList.contains('lite');
+    const minGap = reduce ? 500 : lite ? 1000 / 20 : coarse() || busy ? 1000 / 30 : 1000 / 60;
     if (now - last < minGap - 1) return;
     const dt = Math.min(0.1, (now - last) / 1000 || 0.016);
     last = now;

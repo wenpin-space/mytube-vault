@@ -53,6 +53,7 @@ export function toast(message, type = 'info', ms = 3500, action = null) {
     el.classList.remove('show');
     setTimeout(() => el.remove(), 250);
   }
+  return { dismiss };
 }
 
 // ---------- modal ----------
@@ -132,11 +133,11 @@ export function confirmDialog(title, message, { ok = 'Ya', cancel = 'Batal', dan
   });
 }
 
-export function promptDialog(title, { label = '', value = '', placeholder = '', ok = 'Simpan', hint = '' } = {}) {
+export function promptDialog(title, { label = '', value = '', placeholder = '', ok = 'Simpan', hint = '', max = 100 } = {}) {
   return modal({
     title,
     body: `<label class="field"><span>${escapeHtml(label)}</span>
-      <input type="text" id="prompt-input" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}" maxlength="100"></label>
+      <input type="text" id="prompt-input" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}" maxlength="${max}"></label>
       ${hint ? `<p class="hint">${escapeHtml(hint)}</p>` : ''}<p class="form-error"></p>`,
     actions: [
       { label: 'Batal', value: null },
@@ -283,14 +284,42 @@ export function openMenu(anchor, items) {
     if (!it) continue;
     if (it === 'sep') { m.insertAdjacentHTML('beforeend', '<div class="menu-sep"></div>'); continue; }
     if (it.heading) { m.insertAdjacentHTML('beforeend', `<div class="menu-heading">${escapeHtml(it.heading)}</div>`); continue; }
+    if (it.note) { m.insertAdjacentHTML('beforeend', `<p class="menu-note${it.tone ? ` ${it.tone}` : ''}">${it.icon ? icon(it.icon) : ''}<span>${escapeHtml(it.note)}</span></p>`); continue; }
+    if (it.tiles) {
+      // baris tombol besar untuk aksi yang paling sering dipakai (v41)
+      const row = document.createElement('div');
+      row.className = 'menu-tiles';
+      for (const t of it.tiles.filter(Boolean)) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = `menu-tile${t.on ? ' on' : ''}`;
+        b.setAttribute('role', 'menuitem');
+        b.innerHTML = `${icon(t.icon, t.on ? 'fill' : '')}<span>${escapeHtml(t.label)}</span>`;
+        b.addEventListener('click', () => { closeMenu(); if (t.action) t.action(); });
+        row.appendChild(b);
+      }
+      m.appendChild(row);
+      continue;
+    }
     const b = document.createElement('button');
     b.type = 'button';
-    b.setAttribute('role', 'menuitem');
+    b.setAttribute('role', it.checked != null ? 'menuitemcheckbox' : 'menuitem');
     b.className = `menu-item${it.danger ? ' danger' : ''}`;
     b.disabled = !!it.disabled;
-    if (it.checked != null) b.setAttribute('aria-checked', String(!!it.checked));
-    b.innerHTML = `${it.icon ? icon(it.icon) : '<span class="i"></span>'}<span>${escapeHtml(it.label)}</span>${it.checked ? `<span class="menu-check">${icon('check')}</span>` : ''}`;
-    b.addEventListener('click', () => { closeMenu(); if (it.action) it.action(); });
+    const paint = () => {
+      if (it.checked != null) b.setAttribute('aria-checked', String(!!it.checked));
+      b.innerHTML = `${it.icon ? icon(it.icon) : '<span class="i"></span>'}<span${it.userText ? ' translate="no"' : ''}>${escapeHtml(it.label)}</span>${it.hint ? `<span class="menu-hint">${escapeHtml(it.hint)}</span>` : ''}${it.checked ? `<span class="menu-check">${icon('check')}</span>` : ''}${it.sub ? `<span class="menu-sub">${icon('chevronRight')}</span>` : ''}`;
+    };
+    paint();
+    if (it.sub) b.setAttribute('aria-haspopup', 'menu');
+    b.addEventListener('click', () => {
+      // keep: menu tetap terbuka (mis. memilih beberapa tag sebagai filter)
+      if (it.keep) { if (it.action) it.action(); if (it.checked != null) { it.checked = !it.checked; it.hint = ''; paint(); } return; }
+      closeMenu();
+      // submenu dibuka di tempat yang sama sesudah menu ini tertutup
+      if (it.sub) { setTimeout(() => openMenu(anchor, typeof it.sub === 'function' ? it.sub() : it.sub), 0); return; }
+      if (it.action) it.action();
+    });
     m.appendChild(b);
   }
   // rapikan separator di awal/akhir
@@ -311,11 +340,11 @@ export function openMenu(anchor, items) {
   const onDown = (e) => { if (!m.contains(e.target) && !anchor.contains(e.target)) closeMenu(); };
   const onKey = (e) => {
     if (e.key === 'Escape') { closeMenu(); anchor.focus(); return; }
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || (document.activeElement && document.activeElement.classList.contains('menu-tile') && (e.key === 'ArrowRight' || e.key === 'ArrowLeft'))) {
       e.preventDefault();
-      const btns = [...m.querySelectorAll('.menu-item:not(:disabled)')];
+      const btns = [...m.querySelectorAll('.menu-tile, .menu-item:not(:disabled)')];
       const i = btns.indexOf(document.activeElement);
-      const n = e.key === 'ArrowDown' ? (i + 1) % btns.length : (i - 1 + btns.length) % btns.length;
+      const n = e.key === 'ArrowDown' || e.key === 'ArrowRight' ? (i + 1) % btns.length : (i - 1 + btns.length) % btns.length;
       if (btns[n]) btns[n].focus();
     }
   };
@@ -348,6 +377,6 @@ export function openMenu(anchor, items) {
     window.removeEventListener('resize', onResize);
     document.removeEventListener('scroll', onScroll, true);
   };
-  const first = m.querySelector('.menu-item:not(:disabled)');
+  const first = m.querySelector('.menu-tile, .menu-item:not(:disabled)');
   if (first) first.focus({ preventScroll: true });
 }

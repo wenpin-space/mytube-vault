@@ -166,19 +166,38 @@ export const QUICK_FILTERS = [
   { id: 'unwatched', label: 'Belum ditonton', test: (v) => !v.watched, hideOn: ['unwatched'] },
   { id: 'fav', label: 'Favorit', test: (v) => v.favorite, hideOn: ['favorites'] },
   { id: 'never', label: 'Belum pernah diputar', test: (v) => !v.playCount, hideOn: ['history'] },
-  { id: 'short', label: '< 5 menit', test: (v) => v.duration > 0 && v.duration < 300 },
-  { id: 'long', label: '≥ 10 menit', test: (v) => v.duration >= 600 },
+  { id: 'short', label: '< 5 menit', test: (v) => v.duration > 0 && v.duration < 300, group: 'dur' },
+  { id: 'long', label: '≥ 10 menit', test: (v) => v.duration >= 600, group: 'dur' },
   { id: 'new', label: 'Baru (7 hari)', test: (v, e) => Date.now() - Date.parse((e && e.addedAt) || v.firstAddedAt) < 7 * 86400000 },
   { id: 'unavail', label: 'Tidak tersedia', test: (v) => !!v.unavailable, warn: true },
 ];
-export function quickFilter(entries, id) {
-  if (!id) return entries;
+/** Uji satu filter (id filter cepat atau "tag:nama"). */
+function filterTest(id) {
   if (id.startsWith('tag:')) {
     const t = id.slice(4);
-    return entries.filter(({ video: v }) => (v.tags || []).some((x) => x.toLocaleLowerCase('id') === t));
+    return ({ video: v }) => (v.tags || []).some((x) => x.toLocaleLowerCase('id') === t);
   }
   const f = QUICK_FILTERS.find((x) => x.id === id);
-  return f ? entries.filter((e) => f.test(e.video, e)) : entries;
+  return f ? (e) => f.test(e.video, e) : null;
+}
+/**
+ * Filter gabungan (v41): `ids` boleh satu id (string) atau beberapa (array/Set); semua harus cocok.
+ * Contoh: ['tag:lofi', 'never'] = lagu bertag lofi yang belum pernah diputar.
+ */
+export function quickFilter(entries, ids) {
+  const list = (typeof ids === 'string' ? [ids] : [...(ids || [])]).filter(Boolean);
+  const tests = list.map(filterTest).filter(Boolean);
+  if (!tests.length) return entries;
+  return entries.filter((e) => tests.every((t) => t(e)));
+}
+/** Nyalakan/matikan satu filter. Filter satu kelompok (mis. durasi) saling menggantikan. Hasil: array baru. */
+export function toggleFilter(active, id) {
+  const cur = [...(active || [])];
+  if (!id) return [];
+  if (cur.includes(id)) return cur.filter((x) => x !== id);
+  const f = QUICK_FILTERS.find((x) => x.id === id);
+  const keep = f && f.group ? cur.filter((x) => (QUICK_FILTERS.find((y) => y.id === x) || {}).group !== f.group) : cur;
+  return [...keep, id];
 }
 
 /** Kerangka (skeleton) baris saat memuat. */

@@ -7,7 +7,10 @@
 // Ukuran yang berhasil diingat per video; kalau tidak ada sama sekali dipakai gambar cadangan bergradasi.
 const thumbResolved = new Map();
 export const MISSING_THUMB = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="-6 -6 36 36" fill="none" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><!--ytmissing--><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>')}`;
-export const thumbUrl = (id, quality = 'mqdefault') => thumbResolved.get(id) || `https://i.ytimg.com/vi/${id}/${quality}.jpg`;
+// Mode hemat (v41): thumbnail daftar memakai versi kecil (120×90, ±4 KB) alih-alih 320×180.
+let liteThumbs = false;
+export function setLiteThumbs(on) { liteThumbs = !!on; }
+export const thumbUrl = (id, quality = 'mqdefault') => thumbResolved.get(id) || `https://i.ytimg.com/vi/${id}/${liteThumbs && quality === 'mqdefault' ? 'default' : quality}.jpg`;
 /** Pasang sekali: memperbaiki thumbnail yang hilang di seluruh halaman. */
 export function installThumbFallback() {
   const fix = (e) => {

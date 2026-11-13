@@ -4,6 +4,7 @@
 
 import { icon } from './icons.js';
 import { thumbUrl } from './metadata.js';
+import { titleOf } from './titles.js';
 import { escapeHtml, formatDuration, timeAgo } from './utils.js';
 
 export const NP_SIDE_MIN_WIDTH = 1280;
@@ -66,7 +67,7 @@ export function createNowPanel({ store, player, lyrics, upcoming }) {
     const src = thumbUrl(id, 'hqdefault');
     if (img.getAttribute('src') !== src) img.src = src;
     $('.nps-art').classList.toggle('has-video', store.ui.stageMin === false);
-    $('.nps-title').textContent = v.title || 'Memuat judul…';
+    $('.nps-title').textContent = titleOf(v) || 'Memuat judul…';
     $('.nps-channel').textContent = v.channel || '';
     const fav = $('[data-action=dock-fav]');
     fav.innerHTML = icon('heart', v.favorite ? 'fill' : '');
@@ -79,7 +80,7 @@ export function createNowPanel({ store, player, lyrics, upcoming }) {
         const nv = store.data.videos[item.youtubeId] || {};
         return `<li><button type="button" data-action="queue-jump" data-pos="${pos}">
           <img src="${thumbUrl(item.youtubeId, 'default')}" alt="" loading="lazy" decoding="async">
-          <span><b translate="no">${escapeHtml(nv.title || item.youtubeId)}</b><small translate="no">${escapeHtml(nv.channel || '')}</small></span>
+          <span><b translate="no">${escapeHtml(titleOf(nv) || item.youtubeId)}</b><small translate="no">${escapeHtml(nv.channel || '')}</small></span>
           <em>${formatDuration(nv.duration) || ''}</em></button></li>`;
       }).join('')
       : `<li class="nps-empty">${player.repeat === 'all' ? 'Antrean akan diulang dari awal.' : 'Ini lagu terakhir di antrean.'}</li>`;

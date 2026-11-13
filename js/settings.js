@@ -189,11 +189,16 @@ export async function openSettings(initialTab = 'cloud') {
               <select data-gen="theme"><option value="auto">Ikuti sistem</option><option value="light">Terang</option><option value="dark">Gelap</option></select></label>
             <label class="field inline"><span>Bahasa / Language</span>
               <select data-gen="lang" translate="no">${LANGUAGES.map(([k, l]) => `<option value="${k}"${k === LANG ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+            <label class="check"><input type="checkbox" data-gen="cleanTitles" ${store.ui.cleanTitles !== false ? 'checked' : ''}><span>Bersihkan judul lagu<small class="muted">Sembunyikan tempelan seperti “(Official Video)”, “[HD]”, “| Official Audio”. Judul asli tetap tersimpan.</small></span></label>
+            <label class="check"><input type="checkbox" data-gen="lite" ${store.ui.lite === true ? 'checked' : ''}><span>Mode hemat${navigator.connection && navigator.connection.saveData ? ' <span class="pill">disarankan: Penghemat Data aktif</span>' : ''}<small class="muted">Tanpa animasi & efek, thumbnail kecil, Lobby 20 fps dan tidak disiapkan di latar. Cocok untuk HP lama atau kuota terbatas.</small></span></label>
           </section>
           <section class="card">
             <h3>Player</h3>
             <label class="check"><input type="checkbox" data-player="autoNext" ${p.autoNext ? 'checked' : ''}><span>Lanjut otomatis ke video berikutnya</span></label>
             <label class="check"><input type="checkbox" data-player="autoMarkWatched" ${p.autoMarkWatched ? 'checked' : ''}><span>Tandai “sudah ditonton” saat video selesai</span></label>
+            <label class="check"><input type="checkbox" data-gen="fade" ${store.ui.fade === true ? 'checked' : ''}><span>Transisi halus antar lagu<small class="muted">Volume turun pelan di akhir lagu dan naik di awal lagu berikutnya.</small></span></label>
+            <label class="check"><input type="checkbox" data-gen="tint" ${store.ui.tint !== false ? 'checked' : ''}><span>Warna tampilan ikut lagu yang diputar</span></label>
+            <label class="check"><input type="checkbox" data-gen="mediaKeys" ${store.ui.mediaKeys !== false ? 'checked' : ''}><span>Kontrol di notifikasi & layar kunci<small class="muted">Judul, sampul, sebelumnya/berikutnya, dan geser posisi di notifikasi HP, layar kunci, dan tombol media keyboard.</small></span></label>
             <p class="hint">Pintasan keyboard: <kbd>Spasi</kbd>/<kbd>K</kbd> putar/jeda · <kbd>N</kbd> berikutnya · <kbd>P</kbd> sebelumnya · <kbd>/</kbd> cari</p>
           </section>
           <section class="card">
@@ -414,6 +419,11 @@ export async function openSettings(initialTab = 'cloud') {
         else if (t.dataset.player) store.setPlayerSetting(t.dataset.player, t.checked);
         else if (t.dataset.gen === 'theme') { store.ui.theme = t.value; store.saveUi(); }
         else if (t.dataset.gen === 'autoTag') { store.ui.autoTag = t.checked; store.saveUiQuiet(); }
+        else if (['cleanTitles', 'lite', 'fade', 'tint', 'mediaKeys'].includes(t.dataset.gen)) {
+          store.ui[t.dataset.gen] = t.checked;
+          store.saveUi();
+          window.dispatchEvent(new CustomEvent('mtv-pref', { detail: t.dataset.gen }));
+        }
         else if (t.dataset.gen === 'lang' && t.value !== LANG) setLang(t.value);
         else if (t.id === 'import-file' && t.files && t.files[0]) {
           const file = t.files[0];

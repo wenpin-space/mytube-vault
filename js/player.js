@@ -9,7 +9,7 @@ import { shuffleArray } from './utils.js';
 
 let apiPromise = null;
 
-function loadApi() {
+export function loadApi() {
   if (apiPromise) return apiPromise;
   apiPromise = new Promise((resolve, reject) => {
     if (window.YT && window.YT.Player) { resolve(window.YT); return; }
@@ -392,6 +392,17 @@ export class Player {
     const [qi] = this.order.splice(from, 1);
     this.order.splice(to, 0, qi);
     this.emit('queue');
+  }
+
+  /** Salinan antrean (untuk Urungkan setelah antrean dikosongkan). */
+  queueSnapshot() { return { order: this.order.slice(), cur: this.current, dropped: new Set(this.dropped || []) }; }
+  restoreQueue(snap) {
+    if (!snap || !this.current || snap.cur !== this.current) return false;
+    this.order = snap.order.slice();
+    this.pos = this.order.indexOf(this.queue.indexOf(snap.cur));
+    this.dropped = snap.dropped;
+    this.emit('queue');
+    return true;
   }
 
   /** Kosongkan semua lagu berikutnya (lagu sekarang tetap jalan). */

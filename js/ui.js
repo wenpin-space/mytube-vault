@@ -4,6 +4,7 @@ import { icon } from './icons.js';
 import { escapeHtml, formatDuration, formatTotal, timeAgo } from './utils.js';
 import { thumbUrl, watchUrl } from './metadata.js';
 import { SORT_MODES } from './store.js';
+import { titleOf } from './titles.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -28,9 +29,13 @@ export function renderSyncBadge(sync, store) {
   const [ic, label, cls] = syncLabel(sync.status);
   const b = $('sync-badge');
   b.className = `sync-badge ${cls}`;
-  b.innerHTML = `${icon(ic)}<span class="sync-label">${label}</span>`;
+  b.dataset.state = sync.status;
+  // titik warna di pojok ikon: status tetap terbaca walau labelnya disembunyikan (HP)
+  b.innerHTML = `<span class="sync-ic">${icon(ic)}<i class="sync-dot"></i></span><span class="sync-label">${label}</span>`;
   const last = store.cloud.lastSyncedAt ? `Sinkron terakhir ${timeAgo(store.cloud.lastSyncedAt)}` : '';
   b.title = sync.message || last || (sync.status === 'disabled' ? 'Klik untuk mengaktifkan backup ke GitHub Gist' : label);
+  b.setAttribute('aria-label', `Status sinkron: ${label}`);
+  b.setAttribute('aria-haspopup', 'menu');
 }
 
 export function renderSidebar(store) {
@@ -192,7 +197,7 @@ function row(e, i, opt) {
   const v = e.video;
   const playing = opt.playingId === e.youtubeId;
   const loading = !v.title && opt.metaPending(v.youtubeId);
-  const title = v.title || (loading ? 'Memuat judul…' : `Judul belum tersedia (${v.youtubeId})`);
+  const title = titleOf(v) || (loading ? 'Memuat judul…' : `Judul belum tersedia (${v.youtubeId})`);
   const sel = !!opt.selecting;
   const reorder = !!opt.canReorder; // juga saat memilih: geser satu yang terpilih = memindah semua yang terpilih
   const picked = sel && opt.selected.has(e.key);
@@ -209,7 +214,7 @@ function row(e, i, opt) {
       ${v.duration ? `<span class="dur">${formatDuration(v.duration)}</span>` : ''}
       ${prog ? `<span class="thumb-progress${v.watched ? ' done' : ''}" title="${v.watched ? 'Sudah ditonton' : `Ditonton ${Math.round(prog * 100)}%`}"><i style="width:${Math.max(4, Math.round(prog * 100))}%"></i></span>` : ''}
       ${playing ? EQ_BADGE : ''}<span class="thumb-overlay">
-        <button type="button" class="thumb-play" data-action="play" aria-label="${playing && opt.isPlaying ? 'Jeda' : 'Putar'} ${escapeHtml(v.title || '')}">${icon(playing && opt.isPlaying ? 'pause' : 'play', 'fill')}</button>
+        <button type="button" class="thumb-play" data-action="play" aria-label="${playing && opt.isPlaying ? 'Jeda' : 'Putar'} ${escapeHtml(titleOf(v) || '')}">${icon(playing && opt.isPlaying ? 'pause' : 'play', 'fill')}</button>
         <span class="thumb-actions">
           <button type="button" class="thumb-act" data-action="thumb-queue" aria-label="Tambah ke antrean" title="Tambah ke antrean">${icon('queue')}</button>
           <button type="button" class="thumb-act danger" data-action="thumb-remove" aria-label="${opt.isPlaylist ? 'Hapus dari playlist' : 'Hapus dari library'}" title="${opt.isPlaylist ? 'Hapus dari playlist' : 'Hapus dari library'}">${icon('trash')}</button>
@@ -310,12 +315,12 @@ export function renderDock(player, store, opts = {}) {
   if (!cur) return;
 
   const v = store.data.videos[cur.youtubeId];
-  const title = (v && v.title) || 'Memuat judul…';
+  const title = titleOf(v) || 'Memuat judul…';
   const thumb = $('dock-thumb');
   const src = thumbUrl(cur.youtubeId, 'mqdefault');
   if (thumb.getAttribute('src') !== src) thumb.src = src;
   $('dock-title').textContent = title;
-  $('dock-title').title = title;
+  $('dock-title').title = (v && v.title) || title;
   $('stage-title').textContent = title;
   const sub = $('dock-sub');
   sub.textContent = player.error || (player.state === 'loading' ? 'Memuat…' : (v && v.channel) || '');
@@ -343,6 +348,8 @@ export function renderDock(player, store, opts = {}) {
   if (opts && opts.sleepLabel) info.push(`${opts.sleepLabel}`);
   sleep.hidden = !info.length;
   sleep.textContent = info.join(' · ');
+  // titik kecil di tombol ⋮ bila ada setelan yang sedang aktif di dalamnya (kecepatan, timer tidur)
+  document.querySelectorAll('[data-action=player-menu]').forEach((b) => b.classList.toggle('dot', info.length > 0));
 
   const fav = $('dock-fav');
   fav.innerHTML = icon('heart', v && v.favorite ? 'fill' : '');
@@ -434,7 +441,7 @@ export function renderQueue(player, store) {
       ${now ? '' : `<span class="q-grip" title="Geser untuk mengubah urutan" aria-hidden="true">${icon('grip')}</span>`}
       <button type="button" class="q-main" data-action="queue-jump" data-pos="${pos}">
         <img src="${thumbUrl(item.youtubeId, 'default')}" alt="" loading="lazy">
-        <span class="q-text" translate="no"><span class="q-title">${escapeHtml((v && v.title) || 'Judul belum tersedia')}</span>${v && v.channel ? `<span class="q-sub">${escapeHtml(v.channel)}</span>` : ''}</span>
+        <span class="q-text" translate="no"><span class="q-title">${escapeHtml(titleOf(v) || 'Judul belum tersedia')}</span>${v && v.channel ? `<span class="q-sub">${escapeHtml(v.channel)}</span>` : ''}</span>
       </button>
       ${now ? '' : `<button type="button" class="icon-btn sm" data-action="queue-remove" data-pos="${pos}" aria-label="Hapus dari antrean">${icon('x')}</button>`}
     </div>`;
@@ -454,7 +461,7 @@ export function renderQueue(player, store) {
 export function renderUpNext(player, store) {
   const cur = player.current;
   const up = cur ? player.upcoming() : [];
-  const title = (id) => { const v = store.data.videos[id]; return (v && v.title) || 'Judul belum tersedia'; };
+  const title = (id) => titleOf(store.data.videos[id]) || 'Judul belum tersedia';
   const nx = $('dock-next');
   if (nx) {
     nx.hidden = !up.length;
@@ -481,20 +488,32 @@ export function renderUpNext(player, store) {
     }).join('')}`;
 }
 
-/** Baris chip filter cepat di atas daftar. */
-export function renderQuickFilters(all, { active, view, filters, tags }) {
+/**
+ * Baris chip filter di atas daftar. Beberapa chip boleh aktif sekaligus (filter gabungan, v41):
+ * angka di chip yang belum aktif = jumlah lagu kalau chip itu ikut dinyalakan.
+ */
+export function renderQuickFilters(all, { active = [], view, filters, tags, countWith, shown, moreTags = 0 }) {
   const box = $('quick-filters');
   if (!box) return;
-  if (all.length < 3) { box.hidden = true; box.innerHTML = ''; return; }
-  const count = (test) => all.reduce((n, e) => n + (test(e.video, e) ? 1 : 0), 0);
+  const act = new Set(active);
+  if (all.length < 3 && !act.size) { box.hidden = true; box.innerHTML = ''; return; }
   const chips = filters
     .filter((f) => !(f.hideOn || []).includes(view))
-    .map((f) => ({ id: f.id, label: f.label, n: count(f.test) }))
-    .filter((c) => c.n > 0 && c.n < all.length || c.id === active);
-  const tagChips = tags.map((t) => ({ id: `tag:${t.key}`, label: `#${t.name}`, n: t.n }));
-  if (!chips.length && !tagChips.length) { box.hidden = true; box.innerHTML = ''; return; }
+    .map((f) => ({ id: f.id, label: f.label, n: act.has(f.id) ? shown : countWith(f.id) }))
+    .filter((c) => act.has(c.id) || (c.n > 0 && c.n < shown));
+  const tagChips = tags.map((t) => ({ id: `tag:${t.key}`, label: `#${t.name}`, n: act.has(`tag:${t.key}`) ? shown : countWith(`tag:${t.key}`), tag: true }))
+    .filter((c) => act.has(c.id) || (c.n > 0 && c.n < shown));
+  if (!chips.length && !tagChips.length && !act.size) { box.hidden = true; box.innerHTML = ''; return; }
   box.hidden = false;
-  const chip = (c) => `<button type="button" class="chip" data-action="qf" data-qf="${escapeHtml(c.id)}" aria-pressed="${c.id === active}">${escapeHtml(c.label)} <span class="count">${c.n}</span></button>`;
-  box.innerHTML = `<button type="button" class="chip" data-action="qf" data-qf="" aria-pressed="${!active}">Semua <span class="count">${all.length}</span></button>
-    ${chips.map(chip).join('')}${tagChips.map(chip).join('')}`;
+  // chip aktif di depan supaya kombinasi yang dipakai selalu kelihatan
+  const ordered = [...chips, ...tagChips].sort((a, b) => Number(act.has(b.id)) - Number(act.has(a.id)));
+  const chip = (c) => {
+    const on = act.has(c.id);
+    return `<button type="button" class="chip${on ? ' on' : ''}" data-action="qf" data-qf="${escapeHtml(c.id)}" aria-pressed="${on}"${c.tag ? ' translate="no"' : ''}>${escapeHtml(c.label)}${on ? icon('x') : ` <span class="count">${c.n}</span>`}</button>`;
+  };
+  box.innerHTML = `${act.size
+    ? `<button type="button" class="chip chip-clear" data-action="qf" data-qf="" title="Hapus semua filter">${icon('filter')}<span>${act.size} filter · ${shown} lagu</span>${icon('x')}</button>`
+    : `<button type="button" class="chip" data-action="qf" data-qf="" aria-pressed="true">Semua <span class="count">${all.length}</span></button>`}
+    ${ordered.map(chip).join('')}
+    ${moreTags ? `<button type="button" class="chip chip-more" data-action="qf-tags" aria-haspopup="menu">${icon('tag')}<span>Tag lain</span> <span class="count">${moreTags}</span></button>` : ''}`;
 }

@@ -57,6 +57,15 @@ const fixPlural = (s) => s.replace(/(^|[^\d.,])1 (videos|songs|minutes|playlists
 function translateCore(core) {
   const hit = exact.get(core);
   if (hit != null) return hit;
+  // "a · b · c": kalau setiap bagian punya terjemahan sendiri, pakai itu (pola {0} bisa salah menelan
+  // beberapa bagian sekaligus, mis. "{0} tidak valid" menangkap seluruh kalimat)
+  let split = null;
+  if (core.includes(' · ')) {
+    const parts = core.split(' · ');
+    const out = parts.map((x) => translateCore(x) ?? x);
+    if (out.some((x, i) => x !== parts[i])) split = out.join(' · ');
+    if (split && out.every((x, i) => x !== parts[i] || !/[A-Za-z]/.test(parts[i]))) return split;
+  }
   for (const p of patterns) {
     const m = p.re.exec(core);
     if (!m) continue;
@@ -65,11 +74,7 @@ function translateCore(core) {
     p.order.forEach((n, i) => { const v = vals[i]; byIndex[n] = exact.has(v) ? exact.get(v) : v.includes(', ') ? v.split(', ').map((x) => exact.get(x) ?? x).join(', ') : v; });
     return fixPlural(p.out.replace(/\{(\d+)\}/g, (_, n) => (byIndex[n] != null ? byIndex[n] : '')));
   }
-  if (core.includes(' · ')) {
-    const parts = core.split(' · ');
-    const out = parts.map((x) => translateCore(x) ?? x);
-    if (out.some((x, i) => x !== parts[i])) return out.join(' · ');
-  }
+  if (split) return split;
   // sapaan + nama panggilan: "Selamat malam, Vinz"
   const g = /^(Selamat (?:pagi|siang|sore|malam))(, .+)$/.exec(core);
   if (g) return exact.get(g[1]) + g[2];
