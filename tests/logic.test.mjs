@@ -1249,3 +1249,44 @@ test('v41: gestur & kontrol media — batas geser, WAV sunyi', async () => {
   assert.equal(dv.getUint32(24, true), 8000);
   assert.ok(new Uint8Array(buf, 44).every((x) => x === 128), 'isinya hening');
 });
+
+test('v43: latar belakang HP — jeda dari YouTube dikenali, error tidak melompati antrean, dilanjutkan saat kembali', async () => {
+  const { Player } = await import('../js/player.js');
+  const S = { ENDED: 0, PLAYING: 1, PAUSED: 2, BUFFERING: 3, CUED: 5 };
+  globalThis.YT = { PlayerState: S };
+  const p = new Player('bg');
+  const yt = {
+    t: 30, loads: [], plays: 0,
+    loadVideoById(a) { const o = typeof a === 'string' ? { videoId: a } : a; this.loads.push(o); p.onState({ data: S.PLAYING }); },
+    seekTo(t) { this.t = t; }, playVideo() { this.plays++; p.onState({ data: S.PLAYING }); },
+    pauseVideo() { p.onState({ data: S.PAUSED }); },
+    getCurrentTime() { return this.t; }, getDuration() { return 240; }, getPlaybackRate() { return 1; }, setPlaybackRate() {}, getVideoData() { return {}; },
+  };
+  p.yt = yt; p.ready = Promise.resolve();
+  const ids = ['aaaaaaaaaa1', 'bbbbbbbbbb2', 'cccccccccc3'];
+  await p.playList(ids.map((id) => ({ key: id, youtubeId: id })), 0);
+  const hide = (h) => { globalThis.document.visibilityState = h ? 'hidden' : 'visible'; };
+  try {
+    // jeda oleh pengguna saat terlihat: bukan jeda sistem
+    p.pause(); assert.equal(p.systemPaused, false);
+    yt.playVideo();
+    // layar mati → YouTube menjeda sendiri
+    hide(true); p.pauseIntentAt = 0; p.onState({ data: S.PAUSED });
+    assert.equal(p.systemPaused, true);
+    hide(false); assert.equal(p.resumeAfterBackground(), true); assert.equal(p.state, 'playing');
+    assert.equal(p.resumeAfterBackground(), false, 'tidak ada yang perlu dilanjutkan lagi');
+    // error di latar belakang: tetap di lagu yang sama, dimuat ulang saat kembali
+    hide(true); p.onError({ data: 5 });
+    await new Promise((r) => setTimeout(r, 30));
+    assert.equal(p.current.youtubeId, ids[0]); assert.equal(p.state, 'paused');
+    const n = yt.loads.length;
+    hide(false); p.resumeAfterBackground();
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(yt.loads.length, n + 1); assert.equal(yt.loads.at(-1).videoId, ids[0]);
+    // video benar-benar tidak tersedia tetap dilewati seperti biasa
+    hide(true); p.onError({ data: 150 }); assert.equal(p.state, 'error'); assert.equal(p.systemPaused, false);
+    clearTimeout(p.skipTimer);
+    // status "playing" tapi iframe dibekukan
+    hide(true); p.state = 'playing'; assert.equal(p.markStalled(), true); assert.equal(p.systemPaused, true);
+  } finally { hide(false); }
+});
