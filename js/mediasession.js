@@ -75,6 +75,14 @@ export function createMediaSession({ player, getMeta, enabled = () => true }) {
       setAnchor(false);
       return;
     }
+    // Di latar belakang YouTube sudah menghentikan lagunya dan tidak mengizinkan diputar lagi dari sana:
+    // jangan tampilkan notifikasi dengan tombol Putar yang tidak akan berfungsi.
+    if (player.systemPaused && document.visibilityState === 'hidden') {
+      try { ms.metadata = null; ms.playbackState = 'none'; } catch { /* */ }
+      lastMeta = '';
+      setAnchor(false);
+      return;
+    }
     const m = getMeta() || {};
     const key = `${cur.youtubeId}|${m.title}|${m.artist}|${m.album}`;
     if (force || key !== lastMeta) {
@@ -115,6 +123,7 @@ export function createMediaSession({ player, getMeta, enabled = () => true }) {
   player.on((type) => {
     if (type === 'track' || type === 'state' || type === 'playing' || type === 'ended' || type === 'error') update();
   });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') update(true); });
   // posisi diperbarui sesekali (browser memperkirakan sendiri di antaranya)
   setInterval(() => { if (on && player.isPlaying && Date.now() - lastPos > 5000) position(); }, 1000);
 

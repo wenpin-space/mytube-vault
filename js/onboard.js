@@ -4,7 +4,7 @@ import { modal } from './dialogs.js';
 import { icon } from './icons.js';
 import { escapeHtml } from './utils.js';
 
-export const APP_VERSION = 'v42';
+export const APP_VERSION = 'v43';
 const SEEN_KEY = 'mytube_vault_seen_version';
 
 /** Langkah mulai cepat dan statusnya (murni, mudah diuji). */
@@ -50,6 +50,7 @@ export function renderQuickstart(host, state, { installable = false } = {}) {
 
 // [ikon, judul, penjelasan, versi?] — entri bertanda versi sekarang tampil penuh; sisanya dilipat di "Pembaruan sebelumnya".
 const CHANGES = [
+  ['moon', 'Layar mati & pindah aplikasi di HP', 'YouTube menghentikan musik di browser HP begitu layar mati atau aplikasi ditinggal (aturan YouTube sejak 2026, kecuali Premium di aplikasinya). Sekarang aplikasi tahu lagunya berhenti: tombol & notifikasi tidak lagi menampilkan “sedang diputar”, antrean tidak melompat-lompat karena error, dan begitu aplikasi dibuka lagi lagu dilanjutkan dari posisi terakhir (bisa dimatikan di Setelan → Umum).', 'v43'],
   ['video', 'Tombol video YouTube bisa diklik lagi', 'Pengaturan kualitas, teks (CC), layar penuh, dan tombol lain di video YouTube kembali bisa diklik. Lapisan “ketuk video” dari v41 yang menutupinya dihapus; putar/jeda tetap lewat tombol di video atau player bawah.', 'v42'],
   ['more', 'Menu & tombol lebih ringkas', 'Menu ⋮ lagu kini dimulai dengan empat tombol besar (Berikutnya, Antrean, Playlist, Favorit); yang jarang dipakai ada di Lainnya. Menu player hanya berisi hal soal lagu yang diputar: kecepatan, timer tidur, Berhenti setelah lagu ini, dan potong lagu. Tombol ⋮ player kini paling kanan dan diberi titik bila ada yang aktif. Di HP, mini player cukup Putar & Berikutnya.', 'v41'],
   ['undo', 'Urungkan di mana-mana', 'Hapus dari library, hapus atau kosongkan playlist, pindah ke playlist lain, dan aksi di mode pilih kini langsung jalan tanpa dialog konfirmasi, dengan tombol Urungkan di notifikasi (atau Ctrl+Z). Di PC, Ctrl+klik dan Shift+klik memilih beberapa lagu sekaligus.', 'v41'],
@@ -63,7 +64,6 @@ const CHANGES = [
   ['panelRight', 'Panel Sedang diputar', 'Di layar lebar (PC) ada kolom kanan berisi artwork atau video, lirik yang berjalan, lima lagu berikutnya, dan info lagu (berapa kali diputar, ada di playlist mana). Sembunyikan lewat tombol di player atau tekan I.', 'v39'],
   ['tag', 'Tag otomatis dari judul', 'Lagu baru otomatis diberi tag live, cover, remix, acoustic, lyrics, dan lainnya sesuai judulnya. Untuk lagu yang sudah ada: Setelan → Umum → Terapkan ke semua lagu.', 'v39'],
   ['gift', 'Dekorasi musiman di Lobby', 'Hiasan Natal, kembang api Tahun Baru, lampion Imlek, ketupat Lebaran, dan bendera Agustusan muncul sendiri sesuai tanggal, di Kamar santai maupun Kafe.', 'v39'],
-  ['sliders', 'Player: geser, waktu & volume', 'Bilah progres di player kini bisa ditarik dengan mouse atau jari, dan menampilkan waktu tepat di bawah kursor. Di HP, layar Sedang diputar punya knob yang mudah digeser. Di PC ada tombol bisu dan slider volume; volumenya diingat.', 'v38'],
 ];
 
 /** Tampilkan "Apa yang baru" sekali setelah update (bukan untuk pengguna baru). */

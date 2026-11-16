@@ -1198,4 +1198,11 @@ export const EN = {
   'Mode hemat & status sinkron': 'Lite mode & sync status',
   'Setelan → Umum → Mode hemat: tanpa animasi, thumbnail kecil, Lobby 20 fps. Klik ikon awan di atas untuk melihat status sinkron, waktu sinkron terakhir, dan Sinkron sekarang.': 'Settings → General → Lite mode: no animations, small thumbnails, Lobby at 20 fps. Click the cloud icon at the top to see the sync status, the last sync time and Sync now.',
   'Opsi lainnya': 'More options',
+  // v43
+  'Layar mati & pindah aplikasi di HP': 'Screen off & switching apps on phones',
+  'YouTube menghentikan musik di browser HP begitu layar mati atau aplikasi ditinggal (aturan YouTube sejak 2026, kecuali Premium di aplikasinya). Sekarang aplikasi tahu lagunya berhenti: tombol & notifikasi tidak lagi menampilkan “sedang diputar”, antrean tidak melompat-lompat karena error, dan begitu aplikasi dibuka lagi lagu dilanjutkan dari posisi terakhir (bisa dimatikan di Setelan → Umum).': 'YouTube stops music in phone browsers as soon as the screen turns off or you leave the app (YouTube’s rule since 2026, except Premium in its own app). The app now knows the song stopped: buttons and notifications no longer show “playing”, the queue no longer skips ahead because of errors, and when you open the app again the song continues from where it stopped (can be turned off in Settings → General).',
+  'Musik dijeda saat aplikasi ditinggal.': 'Music was paused while you were away from the app.',
+  'Dilanjutkan. YouTube menghentikan musik saat layar mati atau aplikasi ditinggal (kecuali YouTube Premium di aplikasinya).': 'Resumed. YouTube stops music when the screen turns off or you leave the app (except YouTube Premium in its own app).',
+  'Lanjutkan otomatis saat kembali ke aplikasi': 'Resume automatically when returning to the app',
+  'Di HP, YouTube menghentikan musik saat layar mati atau pindah aplikasi. Begitu aplikasi dibuka lagi, lagu dilanjutkan dari posisi terakhir.': 'On phones, YouTube stops music when the screen turns off or you switch apps. When you open the app again, the song continues from where it stopped.',
 };

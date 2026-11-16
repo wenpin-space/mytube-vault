@@ -1916,6 +1916,36 @@ setInterval(() => {
   if (tick % 20 === 0 && player.isPlaying) { savePosition(player.current.youtubeId); persistSession(); } // tiap ±10 detik
 }, 500);
 
+// ---------- latar belakang (HP): layar mati / pindah aplikasi ----------
+// Sejak 2026 YouTube menghentikan pemutaran di browser HP begitu aplikasi ditinggal (kecuali Premium di
+// aplikasi YouTube). Yang bisa kita lakukan: tahu bahwa lagunya berhenti (supaya tombol, notifikasi, waktu
+// dengar, dan antrean tidak salah), lalu melanjutkannya begitu aplikasi dibuka lagi.
+let bgLastT = -1;
+let bgStill = 0;
+setInterval(() => {
+  if (document.visibilityState !== 'hidden' || player.state !== 'playing') { bgLastT = -1; bgStill = 0; return; }
+  const t = player.time();
+  bgStill = Math.abs(t - bgLastT) < 0.05 ? bgStill + 1 : 0;
+  bgLastT = t;
+  // ±4 detik tidak bergerak padahal "playing": iframe sudah dihentikan tanpa sempat memberi kabar
+  if (bgStill >= 2) { player.markStalled(); bgStill = 0; }
+}, 2000);
+let bgToldOnce = false;
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || !player.systemPaused) return;
+  if (store.ui.autoResume === false) {
+    toast('Musik dijeda saat aplikasi ditinggal.', 'info', 7000, { label: 'Lanjutkan', fn: () => player.resumeAfterBackground() });
+    return;
+  }
+  setTimeout(() => {
+    if (document.visibilityState !== 'visible' || !player.resumeAfterBackground()) return;
+    if (!bgToldOnce) {
+      bgToldOnce = true;
+      toast('Dilanjutkan. YouTube menghentikan musik saat layar mati atau aplikasi ditinggal (kecuali YouTube Premium di aplikasinya).', 'info', 8000);
+    }
+  }, 300);
+});
+
 let listenBuf = 0;
 function addListenBuffered(sec) {
   listenBuf += sec;

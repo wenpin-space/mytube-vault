@@ -9,6 +9,8 @@ import { shuffleArray } from './utils.js';
 
 let apiPromise = null;
 
+const hiddenNow = () => typeof document !== 'undefined' && document.visibilityState === 'hidden';
+
 export function loadApi() {
   if (apiPromise) return apiPromise;
   apiPromise = new Promise((resolve, reject) => {
@@ -58,6 +60,10 @@ export class Player {
     this.errorStreak = 0;
     this.skipTimer = null;
     this.pauseIntentAt = 0; // kapan jeda terakhir diminta oleh pengguna/aplikasi (bukan oleh YouTube)
+    // Dijeda oleh sistem saat aplikasi di latar belakang (layar mati / pindah aplikasi). Sejak 2026 YouTube
+    // menghentikan pemutaran di latar belakang di browser HP; kita catat supaya bisa dilanjutkan saat kembali.
+    this.systemPaused = false;
+    this.bgRetry = false; // error saat di latar belakang → muat ulang lagu yang sama saat kembali, jangan lompat
     this.rate = 1;
     this.stopAfterCurrent = false; // timer tidur "akhir lagu ini"
     this.startAt = 0; // detik awal untuk lagu yang sedang dimuat (lanjut dari posisi terakhir)
@@ -217,6 +223,7 @@ export class Player {
     const S = window.YT.PlayerState;
     switch (e.data) {
       case S.PLAYING:
+        this.systemPaused = false; this.bgRetry = false;
         if (this.rate !== 1) { try { if (this.yt.getPlaybackRate() !== this.rate) this.yt.setPlaybackRate(this.rate); } catch { /* abaikan */ } }
         this.state = 'playing';
         this.error = null;
@@ -227,11 +234,17 @@ export class Player {
       case S.PAUSED:
         // dijeda oleh kita di titik potong akhir → tetap dianggap "selesai" supaya Putar mengulang dari awal
         if (this.trimHalt) { this.trimHalt = false; this.state = 'ended'; } else this.state = 'paused';
+        // jeda yang tidak kita minta saat halaman tersembunyi = dijeda sistem/YouTube
+        this.systemPaused = this.state === 'paused' && hiddenNow() && Date.now() - this.pauseIntentAt > 1500;
         this.emit('state');
         break;
       case S.CUED:
       case -1: // belum mulai (mis. autoplay ditahan browser saat aplikasi di latar belakang)
-        if (this.state === 'loading') this.emit('unstarted', this.current);
+        if (this.state === 'loading') {
+          // lagu berikutnya tidak boleh mulai sendiri di latar belakang → mulai saat aplikasi dibuka lagi
+          if (hiddenNow()) { this.systemPaused = true; this.state = 'paused'; this.emit('state'); }
+          this.emit('unstarted', this.current);
+        }
         break;
       case S.BUFFERING: this.state = 'buffering'; this.emit('state'); break;
       case S.ENDED: this.finishTrack(true); break;
@@ -241,6 +254,13 @@ export class Player {
 
   onError(e) {
     const cur = this.current;
+    // Error saat di latar belakang biasanya karena YouTube memblokir pemutaran di sana, bukan videonya rusak:
+    // jangan lompati seluruh antrean; coba lagi lagu yang sama saat aplikasi dibuka kembali.
+    if (hiddenNow() && ![100, 101, 150].includes(e.data)) {
+      this.state = 'paused'; this.systemPaused = true; this.bgRetry = true;
+      this.emit('state');
+      return;
+    }
     this.error = ERRORS[e.data] || `Video tidak bisa diputar (kode ${e.data}).`;
     this.state = 'error';
     this.errorStreak++;
@@ -424,6 +444,22 @@ export class Player {
 
   /** Lanjutkan pemutaran tanpa dianggap aksi pengguna (dipakai mode latar belakang). */
   resume() { try { if (this.yt && this.current) this.yt.playVideo(); } catch { /* abaikan */ } }
+
+  /** Halaman tersembunyi dan waktu video tidak bergerak padahal status "playing" → anggap dijeda sistem. */
+  markStalled() {
+    if (this.state !== 'playing' && this.state !== 'buffering') return false;
+    this.state = 'paused'; this.systemPaused = true;
+    this.emit('state');
+    return true;
+  }
+  /** Aplikasi dibuka lagi: lanjutkan lagu yang dijeda sistem. Hasil true bila ada yang dilanjutkan. */
+  resumeAfterBackground() {
+    if (!this.systemPaused || !this.current) return false;
+    this.systemPaused = false;
+    if (this.bgRetry) { this.bgRetry = false; this.loadCurrent(this.time() || null); return true; }
+    this.resume();
+    return true;
+  }
 
   stop() {
     this.pauseIntentAt = Date.now();
