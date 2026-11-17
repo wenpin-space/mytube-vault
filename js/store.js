@@ -1,4 +1,4 @@
-// State aplikasi + penyimpanan lokal (LocalStorage).
+// State aplikasi + penyimpanan lokal (IndexedDB, dengan cadangan localStorage — v44).
 //
 // Tiga bagian state:
 //   data  → playlist & library video. INILAH yang di-sync ke GitHub Gist.
@@ -6,6 +6,7 @@
 //   ui    → view aktif, mode sort, tema. Lokal saja.
 // Token GitHub & passphrase disimpan di key terpisah dan TIDAK pernah ikut backup.
 
+import { kvAvailable, kvGet, kvSet, kvDel } from './kv.js';
 import { recommend } from './recommend.js';
 import { LANG } from './i18n.js';
 const MAIN_NAME = () => (LANG === 'en' ? 'Main playlist' : 'Playlist Utama');
@@ -204,9 +205,49 @@ export const store = {
     }
   },
 
-  load() {
+  // ---------- penyimpanan (v44): IndexedDB utama, localStorage cadangan selama muat ----------
+  idbOk: false,
+  _savedAt: '',
+  _bytes: 0,
+  _snap: null,
+  _bc: null,
+  /**
+   * Muat data saat aplikasi dibuka. Versi IndexedDB dan localStorage dibandingkan lewat savedAt; yang
+   * lebih baru dipakai (localStorage ditulis serentak, jadi selalu lengkap walau tab ditutup mendadak).
+   */
+  async init() {
+    const fromLs = (k) => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch { return null; } };
+    const ls = fromLs(STATE_KEY);
+    this.idbOk = await kvAvailable();
+    let idb = null;
+    if (this.idbOk) { try { const raw = await kvGet('state'); idb = typeof raw === 'string' ? JSON.parse(raw) : raw || null; } catch { idb = null; } }
+    // cap waktu: savedAt (v44+) atau data.updatedAt (tab versi lama hanya menulis localStorage tanpa savedAt)
+    const stamp = (r) => [String(r.savedAt || ''), String((r.data && r.data.updatedAt) || '')].sort().pop();
+    const pick = !idb ? ls : !ls ? idb : stamp(ls) >= stamp(idb) ? ls : idb;
+    this.load(pick);
+    if (this.idbOk && pick && pick === ls) this.persist(); // pindahkan data lama ke IndexedDB
+    // snapshot (salinan sebelum data ditimpa) kini di IndexedDB supaya tidak memakan jatah localStorage
+    const lsSnap = fromLs(SNAPSHOT_KEY);
+    this._snap = (this.idbOk && await kvGet('snapshot').catch(() => null)) || lsSnap;
+    if (lsSnap && this.idbOk) { try { await kvSet('snapshot', this._snap); localStorage.removeItem(SNAPSHOT_KEY); } catch { /* biarkan */ } }
+    // tab lain menyimpan → muat ulang dari IndexedDB
+    if (typeof BroadcastChannel !== 'undefined' && !this._bc) {
+      this._bc = new BroadcastChannel('mytube_vault');
+      this._bc.onmessage = async (e) => {
+        if (!e.data || e.data.type !== 'state' || e.data.savedAt === this._savedAt) return;
+        let rec = null;
+        try { const raw = await kvGet('state'); rec = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { rec = null; }
+        if (!rec) rec = fromLs(STATE_KEY);
+        if (rec && rec.savedAt !== this._savedAt) { this.load(rec); this.emit('external'); }
+      };
+    }
+  },
+
+  load(parsedArg) {
     let parsed = null;
-    try { parsed = JSON.parse(localStorage.getItem(STATE_KEY) || 'null'); } catch { parsed = null; }
+    if (parsedArg !== undefined) parsed = parsedArg;
+    else { try { parsed = JSON.parse(localStorage.getItem(STATE_KEY) || 'null'); } catch { parsed = null; } }
+    this._savedAt = (parsed && parsed.savedAt) || '';
     this.data = null;
     if (parsed && parsed.data) {
       try { this.data = normalizeData(parsed.data); } catch (e) { console.warn('Data lokal rusak, mulai baru', e); }
@@ -225,14 +266,21 @@ export const store = {
   },
 
   persist() {
-    try {
-      localStorage.setItem(STATE_KEY, JSON.stringify({ schemaVersion: 1, data: this.data, cloud: this.cloud, ui: this.ui }));
+    const savedAt = nowISO();
+    let json;
+    try { json = JSON.stringify({ schemaVersion: 1, savedAt, data: this.data, cloud: this.cloud, ui: this.ui }); } catch (e) { this.emit('storage-error', e); return false; }
+    this._savedAt = savedAt;
+    this._bytes = json.length;
+    let lsOk = false;
+    try { localStorage.setItem(STATE_KEY, json); lsOk = true; } catch { /* localStorage penuh: cukup IndexedDB */ }
+    if (this.idbOk) {
+      kvSet('state', json)
+        .then(() => { if (this._bc) this._bc.postMessage({ type: 'state', savedAt }); })
+        .catch((e) => { if (!lsOk) this.emit('storage-error', e); });
       return true;
-    } catch (e) {
-      console.error(e);
-      this.emit('storage-error', e);
-      return false;
     }
+    if (!lsOk) { this.emit('storage-error', new Error('Penyimpanan browser penuh')); return false; }
+    return true;
   },
 
   /** Dipanggil setiap data berubah → simpan lokal → sync manager menjadwalkan push. */
@@ -257,11 +305,14 @@ export const store = {
   // ---------- snapshot (jaring pengaman sebelum data ditimpa) ----------
   snapshot() {
     if (isDataEmpty(this.data)) return;
-    try { localStorage.setItem(SNAPSHOT_KEY, JSON.stringify({ savedAt: nowISO(), data: this.data })); } catch { /* penuh: lewati */ }
+    const snap = JSON.parse(JSON.stringify({ savedAt: nowISO(), data: this.data }));
+    this._snap = snap;
+    if (this.idbOk) kvSet('snapshot', snap).catch(() => {});
+    else { try { localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snap)); } catch { /* penuh: lewati */ } }
   },
   getSnapshot() {
     try {
-      const s = JSON.parse(localStorage.getItem(SNAPSHOT_KEY) || 'null');
+      const s = this._snap || JSON.parse(localStorage.getItem(SNAPSHOT_KEY) || 'null');
       if (!s || !s.data) return null;
       return { savedAt: s.savedAt, data: normalizeData(s.data) };
     } catch { return null; }
@@ -875,9 +926,12 @@ export const store = {
   },
 
   storageSize() {
+    if (this._bytes) return this._bytes;
     try { return new Blob([localStorage.getItem(STATE_KEY) || '']).size; } catch { return 0; }
   },
   clearAll() {
+    for (const k of ['state', 'snapshot', 'sync-base']) kvDel(k);
+    this._snap = null;
     for (const k of [STATE_KEY, SNAPSHOT_KEY, TOKEN_KEY, PASS_KEY, POS_KEY, 'mytube_vault_stats_v1', 'mytube_vault_lyrics_v1', 'mytube_vault_yt_key']) {
       try { localStorage.removeItem(k); } catch { /* abaikan */ }
     }

@@ -4,7 +4,7 @@ import { modal } from './dialogs.js';
 import { icon } from './icons.js';
 import { escapeHtml } from './utils.js';
 
-export const APP_VERSION = 'v43';
+export const APP_VERSION = 'v44';
 const SEEN_KEY = 'mytube_vault_seen_version';
 
 /** Langkah mulai cepat dan statusnya (murni, mudah diuji). */
@@ -50,6 +50,13 @@ export function renderQuickstart(host, state, { installable = false } = {}) {
 
 // [ikon, judul, penjelasan, versi?] — entri bertanda versi sekarang tampil penuh; sisanya dilipat di "Pembaruan sebelumnya".
 const CHANGES = [
+  ['merge', 'Sinkron yang menggabungkan', 'Kalau HP dan PC sama-sama diubah sebelum sempat sinkron, perubahannya kini digabung otomatis: lagu & playlist baru dari keduanya masuk, yang dihapus di salah satu ikut terhapus, jumlah putar diambil yang terbesar. Dialog “pilih versi” hanya muncul kalau penggabungan gagal, dan salinan sebelum digabung tetap disimpan.', 'v44'],
+  ['gift', 'Wrapped & Setahun lalu', 'Ikon hadiah di samping membuka rekap tahun ini: total waktu mendengarkan, lagu pertama, lagu & artis teratas, bulan dan jam favorit, lalu simpan “Top 2026” jadi playlist. Di Mix dan Riwayat muncul kartu “Setahun lalu” berisi lagu yang sering kamu putar di hari yang sama tahun lalu.', 'v44'],
+  ['type', 'Cara baca lirik & mode karaoke', 'Lirik Korea, Jepang (kana), dan Mandarin kini bisa ditampilkan dengan cara bacanya (romanisasi/pinyin) lewat tombol Cara baca. Tombol Karaoke membuka lirik layar penuh: baris yang sedang dinyanyikan terisi perlahan mengikuti lagu.', 'v44'],
+  ['users', 'Antrean bareng teman & import Spotify', 'Kirim lagu ke antrean teman lewat link (⋮ → Lainnya → Kirim ke antrean teman), atau undang teman mengisi antreanmu dari menu player. Tambah → Dari Spotify menerima file CSV dari exportify.net atau daftar “Artis - Judul” dan mencarikan versi YouTube-nya.', 'v44'],
+  ['pip', 'Mini player, riwayat antrean & acak rapi', 'Di PC, menu player → Mini player mengambang membuka jendela kecil yang selalu di atas. Panel antrean punya bagian “Baru saja diputar” untuk kembali ke lagu sebelumnya. Acak kini menghindari artis yang sama berturut-turut dan menaruh lagu yang baru diputar di belakang.', 'v44'],
+  ['download', 'Penyimpanan lebih lega & backup otomatis', 'Data kini disimpan di IndexedDB (tidak lagi dibatasi ±5 MB), riwayat putar bisa sampai 25.000 putaran. Seminggu sekali salinan otomatis dibuat di perangkat (Setelan → Backup), dan aplikasi mengingatkan untuk mengunduh file backup. Saat offline ada tanda “Offline” dan thumbnail & lirik yang pernah dibuka tetap tampil.', 'v44'],
+  ['keyboard', 'Lebih ramah keyboard & layar sentuh', 'Tombol kecil di HP kini lebih besar dan mudah diketuk, fokus keyboard terlihat jelas, ada tautan “Lompat ke konten”, kontras tombol utama ditingkatkan, dan animasi dikurangi bila sistem meminta (reduce motion).', 'v44'],
   ['moon', 'Layar mati & pindah aplikasi di HP', 'YouTube menghentikan musik di browser HP begitu layar mati atau aplikasi ditinggal (aturan YouTube sejak 2026, kecuali Premium di aplikasinya). Sekarang aplikasi tahu lagunya berhenti: tombol & notifikasi tidak lagi menampilkan “sedang diputar”, antrean tidak melompat-lompat karena error, dan begitu aplikasi dibuka lagi lagu dilanjutkan dari posisi terakhir (bisa dimatikan di Setelan → Umum).', 'v43'],
   ['video', 'Tombol video YouTube bisa diklik lagi', 'Pengaturan kualitas, teks (CC), layar penuh, dan tombol lain di video YouTube kembali bisa diklik. Lapisan “ketuk video” dari v41 yang menutupinya dihapus; putar/jeda tetap lewat tombol di video atau player bawah.', 'v42'],
   ['more', 'Menu & tombol lebih ringkas', 'Menu ⋮ lagu kini dimulai dengan empat tombol besar (Berikutnya, Antrean, Playlist, Favorit); yang jarang dipakai ada di Lainnya. Menu player hanya berisi hal soal lagu yang diputar: kecepatan, timer tidur, Berhenti setelah lagu ini, dan potong lagu. Tombol ⋮ player kini paling kanan dan diberi titik bila ada yang aktif. Di HP, mini player cukup Putar & Berikutnya.', 'v41'],
@@ -57,13 +64,6 @@ const CHANGES = [
   ['merge', 'Lagu ganda & judul bersih', 'Lagu yang sama dengan video berbeda (mis. MV dan versi audio) dikenali saat ditambahkan, dan bisa digabung lewat ⋮ → Cari lagu ganda: playlist, favorit, tag, dan jumlah putarnya ikut digabung. Tempelan seperti “(Official Video)” atau “[HD]” disembunyikan dari judul; judul aslinya tetap tersimpan.', 'v41'],
   ['filter', 'Filter gabungan', 'Chip filter di atas daftar kini bisa dinyalakan beberapa sekaligus, mis. #lofi + Belum pernah diputar + < 5 menit, lalu tekan Acak. Tag lain bisa ditambahkan lewat chip Tag lain.', 'v41'],
   ['link', 'Tambah lagu lebih mudah', 'Banyak link kini menampilkan pratinjau sebelum disimpan: mana yang baru, sudah ada di library, sudah di playlist ini, dobel, atau tidak valid. Import playlist YouTube kini bisa tanpa API key (±200 lagu pertama).', 'v41'],
-  ['video', 'Gestur & kontrol media', 'Di HP, geser lagu ke kanan untuk Putar berikutnya dan ke kiri untuk Tambah ke playlist. Urutan playlist di daftar samping bisa ditarik. Judul, sampul, sebelumnya/berikutnya, dan geser posisi tampil di notifikasi, layar kunci, dan tombol media keyboard.', 'v41'],
-  ['leaf', 'Mode hemat & status sinkron', 'Setelan → Umum → Mode hemat: tanpa animasi, thumbnail kecil, Lobby 20 fps. Klik ikon awan di atas untuk melihat status sinkron, waktu sinkron terakhir, dan Sinkron sekarang.', 'v41'],
-  ['bolt', 'Setelan lebih ringan', 'Dialog Setelan & dialog lain tidak lagi memakai efek kaca buram selebar layar, dan kilau “sedang dimuat” di thumbnail berhenti begitu gambarnya tampil. Membuka Setelan, menggulir daftar lagu, dan memutar video jauh lebih ringan. Tombol bookmark “Tambah ke Vault” dihapus.', 'v40'],
-  ['play', 'Lanjutkan dari terakhir', 'Saat aplikasi dibuka lagi, kartu Lanjutkan muncul di bawah: lagu, posisi, dan antrean terakhir kembali persis seperti saat ditinggal (tekan Spasi juga bisa). Tidak pernah memutar sendiri.', 'v39'],
-  ['panelRight', 'Panel Sedang diputar', 'Di layar lebar (PC) ada kolom kanan berisi artwork atau video, lirik yang berjalan, lima lagu berikutnya, dan info lagu (berapa kali diputar, ada di playlist mana). Sembunyikan lewat tombol di player atau tekan I.', 'v39'],
-  ['tag', 'Tag otomatis dari judul', 'Lagu baru otomatis diberi tag live, cover, remix, acoustic, lyrics, dan lainnya sesuai judulnya. Untuk lagu yang sudah ada: Setelan → Umum → Terapkan ke semua lagu.', 'v39'],
-  ['gift', 'Dekorasi musiman di Lobby', 'Hiasan Natal, kembang api Tahun Baru, lampion Imlek, ketupat Lebaran, dan bendera Agustusan muncul sendiri sesuai tanggal, di Kamar santai maupun Kafe.', 'v39'],
 ];
 
 /** Tampilkan "Apa yang baru" sekali setelah update (bukan untuk pengguna baru). */

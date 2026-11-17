@@ -116,6 +116,12 @@ export class Player {
     return this.ready;
   }
 
+  /** Acak indeks antrean; main.js memasang shuffleFn (acak yang lebih rapi), bawaannya acak biasa. */
+  shuffleIdx(list) {
+    if (typeof this.shuffleFn === 'function') { try { return this.shuffleFn(list); } catch { /* jatuh ke acak biasa */ } }
+    return shuffleArray(list);
+  }
+
   /** Mulai memutar daftar entri dari indeks tertentu. */
   async playList(entries, startIndex = 0) {
     if (!entries.length) return;
@@ -124,7 +130,7 @@ export class Player {
     const start = Math.min(Math.max(0, startIndex), this.queue.length - 1);
     const idx = [...this.queue.keys()];
     if (this.shuffle) {
-      this.order = [start, ...shuffleArray(idx.filter((i) => i !== start))];
+      this.order = [start, ...this.shuffleIdx(idx.filter((i) => i !== start))];
       this.pos = 0;
     } else {
       this.order = idx;
@@ -282,7 +288,7 @@ export class Player {
     } else if (this.repeat === 'all' || this.repeat === 'one') {
       if (this.shuffle && this.order.length > 1) {
         const last = this.order[this.pos];
-        const o = shuffleArray([...this.queue.keys()].filter((i) => this.order.includes(i)));
+        const o = this.shuffleIdx([...this.queue.keys()].filter((i) => this.order.includes(i)));
         if (o[0] === last) [o[0], o[1]] = [o[1], o[0]];
         this.order = o;
       }
@@ -316,7 +322,7 @@ export class Player {
     const curIdx = this.order[this.pos];
     const alive = [...this.queue.keys()].filter((i) => this.order.includes(i));
     if (on) {
-      this.order = [curIdx, ...shuffleArray(alive.filter((i) => i !== curIdx))];
+      this.order = [curIdx, ...this.shuffleIdx(alive.filter((i) => i !== curIdx))];
       this.pos = 0;
     } else {
       this.order = alive;

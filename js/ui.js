@@ -5,6 +5,7 @@ import { escapeHtml, formatDuration, formatTotal, timeAgo } from './utils.js';
 import { thumbUrl, watchUrl } from './metadata.js';
 import { SORT_MODES } from './store.js';
 import { titleOf } from './titles.js';
+import { recentPlays } from './stats.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -446,9 +447,20 @@ export function renderQueue(player, store) {
       ${now ? '' : `<button type="button" class="icon-btn sm" data-action="queue-remove" data-pos="${pos}" aria-label="Hapus dari antrean">${icon('x')}</button>`}
     </div>`;
   };
+  // Baru saja diputar (v44): dari log putar, termasuk dari antrean sebelumnya
+  const hist = recentPlays(13).filter((id) => id !== cur.youtubeId && store.data.videos[id]).slice(0, 12);
+  const hrow = (id) => {
+    const v = store.data.videos[id];
+    return `<div class="q-row past"><button type="button" class="q-main" data-action="queue-history" data-id="${escapeHtml(id)}">
+        <img src="${thumbUrl(id, 'default')}" alt="" loading="lazy">
+        <span class="q-text" translate="no"><span class="q-title">${escapeHtml(titleOf(v) || 'Judul belum tersedia')}</span>${v.channel ? `<span class="q-sub">${escapeHtml(v.channel)}</span>` : ''}</span>
+      </button></div>`;
+  };
+  const openHist = box.querySelector('.q-history[open]') != null;
   // Pertahankan posisi gulir saat antrean di-render ulang.
   const scroll = box.scrollTop;
   box.innerHTML = `
+    ${hist.length ? `<details class="q-history"${openHist ? ' open' : ''}><summary class="q-label">${icon('history')}<span>Baru saja diputar · ${hist.length}</span></summary>${hist.map(hrow).join('')}</details>` : ''}
     <p class="q-label">Sedang diputar</p>${qrow(cur, player.pos, true)}
     <p class="q-label">Berikutnya${upcoming.length ? ` · ${upcoming.length}` : ''}</p>
     <div class="q-upcoming">${upcoming.length

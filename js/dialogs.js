@@ -69,7 +69,10 @@ export function modal({ title, body = '', actions = [], wide = false, dismissVal
         <div class="modal-body"></div>
         ${actions.length ? '<footer class="modal-actions"></footer>' : ''}
       </div>`;
-    dlg.querySelector('h2').textContent = title;
+    const h2 = dlg.querySelector('h2');
+    h2.textContent = title;
+    h2.id = `mdl-${Math.random().toString(36).slice(2, 8)}`;
+    dlg.setAttribute('aria-labelledby', h2.id);
     const bodyEl = dlg.querySelector('.modal-body');
     if (body instanceof Node) bodyEl.appendChild(body); else bodyEl.innerHTML = body;
 

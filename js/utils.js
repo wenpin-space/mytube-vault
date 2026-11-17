@@ -13,6 +13,42 @@ export function escapeHtml(value) {
 }
 
 /** Fisher–Yates shuffle, mengembalikan array baru. */
+/**
+ * Acak yang lebih rapi (v44): lagu yang baru saja diputar ditaruh di belakang, dan artis yang sama
+ * diusahakan tidak berurutan. group(x) = kunci artis; recent(x) = urutan baru-diputar (0 = paling baru),
+ * atau -1 bila tidak baru-baru ini.
+ */
+export function smartShuffle(input, { group = () => '', recent = () => -1 } = {}) {
+  // susun ulang: tiap langkah ambil dari artis yang sisa lagunya paling banyak, asal bukan artis sebelumnya
+  const spread = (list, last = null) => {
+    const groups = new Map();
+    for (const x of shuffleArray(list)) {
+      const g = group(x) || `~${Math.random()}`; // tanpa artis: dianggap berbeda semua
+      if (!groups.has(g)) groups.set(g, []);
+      groups.get(g).push(x);
+    }
+    const out = [];
+    while (out.length < list.length) {
+      const cand = [...groups.entries()].filter(([g, l]) => l.length && g !== last);
+      const pool = cand.length ? cand : [...groups.entries()].filter(([, l]) => l.length);
+      const left = list.length - out.length;
+      const max = Math.max(...pool.map(([, l]) => l.length));
+      // artis yang lagunya lebih dari separuh sisa harus didahulukan; selain itu acak sesuai jumlah lagu
+      const pickFrom = max > left - max ? pool.filter(([, l]) => l.length === max) : pool;
+      let r = Math.random() * pickFrom.reduce((n, [, l]) => n + l.length, 0);
+      let [g, l] = pickFrom[0];
+      for (const e of pickFrom) { r -= e[1].length; if (r <= 0) { [g, l] = e; break; } }
+      out.push(l.pop());
+      last = g;
+    }
+    return { out, last };
+  };
+  const fresh = input.filter((x) => recent(x) < 0);
+  const old = input.filter((x) => recent(x) >= 0).sort((x, y) => recent(y) - recent(x)); // paling lama diputar dulu
+  const a = spread(fresh);
+  return [...a.out, ...old];
+}
+
 export function shuffleArray(input) {
   const a = [...input];
   for (let i = a.length - 1; i > 0; i--) {

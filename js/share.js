@@ -36,6 +36,12 @@ export function buildSharePayload(playlist, videos) {
   };
 }
 
+/** Payload "kirim ke antrean teman" (v44). videos = [{ id, title, channel }]. */
+export function buildQueuePayload(videos, from = '') {
+  const list = videos.slice(0, MAX_VIDEOS);
+  return { v: 1, k: 'q', n: 'Lagu dari teman', f: String(from || '').slice(0, 40) || undefined, i: list.map((v) => v.id), t: list.map((v) => (v.title || '').slice(0, 90)), c: list.map((v) => (v.channel || '').slice(0, 40)) };
+}
+
 export async function encodeShare(payload) {
   const json = new TextEncoder().encode(JSON.stringify(payload));
   if (canCompress()) return `z${b64urlEncode(await pipe(json, new CompressionStream('deflate-raw')))}`;
@@ -64,7 +70,10 @@ export async function decodeShare(code) {
     videos.push({ id, title, channel });
   });
   if (!videos.length) throw new Error('Link ini tidak berisi video.');
-  return { name, videos, truncated: Number(p.truncated) || 0 };
+  // v44: k = 'q' → lagu kiriman teman untuk antrean (bukan playlist); f = nama pengirim
+  const type = p.k === 'q' ? 'queue' : 'playlist';
+  const from = typeof p.f === 'string' ? p.f.trim().slice(0, 40) : '';
+  return { name, videos, truncated: Number(p.truncated) || 0, kind: type, from };
 }
 
 export function shareUrl(code) {

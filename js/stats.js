@@ -7,18 +7,56 @@ import { escapeHtml, formatTotal } from './utils.js';
 import { thumbUrl } from './metadata.js';
 import { titleOf } from './titles.js';
 import { locale } from './i18n.js';
+import { kvAvailable, kvGet, kvSet, kvDel } from './kv.js';
 
 const KEY = 'mytube_vault_stats_v1';
-const MAX_PLAYS = 3000;
+// v44: log disimpan di IndexedDB, jadi muat jauh lebih banyak (cukup untuk rekap setahun / Wrapped)
+let MAX_PLAYS = 3000;
+let cache = null;
+let idb = false;
+let saveTimer = 0;
+
+const valid = (s) => s && Array.isArray(s.plays) && s.daily && typeof s.daily === 'object';
+function fromLs() {
+  try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (valid(s)) return s; } catch { /* abaikan */ }
+  return null;
+}
+/** Dipanggil sekali saat aplikasi dibuka: pindahkan log lama dari localStorage ke IndexedDB. */
+export async function initStats() {
+  idb = await kvAvailable();
+  if (!idb) return;
+  MAX_PLAYS = 25000;
+  let s = null;
+  try { s = await kvGet('stats'); } catch { s = null; }
+  const ls = fromLs();
+  if (!valid(s)) s = ls;
+  else if (ls) { // gabungkan bila keduanya ada (mis. tab lama sempat menulis)
+    const seen = new Set(s.plays.map((p) => `${p.id}@${p.at}`));
+    for (const p of ls.plays) if (!seen.has(`${p.id}@${p.at}`)) s.plays.push(p);
+    s.plays.sort((a, b) => a.at - b.at);
+    for (const [k, v] of Object.entries(ls.daily)) s.daily[k] = Math.max(s.daily[k] || 0, v);
+  }
+  cache = valid(s) ? s : { plays: [], daily: {} };
+  try { await kvSet('stats', cache); localStorage.removeItem(KEY); } catch { idb = false; }
+  window.addEventListener('pagehide', () => { if (saveTimer) { clearTimeout(saveTimer); saveTimer = 0; kvSet('stats', cache).catch(() => {}); } });
+}
 
 function load() {
-  try {
-    const s = JSON.parse(localStorage.getItem(KEY) || 'null');
-    if (s && Array.isArray(s.plays) && s.daily && typeof s.daily === 'object') return s;
-  } catch { /* abaikan */ }
-  return { plays: [], daily: {} };
+  if (cache) return cache;
+  return fromLs() || { plays: [], daily: {} };
 }
-function save(s) { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* penuh: lewati */ } }
+function save(s) {
+  if (idb) {
+    cache = s;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => { saveTimer = 0; kvSet('stats', cache).catch(() => {}); }, 1500);
+    return;
+  }
+  try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* penuh: lewati */ }
+}
+/** Log putar mentah (urut waktu): [{ id, at }]. */
+export const playLog = () => load().plays;
+export const dailyLog = () => load().daily;
 
 const dayKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
@@ -36,11 +74,27 @@ export function addListen(seconds, when = new Date()) {
   const k = dayKey(when);
   s.daily[k] = Math.round((s.daily[k] || 0) + seconds);
   const keys = Object.keys(s.daily).sort();
-  if (keys.length > 400) keys.slice(0, keys.length - 400).forEach((x) => delete s.daily[x]);
+  if (keys.length > 800) keys.slice(0, keys.length - 800).forEach((x) => delete s.daily[x]);
   save(s);
 }
 
-export function clearStats() { try { localStorage.removeItem(KEY); } catch { /* abaikan */ } }
+export function clearStats() {
+  cache = idb ? { plays: [], daily: {} } : null;
+  kvDel('stats');
+  try { localStorage.removeItem(KEY); } catch { /* abaikan */ }
+}
+
+/** Id lagu yang diputar paling akhir (unik, terbaru dulu) — untuk acak yang lebih rapi. */
+export function recentPlays(n = 30) {
+  const out = [];
+  const seen = new Set();
+  const plays = load().plays;
+  for (let i = plays.length - 1; i >= 0 && out.length < n; i--) {
+    const id = plays[i].id;
+    if (!seen.has(id)) { seen.add(id); out.push(id); }
+  }
+  return out;
+}
 
 /** Hitung ringkasan (murni, mudah diuji). */
 export function computeStats(data, raw = load(), now = new Date()) {

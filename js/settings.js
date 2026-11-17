@@ -1,5 +1,6 @@
 // Dialog Pengaturan: Cloud Sync · Backup & Riwayat · Umum.
 
+import { listAutoBackups, reminderDays, downloadBackup } from './autobackup.js';
 import { store, getToken, normalizeData, VAULT_FILE } from './store.js';
 import { sync } from './sync.js';
 import { buildEnvelope, parseEnvelope, summarize } from './envelope.js';
@@ -135,7 +136,17 @@ export async function openSettings(initialTab = 'cloud') {
       }
 
       // ---------- Backup ----------
+      async function fillAuto() {
+        const box = panel.querySelector('[data-auto] .auto-list');
+        if (!box) return;
+        const list = await listAutoBackups();
+        box.innerHTML = list.length
+          ? `<div class="list-box">${list.map((e, i) => `<div class="auto-item"><span><b>${formatDateTime(e.savedAt)}</b> <span class="muted small">· ${e.playlists} playlist, ${e.videos} video</span></span>
+              <span class="row"><button type="button" class="btn sm" data-act="auto-download" data-i="${i}">${icon('download')}Unduh</button><button type="button" class="btn sm" data-act="auto-restore" data-i="${i}">Pulihkan</button></span></div>`).join('')}</div>`
+          : '<p class="muted small">Belum ada salinan otomatis. Yang pertama dibuat beberapa saat setelah aplikasi dibuka.</p>';
+      }
       function drawBackup() {
+        setTimeout(fillAuto, 0);
         const snap = store.getSnapshot();
         const snapSum = snap ? summarize(snap.data) : null;
         panel.innerHTML = `
@@ -149,6 +160,14 @@ export async function openSettings(initialTab = 'cloud') {
               <button type="button" class="btn" data-act="import-text">Tempel teks backup</button>
             </div>
             <input type="file" id="import-file" accept=".json,application/json,text/plain" hidden>
+          </section>
+          <section class="card" data-auto>
+            <h3>${icon('clock')} Backup otomatis</h3>
+            <p class="muted">Seminggu sekali salinan data disimpan sendiri di perangkat ini (4 salinan terakhir). Karena data browser bisa ikut terhapus saat membersihkan data situs, aplikasi juga mengingatkan untuk mengunduh file backup.</p>
+            <label class="field inline"><span>Ingatkan unduh file backup</span>
+              <select data-gen="backupEvery">${[[7, 'Tiap minggu'], [30, 'Tiap bulan'], [0, 'Jangan ingatkan']].map(([v, l]) => `<option value="${v}"${reminderDays(store) === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+            ${store.ui.lastBackupFileAt ? `<p class="small muted">File backup terakhir diunduh ${timeAgo(store.ui.lastBackupFileAt)}.</p>` : '<p class="small muted">Belum pernah mengunduh file backup dari perangkat ini.</p>'}
+            <div class="auto-list"><p class="muted small"><span class="spinner"></span> Memuat salinan…</p></div>
           </section>
           ${snap ? `<section class="card">
             <h3>Snapshot lokal</h3>
@@ -219,7 +238,7 @@ export async function openSettings(initialTab = 'cloud') {
           </section>
           <section class="card">
             <h3>Data di browser ini</h3>
-            <p class="muted">Ukuran data lokal <b>${formatBytes(store.storageSize())}</b> (batas localStorage umumnya ±5 MB) · ${Object.keys(store.data.videos).length} video di library.</p>
+            <p class="muted">Ukuran data lokal <b>${formatBytes(store.storageSize())}</b> · ${store.idbOk ? 'disimpan di IndexedDB browser (tanpa batas 5 MB)' : 'disimpan di localStorage (batas umumnya ±5 MB)'} · ${Object.keys(store.data.videos).length} video di library.</p>
             <div class="row"><button type="button" class="btn btn-danger-ghost" data-act="clear-all">${icon('trash')}Hapus semua data di browser ini</button></div>
             <p class="hint">Tidak menghapus Gist di GitHub.</p>
           </section>
@@ -348,9 +367,25 @@ export async function openSettings(initialTab = 'cloud') {
             break;
           case 'forget-pass': sync.forgetPassphrase(); toast('Passphrase dilupakan dari perangkat ini.'); draw(); break;
           case 'export': {
-            const text = await buildEnvelope(store.data, null);
-            downloadText(`mytube-vault-backup-${todayStamp()}.json`, text);
+            await downloadBackup(store);
             toast('File backup diunduh.', 'success');
+            break;
+          }
+          case 'auto-restore': {
+            const list = await listAutoBackups();
+            const e = list[Number(b.dataset.i)];
+            if (e && await confirmDialog('Pulihkan salinan otomatis?', `Data sekarang diganti dengan salinan ${formatDateTime(e.savedAt)} (${e.playlists} playlist, ${e.videos} video). Data sekarang disimpan sebagai snapshot.`, { ok: 'Pulihkan' })) {
+              store.snapshot();
+              store.replaceData(JSON.parse(e.json));
+              toast('Salinan otomatis dipulihkan.', 'success');
+              drawBackup();
+            }
+            break;
+          }
+          case 'auto-download': {
+            const list = await listAutoBackups();
+            const e = list[Number(b.dataset.i)];
+            if (e) downloadText(`mytube-vault-otomatis-${e.savedAt.slice(0, 10)}.json`, await buildEnvelope(JSON.parse(e.json), null));
             break;
           }
           case 'copy': {
@@ -420,6 +455,7 @@ export async function openSettings(initialTab = 'cloud') {
         else if (t.dataset.player) store.setPlayerSetting(t.dataset.player, t.checked);
         else if (t.dataset.gen === 'theme') { store.ui.theme = t.value; store.saveUi(); }
         else if (t.dataset.gen === 'autoTag') { store.ui.autoTag = t.checked; store.saveUiQuiet(); }
+        else if (t.dataset.gen === 'backupEvery') { store.ui.backupEvery = Number(t.value); store.saveUiQuiet(); }
         else if (['cleanTitles', 'lite', 'fade', 'tint', 'mediaKeys', 'autoResume'].includes(t.dataset.gen)) {
           store.ui[t.dataset.gen] = t.checked;
           store.saveUi();

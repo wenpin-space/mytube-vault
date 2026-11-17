@@ -1,4 +1,4 @@
-// Sync manager: LocalStorage ⇄ GitHub Gist.
+// Sync manager: data lokal ⇄ GitHub Gist.
 //
 // Deteksi konflik memakai pola "3 titik":
 //   L = store.data.updatedAt            (versi lokal sekarang)
@@ -8,15 +8,33 @@
 //   R == B          → cloud tidak berubah sejak terakhir → aman push lokal
 //   R == L          → sudah sama → tidak perlu apa-apa
 //   R != B, lokal tidak ada perubahan pending → ambil versi cloud diam-diam
-//   R != B, lokal juga berubah → KONFLIK → tanya user
+//   R != B, lokal juga berubah → GABUNG otomatis (v44, js/merge.js) memakai data sinkron terakhir
+//                                 (IndexedDB "sync-base") sebagai titik acuan; dialog pilih versi hanya
+//                                 bila penggabungan gagal.
 //
 // Ini lebih aman daripada sekadar membandingkan "siapa yang lebih baru",
 // karena jam perangkat yang berbeda tidak bisa membuat data tertimpa diam-diam.
 
-import { store, getToken, setToken, clearToken, defaultCloud, isDataEmpty, PASS_KEY } from './store.js';
+import { store, getToken, setToken, clearToken, defaultCloud, isDataEmpty, normalizeData, PASS_KEY } from './store.js';
 import * as gh from './gist.js';
 import { buildEnvelope, parseEnvelope, openEnvelope } from './envelope.js';
 import { nowISO } from './utils.js';
+import { mergeData } from './merge.js';
+import { kvGet, kvSet } from './kv.js';
+
+/** Data saat sinkron terakhir berhasil: titik acuan untuk menggabungkan perubahan dua perangkat. */
+const saveBase = (json) => kvSet('sync-base', json).catch(() => {});
+async function loadBase() {
+  try { const raw = await kvGet('sync-base'); return raw ? JSON.parse(raw) : null; } catch { return null; }
+}
+function mergeMessage(s) {
+  const parts = [];
+  if (s.videosAdded) parts.push(`${s.videosAdded} lagu baru`);
+  if (s.videosRemoved) parts.push(`${s.videosRemoved} lagu dihapus`);
+  if (s.playlistsAdded) parts.push(`${s.playlistsAdded} playlist baru`);
+  if (s.playlistsChanged) parts.push(`${s.playlistsChanged} playlist diubah`);
+  return parts.length ? `Perubahan dari perangkat lain digabung: ${parts.join(', ')}.` : 'Perubahan dari perangkat lain digabung.';
+}
 
 const MIN_PUSH_GAP = 8000;     // jarak minimal antar-PATCH (batas "content creation" GitHub)
 const RETRY_DELAY = 60000;
@@ -166,8 +184,10 @@ export const sync = {
           }
         }
         const sentUpdatedAt = store.data.updatedAt;
+        const sentJson = JSON.stringify(store.data);
         const content = await buildEnvelope(store.data, enc ? this.passphrase : null);
         await gh.updateFile(this.token, c.gistId, c.fileName, content);
+        saveBase(sentJson);
         this._lastPush = Date.now();
         c.lastRemoteUpdatedAt = sentUpdatedAt;
         c.lastSyncedAt = nowISO();
@@ -262,6 +282,20 @@ export const sync = {
     if (!c.pendingChanges || isDataEmpty(store.data)) {
       return this.applyEnvelope(env, { notify: c.lastRemoteUpdatedAt ? 'Data diperbarui dari cloud.' : 'Data dimuat dari cloud.' });
     }
+    // v44: gabungkan per lagu & per playlist (salinan data lokal sebelum digabung disimpan sebagai snapshot)
+    try {
+      const remote = await this.openWithPrompt(env);
+      if (remote) {
+        const { data, summary } = mergeData(store.data, normalizeData(remote), await loadBase());
+        store.snapshot();
+        store.replaceData(data, { fromCloud: false });
+        c.lastRemoteUpdatedAt = env.updatedAt;
+        store.saveCloud();
+        this.notify(mergeMessage(summary), 'success');
+        this.setStatus('pending');
+        return this.push({ force: true });
+      }
+    } catch (e) { console.error('Gagal menggabungkan, kembali ke pilihan versi', e); }
     this.setStatus('conflict', 'Data di cloud berubah dari perangkat lain.');
     let choice = null;
     try { choice = await this.resolveConflict({ remote: env }); } catch (e) { console.error(e); }
@@ -315,6 +349,7 @@ export const sync = {
       return false;
     }
     const c = store.cloud;
+    saveBase(JSON.stringify(store.data));
     store.data.settings.sync.encryptionEnabled = !!env.encrypted;
     c.lastRemoteUpdatedAt = env.updatedAt;
     c.lastSyncedAt = nowISO();

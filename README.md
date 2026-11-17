@@ -84,6 +84,18 @@ Vanilla JavaScript (ES modules), tanpa build step, tanpa backend. Tinggal taruh 
 - **Kamar santai (v21)**: latar utama Lobby berupa ilustrasi kamar berlapis (rak buku, meja, laptop, kopi beruap, kucing tidur, tanaman yang bergoyang, lampu-lampu). Lewat tombol **Suasana**: 6 pemandangan di luar jendela (gunung & danau, kota, pantai, hutan pinus, pedesaan dengan kincir, sawah dengan gunung berasap), 6 cuaca (cerah, berawan, hujan, badai berkilat, salju, kabut) dan waktu (otomatis/pagi/siang/senja/malam) yang mengubah cahaya kamar. Suara alam otomatis ikut suasana (bisa dimatikan); ada tombol *Suasana acak*.
 - **Gaya lukisan lofi (v22)**: Kamar santai digambar ulang dengan palet teal keabuan + aksen hangat, atmospheric perspective (gunung jauh memudar ke kabut), sisi lereng terang/gelap, pantulan danau, kabut yang melayang, cahaya lampu yang tumpah ke dinding dan rim light di tepi benda, serat kayu, hujan tiga lapis dengan jejak tetes di kaca, burung sesekali, grain film halus, dan parallax pemandangan yang mengikuti mouse (dimatikan bila *reduced motion*).
 - **Lukisan sapuan kuas (v23)**: `js/paint.js` melukis ulang setiap suasana: underpainting buram → tiga lapis sapuan kuas (warna diambil dari gambar, arah mengikuti tepi benda) → tepi benda dirapikan kembali → bloom lembut + tekstur kanvas. Dikerjakan bertahap ±10 ms per frame sehingga terlihat "terlukis" dalam 1–3 detik tanpa membuat animasi tersendat. Tanaman, pot gantung, dan kucing dilukis sebagai sprite lalu digerakkan (bergoyang/bernapas).
+- **v44 — sinkron yang menggabungkan, Wrapped, karaoke, antrean bareng teman, IndexedDB, dan main.js dipecah**:
+  - **Sinkron menggabungkan** (`js/merge.js`): saat perangkat lain mengubah Gist sementara perangkat ini juga punya perubahan, `mergeData(local, remote, base)` menggabungkan tiga arah memakai salinan sinkron terakhir (`sync-base` di IndexedDB) sebagai patokan. Lagu & playlist: `updatedAt` terbaru menang, jumlah putar = terbesar; isi playlist digabung per `itemId` (tambahan dua sisi masuk, hapusan dua sisi berlaku, diubah setelah dihapus = tetap ada). Tanpa patokan tidak ada yang dianggap dihapus. Snapshot dibuat sebelum menggabung; dialog pilih versi hanya cadangan bila gagal.
+  - **IndexedDB** (`js/kv.js`): state, snapshot, log putar, patokan sinkron, dan salinan otomatis kini di IndexedDB (`mytube_vault` → `kv`); localStorage tetap salinan cadangan. Saat dibuka, yang lebih baru (savedAt / data.updatedAt) dipakai, jadi tab versi lama yang masih terbuka tidak kehilangan perubahan. Antar tab disamakan lewat BroadcastChannel. Batas log putar naik ke 25.000.
+  - **Wrapped & Setahun lalu** (`js/wrapped.js`): rekap tahunan dari log putar perangkat ini (waktu dengar, lagu pertama, lagu/artis teratas, bulan & jam favorit, hari beruntun, tag) + simpan “Top tahun” jadi playlist. Kartu “Setahun lalu” (atau “Sebulan lalu”) di Mix & Riwayat.
+  - **Cara baca lirik** (`js/romanize.js`, `js/pinyin-data.js`): Hangul → Revised Romanization (dengan liaison), kana → Hepburn, Mandarin → pinyin bernada (kamus dimuat saat dibutuhkan, dibangun dari data pinyin-pro, MIT — lihat `vendor/LICENSE-pinyin-pro.txt`). Lagu Jepang: kanji tidak dipaksa jadi pinyin. **Mode karaoke**: lirik layar penuh, baris sekarang terisi mengikuti waktu.
+  - **Antrean bareng teman** (`js/together.js`): link berbagi jenis antrean (`k:'q'`, nama pengirim) — penerima memilih Putar berikutnya / Ke akhir antrean / Simpan saja; lagunya juga masuk playlist “Dari teman”. Undangan `#kirim` membuka dialog kirim untuk teman. Tanpa server.
+  - **Import Spotify** (`js/spotify.js`): CSV Exportify atau baris “Artis - Judul”; dicocokkan ke YouTube dengan API key (maks. 60 lagu sekali jalan), tanpa key ada link Cari di YouTube per lagu.
+  - **Mini player mengambang** (`js/minipip.js`, Document Picture-in-Picture, Chrome/Edge PC), **riwayat di panel antrean**, **acak rapi** (`smartShuffle`: artis tidak berurutan, lagu yang baru diputar di belakang).
+  - **Backup otomatis** (`js/autobackup.js`): salinan mingguan di IndexedDB (4 terakhir, bisa dipulihkan/diunduh di Setelan → Backup) + pengingat unduh file backup (7 hari, 30 hari bila Gist aktif; tunda 3 hari).
+  - **Offline lebih jelas**: tanda Offline di atas, pesan khusus saat mencoba memutar, thumbnail (maks. 600) & lirik disimpan service worker (`mytube-vault-media-1`).
+  - **Aksesibilitas**: target sentuh ≥38–40 px di layar sentuh, `:focus-visible` jelas, tautan Lompat ke konten, kontras tombol utama ≥4,5:1, dialog diberi `aria-labelledby`, `prefers-reduced-motion`, bilah player bawah bisa dibuka lewat keyboard.
+  - **main.js dipecah** (±2.440 → 128 baris): `js/app-state.js` (objek bersama: player, state lokal, dialog yang dimuat belakangan), `js/app-library.js` (render, urutan, tambah lagu, urungkan), `js/app-actions.js` (menu lagu/playlist/player, pilih banyak, tag, bagikan, Wrapped, Spotify), `js/app-input.js` (klik & shortcut, panel, form tambah, kolom serbaguna), `js/app-events.js` (event store/player/sync, latar belakang HP, mini player, Lobby, sesi). Tiap modul mengekspor fungsi + satu `setupX()` yang dipanggil berurutan oleh `main.js`, jadi urutan pemasangan event sama seperti sebelumnya.
 - **v43 — layar mati / pindah aplikasi di HP tidak lagi membuat player kacau**: sejak Januari 2026 YouTube sengaja menghentikan pemutaran di latar belakang di browser HP (non-Premium), jadi musik pasti berhenti. Masalahnya, aplikasi tidak tahu: tombol tetap “Jeda”, notifikasi media v41 menampilkan tombol Putar yang tidak berfungsi, waktu dengar terus dihitung, dan error yang muncul di latar belakang membuat antrean melompat lagu demi lagu tiap 2,5 detik. Sekarang `player.systemPaused` menandai jeda yang tidak diminta saat halaman tersembunyi (PAUSED tanpa `pauseIntentAt` ±1,5 dtk, lagu berikutnya tertahan autoplay, atau error selain 100/101/150 → `bgRetry`, tidak melompat). Pengawas di main.js (tiap 2 dtk saat tersembunyi) menandai status “playing” yang waktunya tidak bergerak ±4 dtk (`markStalled`). Saat halaman terlihat lagi, `resumeAfterBackground()` melanjutkan (atau memuat ulang lagu yang sama bila tadi error); Setelan → Umum → *Lanjutkan otomatis saat kembali ke aplikasi* (bawaan aktif; kalau mati, muncul toast Lanjutkan). Notifikasi media disembunyikan selama lagu dihentikan sistem di latar belakang.
 - **v42 — perbaikan: tombol video YouTube bisa diklik lagi**: lapisan “ketuk video” v41 (`js/videotap.js`, ketuk sekali putar/jeda, ketuk dua kali ±10 dtk) menutupi hampir seluruh video, sehingga tombol bawaan YouTube (pengaturan/kualitas, CC, suara, layar penuh, More videos) tidak bisa diklik; tata letak player YouTube yang baru menaruh tombol di atas dan di tengah video, bukan hanya di bawah. Lapisannya dihapus seluruhnya. Untuk lompat waktu: di PC ← / → (5 detik); di HP, player YouTube biasanya punya ketuk dua kali di sisi video sendiri (belum dipastikan di perangkat Vinz).
 - **v41 — tombol & fungsi lebih ringkas** (`js/titles.js`, `js/dupes.js`, `js/dupes-ui.js`, `js/addpreview.js`, `js/ytlist.js`, `js/swipe.js`, `js/navdrag.js`, `js/mediasession.js`; lapisan ketuk video v41 dihapus di v42):
@@ -350,7 +362,21 @@ Key di LocalStorage:
 ```
 index.html          kerangka halaman
 css/style.css       tampilan (tema terang/gelap, responsif)
-js/main.js          titik masuk: menghubungkan semua modul, event UI
+js/main.js          titik masuk: muat kamus, pasang bagian aplikasi berurutan, mulai
+js/app-state.js     objek bersama (player, state lokal, timer tidur, dialog yang dimuat belakangan)
+js/app-library.js   render daftar/dock, ubah urutan, tambah lagu & pratinjau, urungkan
+js/app-actions.js   menu lagu/playlist/player, pilih banyak, tag, bagikan, Wrapped, Spotify, antrean teman
+js/app-input.js     klik & shortcut keyboard, panel, gestur, form tambah, kolom serbaguna
+js/app-events.js    event store/player/sync, notifikasi media, mini player, latar belakang HP, Lobby, sesi
+js/kv.js            penyimpanan kunci-nilai di IndexedDB (state, log putar, salinan)
+js/merge.js         gabung tiga arah untuk sinkron
+js/wrapped.js       Wrapped tahunan & "Setahun lalu"
+js/romanize.js      cara baca lirik (Hangul, kana, pinyin); js/pinyin-data.js = kamus pinyin
+js/together.js      kirim/terima lagu ke antrean teman
+js/spotify.js       import daftar lagu Spotify (CSV / "Artis - Judul")
+js/minipip.js       mini player mengambang (Document Picture-in-Picture)
+js/autobackup.js    salinan otomatis mingguan + pengingat unduh backup
+vendor/             lisensi pihak ketiga (data pinyin-pro, MIT)
 js/store.js         state, normalisasi data, LocalStorage, operasi playlist/video
 js/sync.js          sync manager: debounce, offline, konflik, riwayat, enkripsi
 js/gist.js          klien GitHub Gist REST API
@@ -415,7 +441,7 @@ tests/              unit test logika inti
 node --test tests/logic.test.mjs
 ```
 
-Mencakup parser link, migrasi format lama, operasi store, envelope + enkripsi, dan alur sync lengkap (buat Gist, push, auto-pull, konflik, enkripsi, offline → online) dengan GitHub API tiruan.
+Mencakup parser link, migrasi format lama, operasi store, envelope + enkripsi, gabung sinkron tiga arah, acak rapi, romanisasi lirik, parser daftar Spotify, link antrean, Wrapped, dan alur sync lengkap (buat Gist, push, auto-pull, konflik, enkripsi, offline → online) dengan GitHub API tiruan.
 
 ---
 

@@ -1,5 +1,6 @@
 // Lirik dari LRCLIB (lrclib.net, gratis, tanpa API key). Lirik tersinkron (format LRC) disorot mengikuti posisi lagu.
 
+import { needsRomanize, romanizeLines } from './romanize.js';
 import { escapeHtml, skeletonRows } from './utils.js';
 import { icon } from './icons.js';
 import { thumbUrl } from './metadata.js';
@@ -190,7 +191,9 @@ export function bestMatch(results, duration = 0) {
 export function createLyricsPanel(host, { getTrack, seek, getTime = () => 0, onFindAudio = null }) {
   let trOn = false;
   try { trOn = localStorage.getItem('mytube_vault_lyrics_tr_on') === '1'; } catch { /* abaikan */ }
-  const st = { videoId: null, lines: null, active: -1, results: [], loading: false, query: '', offset: 0, syncMode: false, rec: null, trOn };
+  let roOn = false;
+  try { roOn = localStorage.getItem('mytube_vault_lyrics_ro_on') === '1'; } catch { /* abaikan */ }
+  const st = { videoId: null, lines: null, active: -1, results: [], loading: false, query: '', offset: 0, syncMode: false, rec: null, trOn, roOn };
   const body = host.querySelector('.lyrics-body');
   const form = host.querySelector('.lyrics-form');
   const input = form.querySelector('input');
@@ -216,6 +219,8 @@ export function createLyricsPanel(host, { getTrack, seek, getTime = () => 0, onF
     const head = `<div class="lyrics-meta"><b translate="no">${escapeHtml(rec.trackName || '')}</b><span class="small">${escapeHtml(rec.artistName || '')}${rec.albumName ? ` · ${escapeHtml(rec.albumName)}` : ''}</span>
       ${st.results.length > 1 ? '<button type="button" class="link-btn small" data-l-act="others">Bukan ini? Lihat hasil lain</button>' : ''}${note}
       ${rec.syncedLyrics || rec.plainLyrics ? `<button type="button" class="ls-btn ls-tr${st.trOn ? ' on-soft' : ''}" data-l-act="translate" aria-pressed="${!!st.trOn}">${icon('translate')}<span>${st.trOn ? 'Sembunyikan terjemahan' : 'Terjemahkan'}</span></button>` : ''}
+      ${needsRomanize(rec.syncedLyrics || rec.plainLyrics || '') ? `<button type="button" class="ls-btn ls-tr${st.roOn ? ' on-soft' : ''}" data-l-act="romanize" aria-pressed="${!!st.roOn}">${icon('type')}<span>Cara baca</span></button>` : ''}
+      ${rec.syncedLyrics ? `<button type="button" class="ls-btn ls-tr" data-l-act="karaoke">${icon('mic')}<span>Karaoke</span></button>` : ''}
       <span class="tr-note small"></span></div>`;
     if (rec.instrumental && !rec.syncedLyrics && !rec.plainLyrics) { body.innerHTML = art('<p class="lv-msg">♪ Instrumental — tidak ada lirik.</p>'); return; }
     if (rec.syncedLyrics) {
@@ -229,8 +234,29 @@ export function createLyricsPanel(host, { getTrack, seek, getTime = () => 0, onF
       body.innerHTML = `${head}<div class="lyrics-lines plain" translate="no">${String(rec.plainLyrics).split(/\r?\n/).map((l) => `<p>${escapeHtml(l) || '&nbsp;'}</p>`).join('')}</div>
         <p class="hint">Lirik ini tidak tersinkron dengan waktu lagu.</p>`;
     }
+    if (st.roOn) applyRomanize();
     if (st.trOn) applyTranslation();
   };
+
+  // ---------- cara baca / romanisasi (js/romanize.js, v44) ----------
+  /** Teks asli baris lirik (tanpa tambahan cara baca / terjemahan). */
+  const orig = (p) => (p.firstChild && p.firstChild.nodeType === 3 ? p.firstChild.textContent : p.textContent);
+  async function applyRomanize() {
+    const rec = st.rec;
+    const ps = lyricPs();
+    if (!rec || !ps.length) return;
+    let ro;
+    try { ro = await romanizeLines(ps.map((p) => orig(p).replace(/^♪$/, ''))); } catch { return; }
+    if (st.rec !== rec || !st.roOn) return;
+    lyricPs().forEach((p, i) => {
+      p.querySelector('.lyr-ro')?.remove();
+      if (!ro[i]) return;
+      const span = document.createElement('span');
+      span.className = 'lyr-ro';
+      span.textContent = ro[i];
+      p.insertBefore(span, p.firstChild ? p.firstChild.nextSibling : null);
+    });
+  }
 
   // ---------- terjemahan ----------
   const lyricPs = () => [...body.querySelectorAll('.lyrics-lines p')];
@@ -239,7 +265,7 @@ export function createLyricsPanel(host, { getTrack, seek, getTime = () => 0, onF
     const ps = lyricPs();
     const note = body.querySelector('.tr-note');
     if (!rec || !ps.length) return;
-    const lines = ps.map((p) => p.textContent.replace(/^♪$/, '').trim());
+    const lines = ps.map((p) => orig(p).replace(/^♪$/, '').trim());
     const src = detectLang(lines.join('\n'));
     const tgt = LANG === 'en' ? 'en' : 'id';
     if (src === tgt) { if (note) note.textContent = 'Lirik ini sudah berbahasa Indonesia.'; return; }
@@ -402,6 +428,15 @@ export function createLyricsPanel(host, { getTrack, seek, getTime = () => 0, onF
       else { body.querySelectorAll('.lyr-tr').forEach((n) => n.remove()); const n = body.querySelector('.tr-note'); if (n) n.textContent = ''; }
       return;
     }
+    if (act && act.dataset.lAct === 'romanize') {
+      st.roOn = !st.roOn;
+      try { localStorage.setItem('mytube_vault_lyrics_ro_on', st.roOn ? '1' : '0'); } catch { /* abaikan */ }
+      act.setAttribute('aria-pressed', String(st.roOn));
+      act.classList.toggle('on-soft', st.roOn);
+      if (st.roOn) applyRomanize(); else body.querySelectorAll('.lyr-ro').forEach((n) => n.remove());
+      return;
+    }
+    if (act && act.dataset.lAct === 'karaoke') { openKaraoke(); return; }
     if (act && act.dataset.lAct === 'guess') { applyOffset(Number(act.dataset.d)); return; }
     if (act && act.dataset.lAct === 'tapmode') { st.syncMode = !st.syncMode; renderSyncBar(); return; }
     if (e.target.closest('[data-l-act=others]')) { renderResults(); return; }
@@ -414,8 +449,71 @@ export function createLyricsPanel(host, { getTrack, seek, getTime = () => 0, onF
     }
   });
 
+  // ---------- mode karaoke (v44): lirik layar penuh, baris aktif besar dengan isian sesuai waktu ----------
+  let kar = null;
+  function openKaraoke() {
+    if (!st.lines || !st.lines.length || kar) return;
+    const tr = getTrack();
+    const el = document.createElement('div');
+    el.className = 'karaoke';
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-modal', 'true');
+    el.setAttribute('aria-label', 'Mode karaoke');
+    el.innerHTML = `<div class="kr-bg">${tr ? `<img src="${thumbUrl(tr.youtubeId, 'hqdefault')}" alt="">` : ''}</div>
+      <div class="kr-top"><span class="kr-song" translate="no">${escapeHtml(tr ? tr.title || '' : '')}</span>
+        <button type="button" class="icon-btn kr-close" aria-label="Tutup karaoke (Esc)">${icon('x')}</button></div>
+      <div class="kr-lines" translate="no"><p class="kr-prev"></p><p class="kr-now"><span class="kr-fill"></span><span class="kr-text"></span></p><p class="kr-sub"></p><p class="kr-next"></p><p class="kr-next2"></p></div>`;
+    document.body.appendChild(el);
+    const $k = (sel) => el.querySelector(sel);
+    const ps = lyricPs();
+    const extra = (i) => {
+      const p = ps[i];
+      if (!p) return '';
+      return [p.querySelector('.lyr-ro'), p.querySelector('.lyr-tr')].filter(Boolean).map((n) => n.textContent).join(' · ');
+    };
+    const text = (i) => (i >= 0 && st.lines[i] ? st.lines[i].text || '♪' : '');
+    let last = -2;
+    const loop = () => {
+      if (!kar) return;
+      const t = getTime() - st.offset;
+      const i = lineAt(st.lines, t);
+      if (i !== last) {
+        last = i;
+        $k('.kr-prev').textContent = text(i - 1);
+        $k('.kr-text').textContent = i >= 0 ? text(i) : '♪';
+        $k('.kr-fill').dataset.t = $k('.kr-text').textContent;
+        $k('.kr-sub').textContent = i >= 0 ? extra(i) : '';
+        $k('.kr-next').textContent = text(i + 1);
+        $k('.kr-next2').textContent = text(i + 2);
+        $k('.kr-now').classList.remove('pop'); void $k('.kr-now').offsetWidth; $k('.kr-now').classList.add('pop');
+      }
+      const a = i >= 0 ? st.lines[i].t : 0;
+      const b = st.lines[i + 1] ? st.lines[i + 1].t : a + 5;
+      const p = i >= 0 ? Math.min(1, Math.max(0, (t - a) / Math.max(0.5, b - a))) : 0;
+      el.style.setProperty('--kp', p.toFixed(3));
+      kar.raf = requestAnimationFrame(loop);
+    };
+    const close = () => {
+      if (!kar) return;
+      cancelAnimationFrame(kar.raf);
+      document.removeEventListener('keydown', kar.key, true);
+      if (document.fullscreenElement === el) document.exitFullscreen().catch(() => {});
+      el.remove();
+      kar = null;
+    };
+    kar = { el, raf: 0, close, key: (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); } } };
+    document.addEventListener('keydown', kar.key, true);
+    $k('.kr-close').addEventListener('click', close);
+    el.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && kar) close(); });
+    if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+    $k('.kr-close').focus();
+    loop();
+  }
+
   return {
     load: loadForCurrent,
+    /** Buka mode karaoke (dipakai palet perintah). false bila lirik tersinkron belum ada. */
+    karaoke() { if (!st.lines || !st.lines.length) return false; openKaraoke(); return true; },
     /**
      * Lirik lagu sekarang untuk tampilan lain (panel Sedang diputar) tanpa menyentuh DOM panel lirik.
      * state: loading | synced | plain | instrumental | none | error | idle
