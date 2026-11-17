@@ -178,16 +178,21 @@ test('sync: buat gist, push, perangkat lain mengubah → auto-pull, konflik → 
   assert.equal(Object.keys(store.data.videos).length, 3, 'data cloud diterapkan');
   assert.equal(store.cloud.lastRemoteUpdatedAt, '2030-01-01T00:00:00.000Z');
 
-  // konflik: lokal berubah DAN cloud berubah
+  // konflik: lokal berubah DAN cloud berubah → v44: digabung otomatis, user tidak perlu memilih
   store.addVideos(['ccccccccccc'], store.data.playlists[0].id);
   other.updatedAt = '2030-02-01T00:00:00.000Z';
-  gh.gist.files['mytube-vault.json'] = await buildEnvelope(normalizeData(other));
+  const otherNorm = normalizeData(other);
+  otherNorm.videos.eeeeeeeeeee = { ...Object.values(otherNorm.videos)[0], youtubeId: 'eeeeeeeeeee', title: 'Dari perangkat lain', updatedAt: '2030-02-01T00:00:00.000Z' };
+  otherNorm.playlists[0].items.push({ itemId: 'it_other_e', youtubeId: 'eeeeeeeeeee', addedAt: '2030-02-01T00:00:00.000Z', note: '' });
+  gh.gist.files['mytube-vault.json'] = await buildEnvelope(normalizeData(otherNorm));
   let asked = false;
   sync.resolveConflict = async () => { asked = true; return 'local'; };
   await sync.push();
-  assert.equal(asked, true, 'user ditanya');
+  assert.equal(asked, false, 'tidak perlu memilih versi');
   const after = parseEnvelope(gh.gist.files['mytube-vault.json']);
-  assert.ok(after.data.videos.ccccccccccc, 'versi lokal yang dipilih terkirim');
+  assert.ok(after.data.videos.ccccccccccc, 'tambahan lokal ikut terkirim');
+  assert.ok(after.data.videos.eeeeeeeeeee, 'tambahan dari perangkat lain juga tetap ada');
+  assert.ok(after.data.playlists[0].items.some((i) => i.youtubeId === 'eeeeeeeeeee') && after.data.playlists[0].items.some((i) => i.youtubeId === 'ccccccccccc'));
   assert.equal(sync.status, 'saved');
 
   // enkripsi
@@ -1289,4 +1294,91 @@ test('v43: latar belakang HP — jeda dari YouTube dikenali, error tidak melompa
     // status "playing" tapi iframe dibekukan
     hide(true); p.state = 'playing'; assert.equal(p.markStalled(), true); assert.equal(p.systemPaused, true);
   } finally { hide(false); }
+});
+
+test('v44: sinkron menggabungkan — tambahan & hapusan dua perangkat, tanpa base tidak ada yang hilang', async () => {
+  const { mergeData } = await import('../js/merge.js');
+  const V = (id, t, extra = {}) => ({ youtubeId: id, title: id, tags: [], updatedAt: t, ...extra });
+  const it = (itemId, youtubeId) => ({ itemId, youtubeId, addedAt: '2030-01-01T00:00:00Z', note: '' });
+  const base = {
+    updatedAt: '2030-01-01T00:00:00Z', settings: {},
+    videos: { a: V('a', '2030-01-01T00:00:00Z'), b: V('b', '2030-01-01T00:00:00Z'), c: V('c', '2030-01-01T00:00:00Z') },
+    playlists: [{ id: 'p1', name: 'P1', updatedAt: '2030-01-01T00:00:00Z', items: [it('1', 'a'), it('2', 'b'), it('3', 'c')] }],
+  };
+  const local = JSON.parse(JSON.stringify(base));
+  const remote = JSON.parse(JSON.stringify(base));
+  // HP: tambah d, hapus b dari playlist, ubah judul a
+  local.videos.d = V('d', '2030-01-02T00:00:00Z');
+  local.playlists[0].items = [it('1', 'a'), it('3', 'c'), it('4', 'd')];
+  local.playlists[0].updatedAt = '2030-01-02T00:00:00Z';
+  local.videos.a = { ...local.videos.a, title: 'A baru', updatedAt: '2030-01-02T00:00:00Z' };
+  local.updatedAt = '2030-01-02T00:00:00Z';
+  // PC: tambah e di awal playlist, hapus lagu c dari library, putar a 3x
+  remote.videos.e = V('e', '2030-01-03T00:00:00Z');
+  delete remote.videos.c;
+  remote.playlists[0].items = [it('5', 'e'), it('1', 'a'), it('2', 'b')];
+  remote.playlists[0].updatedAt = '2030-01-03T00:00:00Z';
+  remote.videos.a = { ...remote.videos.a, playCount: 3 };
+  remote.playlists.push({ id: 'p2', name: 'Baru di PC', updatedAt: '2030-01-03T00:00:00Z', items: [it('6', 'e')] });
+  remote.updatedAt = '2030-01-03T00:00:00Z';
+
+  const { data, summary } = mergeData(local, remote, base);
+  assert.deepEqual(Object.keys(data.videos).sort(), ['a', 'b', 'd', 'e'], 'c dihapus di PC, d & e baru tetap ada');
+  assert.equal(data.videos.a.title, 'A baru', 'perubahan judul di HP tetap');
+  assert.equal(data.videos.a.playCount, 3, 'jumlah putar diambil yang terbesar');
+  assert.deepEqual(data.playlists[0].items.map((i) => i.youtubeId), ['e', 'a', 'd'], 'b dihapus di HP, c dihapus di PC, d & e masuk');
+  assert.deepEqual(data.playlists.map((p) => p.id), ['p1', 'p2']);
+  assert.equal(summary.videosAdded, 1); assert.equal(summary.videosRemoved, 1); assert.equal(summary.playlistsAdded, 1);
+  // tanpa base: gabungan keduanya, tidak ada yang dihapus
+  const nb = mergeData(local, remote, null).data;
+  assert.ok(nb.videos.c && nb.videos.b && nb.videos.d && nb.videos.e);
+  // perubahan menang atas penghapusan
+  const r2 = JSON.parse(JSON.stringify(base)); delete r2.videos.b; r2.playlists[0].items = r2.playlists[0].items.filter((i) => i.youtubeId !== 'b');
+  const l2 = JSON.parse(JSON.stringify(base)); l2.videos.b = { ...l2.videos.b, favorite: true, updatedAt: '2030-01-05T00:00:00Z' };
+  assert.ok(mergeData(l2, r2, base).data.videos.b, 'b difavoritkan di HP setelah dihapus di PC → tetap ada');
+});
+
+test('v44: acak rapi, romanisasi, daftar Spotify, kiriman antrean, Wrapped & Setahun lalu', async () => {
+  const { smartShuffle } = await import('../js/utils.js');
+  const items = ['a1', 'a2', 'a3', 'b1', 'b2', 'c1', 'c2', 'd1'];
+  for (let k = 0; k < 20; k++) {
+    const out = smartShuffle(items, { group: (x) => x[0], recent: (x) => (x === 'd1' ? 0 : -1) });
+    assert.equal(out.length, items.length);
+    assert.equal(out.at(-1), 'd1', 'yang baru diputar di belakang');
+    for (let i = 1; i < out.length - 1; i++) assert.notEqual(out[i][0], out[i - 1][0], `artis berurutan: ${out.join(',')}`);
+  }
+  const ro = await import('../js/romanize.js');
+  assert.equal(ro.romanizeHangul('사랑해요'), 'saranghaeyo');
+  assert.equal(ro.romanizeHangul('음악'), 'eumak');
+  assert.equal(ro.romanizeKana('ありがとう'), 'arigatou');
+  assert.equal(ro.romanizeKana('きっと'), 'kitto');
+  assert.equal(ro.romanizeKana('シャイン'), 'shain');
+  const zh = await ro.romanizeLines(['我聽見雨滴', '還不懂', 'hello']);
+  assert.equal(zh[0], 'wǒ tīng jiàn yǔ dī');
+  assert.equal(zh[1], 'hái bù dǒng', 'huruf berbunyi ganda memakai bacaan umum');
+  assert.equal(zh[2], '');
+  assert.deepEqual(await ro.romanizeLines(['こんにちは 世界']), ['konnichiha 世界'], 'lirik Jepang: kanji tidak dipaksa jadi pinyin');
+
+  const { parseTrackList } = await import('../js/spotify.js');
+  const csv = 'Track URI,Track Name,Artist Name(s),Album Name,Duration (ms)\nspotify:track:1,"Hati-Hati di Jalan",Tulus,Manusia,242000\nspotify:track:2,"Sial, Lagi",Mahalini,X,200000\n';
+  assert.deepEqual(parseTrackList(csv), [{ title: 'Hati-Hati di Jalan', artist: 'Tulus', ms: 242000 }, { title: 'Sial, Lagi', artist: 'Mahalini', ms: 200000 }]);
+  assert.deepEqual(parseTrackList('1. Tulus - Gajah\nPerfect by Ed Sheeran\nJudul saja').map((x) => [x.artist, x.title]), [['Tulus', 'Gajah'], ['Ed Sheeran', 'Perfect'], ['', 'Judul saja']]);
+
+  const share = await import('../js/share.js');
+  const code = await share.encodeShare(share.buildQueuePayload([{ id: 'aaaaaaaaaa1', title: 'A', channel: 'X' }], 'Vinz'));
+  const d = await share.decodeShare(code);
+  assert.equal(d.kind, 'queue'); assert.equal(d.from, 'Vinz'); assert.equal(d.videos[0].id, 'aaaaaaaaaa1');
+
+  const { computeWrapped, onThisDay } = await import('../js/wrapped.js');
+  const data = { videos: { x: { youtubeId: 'x', title: 'X', channel: 'Tulus - Topic', tags: ['indo'] }, y: { youtubeId: 'y', title: 'Y', channel: 'Mahalini', tags: [] } } };
+  const t = (s) => Date.parse(s);
+  const plays = [{ id: 'y', at: t('2026-01-02T08:00:00') }, { id: 'x', at: t('2026-03-01T21:00:00') }, { id: 'x', at: t('2026-03-02T21:30:00') }, { id: 'x', at: t('2025-12-30T10:00:00') }];
+  const w = computeWrapped(data, plays, { '2026-03-01': 600, '2026-03-02': 300, '2026-03-04': 100 }, 2026);
+  assert.equal(w.plays, 3); assert.equal(w.first.id, 'y'); assert.equal(w.topSongs[0].id, 'x');
+  assert.equal(w.topArtists[0].name, 'Tulus'); assert.equal(w.topMonth, 2); assert.equal(w.topHour, 21);
+  assert.equal(w.seconds, 1000); assert.equal(w.streak, 2); assert.equal(w.daysListened, 3);
+  const now = t('2026-11-17T12:00:00');
+  const lastYear = [{ id: 'x', at: now - 365 * 86400000 }, { id: 'y', at: now - 366 * 86400000 }];
+  assert.deepEqual(onThisDay(data, lastYear, now), { label: 'Setahun lalu', ids: ['x', 'y'] });
+  assert.equal(onThisDay(data, [], now), null);
 });
