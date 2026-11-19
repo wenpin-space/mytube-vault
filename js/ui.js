@@ -239,7 +239,7 @@ const EMPTY_ART = `<svg viewBox="0 0 240 170" width="240" height="170">
     <linearGradient id="ea-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--accent)"/><stop offset="1" style="stop-color:color-mix(in srgb, var(--accent) 55%, #7c5cff)"/></linearGradient>
   </defs>
   <ellipse cx="120" cy="156" rx="78" ry="8" style="fill:var(--panel-3)" class="ea-shadow"/>
-  <g class="ea-float">
+  <g>
     <rect x="58" y="44" width="124" height="92" rx="16" style="fill:var(--panel-2);stroke:var(--border)" stroke-width="2"/>
     <rect x="70" y="56" width="100" height="56" rx="10" fill="url(#ea-g)"/>
     <path d="M113 72v24l19-12z" fill="#fff"/>
