@@ -1382,3 +1382,17 @@ test('v44: acak rapi, romanisasi, daftar Spotify, kiriman antrean, Wrapped & Set
   assert.deepEqual(onThisDay(data, lastYear, now), { label: 'Setahun lalu', ids: ['x', 'y'] });
   assert.equal(onThisDay(data, [], now), null);
 });
+
+test('v48: gaya logo ikut tema, musim, dan pilihan pengguna', async () => {
+  const { logoFor, LOGO_STYLES } = await import('../js/logo.js');
+  assert.equal(logoFor('auto', true), 'malam');
+  assert.equal(logoFor('auto', false), 'siang');
+  assert.equal(logoFor(undefined, false), 'siang');
+  assert.equal(logoFor('auto', true, 'imlek'), 'merah');
+  assert.equal(logoFor('auto', false, 'lebaran'), 'giok');
+  assert.equal(logoFor('auto', true, 'tahunbaru'), 'ungu');
+  assert.equal(logoFor('polos', false, 'imlek'), 'polos', 'pilihan pengguna menang atas musim');
+  assert.equal(logoFor('tidak-ada', true), 'malam', 'nilai aneh kembali ke otomatis');
+  const fs = await import('node:fs');
+  for (const [k] of LOGO_STYLES.filter(([k]) => k !== 'auto')) assert.ok(fs.existsSync(new URL(`../icons/logo-${k}.svg`, import.meta.url)), k);
+});
