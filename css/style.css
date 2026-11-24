@@ -2112,3 +2112,14 @@ body.has-resume > .toasts { margin-bottom: var(--resume-space, 0px); }
 /* mode Atur urutan di HP: petunjuk satu baris */
 #list-hint:has([data-action=arrange-done]) { display: flex; flex-wrap: nowrap; align-items: center; gap: 10px; }
 #list-hint:has([data-action=arrange-done]) span { flex: 1; }
+
+/* v48 · pemilih gaya logo (Setelan → Umum) */
+.logo-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; margin-top: 6px; }
+.logo-opt { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); color: var(--text); font: inherit; font-size: 12.5px; cursor: pointer; }
+.logo-opt img { width: 40px; height: 40px; border-radius: 10px; display: block; }
+.logo-opt:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
+.logo-opt[aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+.logo-auto { position: relative; width: 40px; height: 40px; display: block; }
+.logo-auto img { position: absolute; inset: 0; }
+.logo-auto img + img { clip-path: polygon(100% 0, 100% 100%, 0 100%); }
+.field .logo-pick + small { font-weight: 400; display: block; margin-top: 6px; line-height: 1.45; }

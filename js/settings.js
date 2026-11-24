@@ -9,6 +9,7 @@ import { icon } from './icons.js';
 import { escapeHtml, formatDateTime, timeAgo, downloadText, todayStamp, copyText, formatBytes } from './utils.js';
 import { syncLabel } from './ui.js';
 import { getApiKey, setApiKey, testApiKey, siteReferrerPattern } from './sources.js';
+import { LOGO_STYLES, logoSrc } from './logo.js';
 import { LANG, LANGUAGES, setLang } from './i18n.js';
 
 const TOKEN_URL = 'https://github.com/settings/tokens/new?scopes=gist&description=MyTube%20Vault';
@@ -206,6 +207,9 @@ export async function openSettings(initialTab = 'cloud') {
             <h3>Tampilan</h3>
             <label class="field inline"><span>Tema</span>
               <select data-gen="theme"><option value="auto">Ikuti sistem</option><option value="light">Terang</option><option value="dark">Gelap</option></select></label>
+            <div class="field"><span>Gaya logo</span>
+              <div class="logo-pick" role="radiogroup" aria-label="Gaya logo">${LOGO_STYLES.map(([k, l]) => `<button type="button" class="logo-opt" role="radio" data-act="logo-style" data-logo="${k}" aria-checked="${(store.ui.logoStyle || 'auto') === k}">${k === 'auto' ? `<span class="logo-auto"><img src="${logoSrc('malam')}" alt=""><img src="${logoSrc('siang')}" alt=""></span>` : `<img src="${logoSrc(k)}" alt="">`}<span>${l}</span></button>`).join('')}</div>
+              <small class="muted">Berlaku untuk logo di bar atas dan ikon tab browser. Otomatis: ikut tema, dan berganti warna saat Imlek, Lebaran, Natal, Tahun Baru, dan Agustusan. Ikon di layar utama HP tetap gaya Malam.</small></div>
             <label class="field inline"><span>Bahasa / Language</span>
               <select data-gen="lang" translate="no">${LANGUAGES.map(([k, l]) => `<option value="${k}"${k === LANG ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
             <label class="check"><input type="checkbox" data-gen="cleanTitles" ${store.ui.cleanTitles !== false ? 'checked' : ''}><span>Bersihkan judul lagu<small class="muted">Sembunyikan tempelan seperti “(Official Video)”, “[HD]”, “| Official Audio”. Judul asli tetap tersimpan.</small></span></label>
@@ -438,6 +442,11 @@ export async function openSettings(initialTab = 'cloud') {
             toast(k ? 'API key disimpan.' : 'API key dihapus.', 'success');
             break;
           }
+          case 'logo-style':
+            store.ui.logoStyle = b.dataset.logo;
+            store.saveUi();
+            panel.querySelectorAll('[data-act=logo-style]').forEach((o) => o.setAttribute('aria-checked', String(o === b)));
+            break;
           case 'autotag-all': window.dispatchEvent(new Event('mtv-autotag-all')); break;
           case 'clear-all':
             if (await confirmDialog('Hapus semua data di browser ini?',

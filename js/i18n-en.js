@@ -1367,4 +1367,13 @@ export const EN = {
   'Tampilan memakai palet baru: latar navy (#131b2b), panel slate (#2f4a63), aksen teal (#5b91a3) dan mint (#cfeae0), di tema gelap maupun terang, termasuk ikon aplikasi. Warna lagu yang diputar kini hanya mewarnai latar; tombol dan judul yang sedang diputar tetap teal supaya selalu jelas.': 'The app uses a new palette: navy background (#131b2b), slate panels (#2f4a63), teal (#5b91a3) and mint (#cfeae0) accents, in both dark and light themes, including the app icon. The colour of the playing song now only tints the background; buttons and the playing title stay teal so they are always clear.',
   'Logo baru: simpul liontin': 'New logo: the pendant knot',
   'Logo baru berbentuk simpul liontin emas dengan tali dan rumbai merah, tombol putar gading di tengah, cahaya ungu dan titik-titik biru muda di latar navy. Dipakai untuk ikon aplikasi, ikon Android, ikon iPhone, favicon, dan logo di bar atas.': 'A new logo shaped like a golden pendant knot with a red cord and tassel, an ivory play button in the middle, and a violet glow with light-blue dots on a navy background. Used for the app icon, Android icon, iPhone icon, favicon and the logo in the top bar.',
+  // v48
+  'Merah': 'Red',
+  'Giok': 'Jade',
+  'Ungu': 'Violet',
+  'Polos': 'Plain',
+  'Gaya logo': 'Logo style',
+  'Berlaku untuk logo di bar atas dan ikon tab browser. Otomatis: ikut tema, dan berganti warna saat Imlek, Lebaran, Natal, Tahun Baru, dan Agustusan. Ikon di layar utama HP tetap gaya Malam.': 'Applies to the logo in the top bar and the browser tab icon. Auto follows the theme and changes colour for Chinese New Year, Eid, Christmas, New Year and Indonesian Independence Day. The home-screen icon on phones stays in the Night style.',
+  'Logo dalam 6 gaya': 'Logo in 6 styles',
+  'Logo kini punya gaya Malam, Siang, Merah, Giok, Ungu, dan Polos. Pilihan Otomatis memakai Malam di tema gelap dan Siang di tema terang (tidak lagi kotak gelap di tampilan terang), lalu berganti sendiri saat Imlek dan Agustusan (Merah), Lebaran dan Natal (Giok), serta Tahun Baru (Ungu). Pilih di Setelan → Umum; logo di bar atas dan ikon tab ikut berganti.': 'The logo now comes in Night, Day, Red, Jade, Violet and Plain styles. Auto uses Night in the dark theme and Day in the light theme (no more dark box on the light look), and switches by itself for Chinese New Year and Independence Day (Red), Eid and Christmas (Jade), and New Year (Violet). Choose it in Settings → General; the top-bar logo and tab icon change with it.',
 };

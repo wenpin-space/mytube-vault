@@ -43,6 +43,7 @@ import { startTranslator, LANG, setLang, tr } from './i18n.js';
 import { $, PAGE, dupesDialog, local, player, sleepTimer } from './app-state.js';
 import { importYtPlaylist, renderMemory, renderSelectBar, selectedEntries } from './app-actions.js';
 import { openAddSheet } from './app-input.js';
+import { applyLogo } from './logo.js';
 import { nowPanel } from './app-events.js';
 
 export let bar, metaQueue;
@@ -236,6 +237,7 @@ export function applyTheme() {
   const t = store.ui.theme;
   if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
   else delete document.documentElement.dataset.theme;
+  applyLogo(store.ui.logoStyle);
 }
 
 // ---------- render ----------
