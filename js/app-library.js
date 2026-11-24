@@ -109,6 +109,12 @@ export function currentSort() {
   const v = store.ui.view;
   return store.ui.sort[v] || (v.startsWith('pl:') || v === 'history' || v === 'mix' ? 'manual' : 'addedNewest');
 }
+/** HP: pegangan geser hanya tampil dalam mode Atur urutan (v45). */
+export function setArranging(on) {
+  document.body.classList.toggle('arranging', !!on);
+  local.arrangeView = store.ui.view;
+  renderMain();
+}
 export function canReorder() {
   return store.ui.view.startsWith('pl:') && currentSort() === 'manual' && !local.query.trim() && !local.qf.length;
 }
@@ -299,7 +305,8 @@ export function renderMain() {
   ui.renderViewHead(store, { sort, total: all.length, visible: visible.length, query: local.query, filtered: !!(local.query.trim() || local.qf.length), duration, density: density(), coverIds: all.slice(0, 4).map((e) => e.youtubeId) });
   // filter gabungan: tag teratas dari hasil saat ini + tag yang sedang aktif
   const tagKeys = new Set(local.qf.filter((x) => x.startsWith('tag:')).map((x) => x.slice(4)));
-  const top = view.startsWith('tag:') ? [] : topTagsOf(visible, 4, tagKeys);
+  // v45: chip tag hanya untuk tag yang sedang aktif; sisanya lewat satu chip "Tag" (menu)
+  const top = view.startsWith('tag:') ? [] : topTagsOf(visible, 0, tagKeys);
   const allTagsHere = view.startsWith('tag:') ? [] : topTagsOf(visible, 999, tagKeys);
   ui.renderQuickFilters(searched, {
     active: local.qf, view, filters: QUICK_FILTERS, tags: top, shown: visible.length,
@@ -308,14 +315,19 @@ export function renderMain() {
   });
 
   const hint = $('list-hint');
-  if (pl && sort !== 'manual' && all.length > 1) {
+  let arranging = document.body.classList.contains('arranging');
+  if (arranging && (!canReorder() || local.arrangeView !== store.ui.view)) { document.body.classList.remove('arranging'); arranging = false; }
+  if (arranging && canReorder()) {
+    hint.hidden = false;
+    hint.innerHTML = `${icon('grip')}<span>Seret pegangan di kiri lagu untuk mengubah urutan.</span>
+      <button type="button" class="btn sm" data-action="arrange-done">Selesai</button>`;
+  } else if (pl && sort !== 'manual' && all.length > 1) {
     hint.hidden = false;
     hint.innerHTML = `${icon('sort')}<span>Urutan otomatis aktif (tampilan saja — urutan asli tidak berubah).</span>
       <button type="button" class="link-btn" data-action="sort-manual">Kembali ke urutan manual</button>`;
   } else if (view === 'mix' && all.length) {
     hint.hidden = false;
-    hint.innerHTML = `${icon('sparkle')}<span>Dipilih dari library-mu berdasarkan lagu, channel, dan tag yang sering kamu putar. Berganti tiap hari.</span>
-      <button type="button" class="link-btn" data-action="play-all">Putar mix</button>`;
+    hint.innerHTML = `${icon('sparkle')}<span>Dipilih dari library-mu berdasarkan lagu, channel, dan tag yang sering kamu putar. Berganti tiap hari.</span>`;
   } else {
     hint.hidden = true;
   }

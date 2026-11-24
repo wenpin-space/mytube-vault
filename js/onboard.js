@@ -4,7 +4,7 @@ import { modal } from './dialogs.js';
 import { icon } from './icons.js';
 import { escapeHtml } from './utils.js';
 
-export const APP_VERSION = 'v44';
+export const APP_VERSION = 'v45';
 const SEEN_KEY = 'mytube_vault_seen_version';
 
 /** Langkah mulai cepat dan statusnya (murni, mudah diuji). */
@@ -50,6 +50,8 @@ export function renderQuickstart(host, state, { installable = false } = {}) {
 
 // [ikon, judul, penjelasan, versi?] — entri bertanda versi sekarang tampil penuh; sisanya dilipat di "Pembaruan sebelumnya".
 const CHANGES = [
+  ['sliders', 'Tampilan lebih tenang', 'Merah penuh kini hanya untuk tombol Putar; Tambah di bar atas jadi tombol biasa dan tag di daftar lagu tidak lagi berwarna. Ajakan backup lebih ringkas dan hanya muncul di 3 kunjungan pertama (setelah itu cukup tanda Lokal saja). Chip tag dikumpulkan jadi satu chip Tag, ikon di bawah sidebar diberi nama, dan Lobby punya label di layar lebar.', 'v45'],
+  ['grip', 'Urutan lagu & perbaikan kecil', 'Pegangan geser kini muncul saat baris disorot di PC; di HP lewat tombol urutan → Atur urutan (seret). Teks Inggris di tab Cloud Sync dilengkapi, pesan token GitHub yang ditolak kini menjelaskan langkah berikutnya, dan notifikasi tidak lagi menumpuk di atas kartu Lanjutkan.', 'v45'],
   ['merge', 'Sinkron yang menggabungkan', 'Kalau HP dan PC sama-sama diubah sebelum sempat sinkron, perubahannya kini digabung otomatis: lagu & playlist baru dari keduanya masuk, yang dihapus di salah satu ikut terhapus, jumlah putar diambil yang terbesar. Dialog “pilih versi” hanya muncul kalau penggabungan gagal, dan salinan sebelum digabung tetap disimpan.', 'v44'],
   ['gift', 'Wrapped & Setahun lalu', 'Ikon hadiah di samping membuka rekap tahun ini: total waktu mendengarkan, lagu pertama, lagu & artis teratas, bulan dan jam favorit, lalu simpan “Top 2026” jadi playlist. Di Mix dan Riwayat muncul kartu “Setahun lalu” berisi lagu yang sering kamu putar di hari yang sama tahun lalu.', 'v44'],
   ['type', 'Cara baca lirik & mode karaoke', 'Lirik Korea, Jepang (kana), dan Mandarin kini bisa ditampilkan dengan cara bacanya (romanisasi/pinyin) lewat tombol Cara baca. Tombol Karaoke membuka lirik layar penuh: baris yang sedang dinyanyikan terisi perlahan mengikuti lagu.', 'v44'],
@@ -62,8 +64,6 @@ const CHANGES = [
   ['more', 'Menu & tombol lebih ringkas', 'Menu ⋮ lagu kini dimulai dengan empat tombol besar (Berikutnya, Antrean, Playlist, Favorit); yang jarang dipakai ada di Lainnya. Menu player hanya berisi hal soal lagu yang diputar: kecepatan, timer tidur, Berhenti setelah lagu ini, dan potong lagu. Tombol ⋮ player kini paling kanan dan diberi titik bila ada yang aktif. Di HP, mini player cukup Putar & Berikutnya.', 'v41'],
   ['undo', 'Urungkan di mana-mana', 'Hapus dari library, hapus atau kosongkan playlist, pindah ke playlist lain, dan aksi di mode pilih kini langsung jalan tanpa dialog konfirmasi, dengan tombol Urungkan di notifikasi (atau Ctrl+Z). Di PC, Ctrl+klik dan Shift+klik memilih beberapa lagu sekaligus.', 'v41'],
   ['merge', 'Lagu ganda & judul bersih', 'Lagu yang sama dengan video berbeda (mis. MV dan versi audio) dikenali saat ditambahkan, dan bisa digabung lewat ⋮ → Cari lagu ganda: playlist, favorit, tag, dan jumlah putarnya ikut digabung. Tempelan seperti “(Official Video)” atau “[HD]” disembunyikan dari judul; judul aslinya tetap tersimpan.', 'v41'],
-  ['filter', 'Filter gabungan', 'Chip filter di atas daftar kini bisa dinyalakan beberapa sekaligus, mis. #lofi + Belum pernah diputar + < 5 menit, lalu tekan Acak. Tag lain bisa ditambahkan lewat chip Tag lain.', 'v41'],
-  ['link', 'Tambah lagu lebih mudah', 'Banyak link kini menampilkan pratinjau sebelum disimpan: mana yang baru, sudah ada di library, sudah di playlist ini, dobel, atau tidak valid. Import playlist YouTube kini bisa tanpa API key (±200 lagu pertama).', 'v41'],
 ];
 
 /** Tampilkan "Apa yang baru" sekali setelah update (bukan untuk pengguna baru). */

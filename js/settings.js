@@ -42,7 +42,7 @@ export async function openSettings(initialTab = 'cloud') {
             panel.innerHTML = `
               <section class="card">
                 <h3>${icon('cloud')} Backup otomatis ke GitHub Gist</h3>
-                <p class="muted">Playlist disimpan sebagai file <code>${VAULT_FILE}</code> di Gist <b>private</b> milikmu dan diperbarui otomatis setiap ada perubahan. Tidak butuh server.</p>
+                <p class="muted">Playlist disimpan sebagai file <code>${VAULT_FILE}</code> di Gist pribadi (private) milikmu, diperbarui otomatis setiap ada perubahan. Tidak butuh server.</p>
                 <ol class="steps">
                   <li>Buat token GitHub dengan izin <b>gist</b> saja — <a href="${TOKEN_URL}" target="_blank" rel="noopener">buat classic token ${icon('external')}</a> (scope “gist” sudah tercentang), atau fine-grained token dengan izin akun <i>Gists: Read and write</i>.</li>
                   <li>Tempel token di bawah, lalu pilih buat Gist baru atau pakai Gist yang sudah ada.</li>

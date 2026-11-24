@@ -40,7 +40,7 @@ async function request(token, path, { method = 'GET', body } = {}) {
   try { detail = (await res.json()).message || ''; } catch { /* abaikan */ }
   const low = detail.toLowerCase();
   if (res.status === 401) {
-    throw new GistError('Token GitHub tidak valid, kedaluwarsa, atau sudah dicabut.', 401, 'TOKEN_INVALID');
+    throw new GistError('Token GitHub ditolak: tidak valid, kedaluwarsa, atau sudah dicabut. Buat token baru di GitHub lalu tempel lagi.', 401, 'TOKEN_INVALID');
   }
   if (res.status === 429 || (res.status === 403 && (res.headers.get('x-ratelimit-remaining') === '0' || low.includes('rate limit')))) {
     throw new GistError('Kena rate limit GitHub. Sinkron akan dicoba lagi nanti.', res.status, 'RATE_LIMIT');

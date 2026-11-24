@@ -282,19 +282,21 @@ function emptyState(opt) {
     <p class="muted small">Link yang dikenali: youtu.be/… · youtube.com/watch?v=… · /shorts/… · music.youtube.com/… · playlist?list=…</p>`;
 }
 
+let bannerCounted = false;
 export function renderBanner(store, sync) {
   const c = store.cloud;
   let html = '';
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-    html = banner('warn', 'cloudOff', 'Kamu sedang offline. Playlist tetap bisa dibuka dan diatur — perubahan disimpan di perangkat dan disinkronkan otomatis saat online. Memutar video & mencari di YouTube butuh internet.', 'banner-settings', 'Status sync');
-  } else if (c.connected && sync.status === 'conflict') {
+  // offline: cukup pil "Offline" di bar atas (v44) — tidak perlu banner besar juga
+  if (c.connected && sync.status === 'conflict') {
     html = banner('err', 'alert', 'Konflik data dengan cloud. Pilih versi yang mau dipakai.', 'banner-resolve', 'Selesaikan');
   } else if (c.connected && sync.status === 'locked') {
     html = banner('warn', 'lock', 'Backup terenkripsi butuh passphrase untuk sinkron.', 'banner-resolve', 'Masukkan passphrase');
-  } else if (c.connected && sync.status === 'error') {
+  } else if (c.connected && sync.status === 'error' && navigator.onLine !== false) {
     html = banner('err', 'alert', `Sinkron gagal: ${sync.message}`, 'banner-settings', 'Lihat detail');
-  } else if (!c.connected && !store.ui.bannerDismissed && Object.keys(store.data.videos).length > 0 && $('quickstart').hidden) {
-    html = banner('info', 'cloud', 'Playlist-mu baru tersimpan di browser ini. Aktifkan backup otomatis ke GitHub Gist supaya tidak hilang saat cache dibersihkan atau ganti perangkat.', 'banner-settings', 'Aktifkan', true);
+  } else if (!c.connected && !store.ui.bannerDismissed && (store.ui.bannerShown || 0) < 3 && Object.keys(store.data.videos).length > 0 && $('quickstart').hidden) {
+    // ajakan backup tampil di 3 kunjungan pertama; setelah itu cukup pil "Lokal saja" di bar atas
+    if (!bannerCounted) { bannerCounted = true; store.ui.bannerShown = (store.ui.bannerShown || 0) + 1; store.saveUiQuiet(); }
+    html = banner('info compact', 'cloud', 'Data masih hanya di browser ini. Aktifkan backup ke GitHub Gist supaya tidak hilang.', 'banner-settings', 'Aktifkan', true);
   }
   $('banner').innerHTML = html;
 }
@@ -511,7 +513,7 @@ export function renderQuickFilters(all, { active = [], view, filters, tags, coun
   if (all.length < 3 && !act.size) { box.hidden = true; box.innerHTML = ''; return; }
   const chips = filters
     .filter((f) => !(f.hideOn || []).includes(view))
-    .map((f) => ({ id: f.id, label: f.label, n: act.has(f.id) ? shown : countWith(f.id) }))
+    .map((f) => ({ id: f.id, label: f.label, title: f.title, n: act.has(f.id) ? shown : countWith(f.id) }))
     .filter((c) => act.has(c.id) || (c.n > 0 && c.n < shown));
   const tagChips = tags.map((t) => ({ id: `tag:${t.key}`, label: `#${t.name}`, n: act.has(`tag:${t.key}`) ? shown : countWith(`tag:${t.key}`), tag: true }))
     .filter((c) => act.has(c.id) || (c.n > 0 && c.n < shown));
@@ -521,11 +523,11 @@ export function renderQuickFilters(all, { active = [], view, filters, tags, coun
   const ordered = [...chips, ...tagChips].sort((a, b) => Number(act.has(b.id)) - Number(act.has(a.id)));
   const chip = (c) => {
     const on = act.has(c.id);
-    return `<button type="button" class="chip${on ? ' on' : ''}" data-action="qf" data-qf="${escapeHtml(c.id)}" aria-pressed="${on}"${c.tag ? ' translate="no"' : ''}>${escapeHtml(c.label)}${on ? icon('x') : ` <span class="count">${c.n}</span>`}</button>`;
+    return `<button type="button" class="chip${on ? ' on' : ''}" data-action="qf" data-qf="${escapeHtml(c.id)}" aria-pressed="${on}"${c.title ? ` title="${escapeHtml(c.title)}"` : ''}${c.tag ? ' translate="no"' : ''}>${escapeHtml(c.label)}${on ? icon('x') : ` <span class="count">${c.n}</span>`}</button>`;
   };
   box.innerHTML = `${act.size
     ? `<button type="button" class="chip chip-clear" data-action="qf" data-qf="" title="Hapus semua filter">${icon('filter')}<span>${act.size} filter · ${shown} lagu</span>${icon('x')}</button>`
     : `<button type="button" class="chip" data-action="qf" data-qf="" aria-pressed="true">Semua <span class="count">${all.length}</span></button>`}
     ${ordered.map(chip).join('')}
-    ${moreTags ? `<button type="button" class="chip chip-more" data-action="qf-tags" aria-haspopup="menu">${icon('tag')}<span>Tag lain</span> <span class="count">${moreTags}</span></button>` : ''}`;
+    ${moreTags ? `<button type="button" class="chip chip-more" data-action="qf-tags" aria-haspopup="menu">${icon('tag')}<span>${tagChips.length ? 'Tag lain' : 'Tag'}</span> <span class="count">${moreTags}</span></button>` : ''}`;
 }

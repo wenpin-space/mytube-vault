@@ -121,7 +121,9 @@ function doText(node) {
   if (t !== v && guard(node, v, t)) node.data = t;
 }
 function doAttrs(el) {
-  if (el.closest(SKIP)) return;
+  // kolom teks: isinya milik pengguna (tidak diterjemahkan), tapi placeholder/title-nya tetap
+  const field = el.tagName === 'TEXTAREA' && !(el.parentElement && el.parentElement.closest(SKIP));
+  if (!field && el.closest(SKIP)) return;
   for (const a of ATTRS) {
     const v = el.getAttribute(a);
     if (v) { const t = tr(v); if (t !== v && guard(el, v, t)) el.setAttribute(a, t); }
@@ -129,10 +131,14 @@ function doAttrs(el) {
 }
 function walk(root) {
   if (root.nodeType === 3) { doText(root); return; }
-  if (root.nodeType !== 1 || root.closest(SKIP)) return;
+  if (root.nodeType !== 1) return;
+  if (root.closest(SKIP)) { if (root.tagName === 'TEXTAREA') doAttrs(root); return; }
   doAttrs(root);
   const tw = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
-    acceptNode: (n) => (n.nodeType === 1 && n.matches(SKIP) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+    acceptNode: (n) => {
+      if (n.nodeType === 1 && n.matches(SKIP)) { if (n.tagName === 'TEXTAREA') doAttrs(n); return NodeFilter.FILTER_REJECT; }
+      return NodeFilter.FILTER_ACCEPT;
+    },
   });
   let n = tw.nextNode();
   while (n) { if (n.nodeType === 3) doText(n); else doAttrs(n); n = tw.nextNode(); }

@@ -41,7 +41,7 @@ import { onThisDay } from './wrapped.js';
 import { createLyricsPanel, guessArtistTrack, rememberLyrics } from './lyrics.js';
 import { startTranslator, LANG, setLang, tr } from './i18n.js';
 import { $, PAGE, local, openSettings, player } from './app-state.js';
-import { addIds, bar, canReorder, density, editIndex, entryByKey, feedback, flashVideos, handleAdd, lastUndo, moveBlock, offerUndo, openOrderMenu, openTagFilterMenu, playFromEntry, playVisible, rememberQueueSource, renderAddPreview, renderAddTarget, renderBottomNav, renderDockAll, renderMain, renderQS, runUndo, schedulePreview, setDensity, setMulti } from './app-library.js';
+import { addIds, bar, canReorder, density, editIndex, entryByKey, feedback, flashVideos, handleAdd, lastUndo, moveBlock, offerUndo, openOrderMenu, openTagFilterMenu, playFromEntry, playVisible, rememberQueueSource, renderAddPreview, renderAddTarget, renderBottomNav, renderDockAll, renderMain, renderQS, runUndo, schedulePreview, setDensity, setMulti, setArranging } from './app-library.js';
 import { addTarget, addToOther, clickSelect, currentQueueIds, deleteFromLibrary, endSelect, importSpotify, importYtPlaylist, openItemMenu, openPlayerMenu, openPlaylistMenu, openSyncMenu, openViewMenu, openWrapped, playInYouTubeApp, removeEntry, renderMemory, selectedEntries, selectionAction, toggleSelected } from './app-actions.js';
 import { fire, hideResume, lobby, lyricsPanel, nowPanel, openCommandPalette, playVideoById, resumeOffer, resumeSession, toggleMiniPip } from './app-events.js';
 
@@ -360,6 +360,7 @@ export function setupInput() {
       case 'playlist-menu': openPlaylistMenu(el); break;
       case 'view-menu': openViewMenu(el); break;
       case 'more': local.limit += PAGE; renderMain(); break;
+      case 'arrange-done': setArranging(false); break;
       case 'sort-manual': store.ui.sort[store.ui.view] = 'manual'; store.saveUi(); break;
       case 'toggle-multi': setMulti(!local.multi); break;
       case 'open-settings': openSettings(el.dataset.tab || 'cloud'); break;

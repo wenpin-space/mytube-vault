@@ -41,7 +41,7 @@ import { onThisDay } from './wrapped.js';
 import { createLyricsPanel, guessArtistTrack, rememberLyrics } from './lyrics.js';
 import { startTranslator, LANG, setLang, tr } from './i18n.js';
 import { $, healthCheckDialog, local, openSettings, player, sleepTimer, spotifyImportDialog, wrappedDialog } from './app-state.js';
-import { askPosition, bar, canReorder, currentSort, density, metaQueue, offerUndo, openDupesDialog, rememberQueueSource, render, renderDockAll, renderMain, setDensity, visibleEntries, withUndo } from './app-library.js';
+import { setArranging, askPosition, bar, canReorder, currentSort, density, metaQueue, offerUndo, openDupesDialog, rememberQueueSource, render, renderDockAll, renderMain, setDensity, visibleEntries, withUndo } from './app-library.js';
 import { openAddSheet, toggleVideo } from './app-input.js';
 import { findAudioVersion, miniPip, playVideoById, toggleMiniPip } from './app-events.js';
 
@@ -259,6 +259,7 @@ export function openViewMenu(anchor) {
   openMenu(anchor, [
     { heading: 'Urutkan' },
     ...ui.sortModes(store).map(([k, l]) => ({ label: l, checked: k === cur, action: () => { store.ui.sort[store.ui.view] = k; store.saveUi(); } })),
+    isPhone() && canReorder() && { label: document.body.classList.contains('arranging') ? 'Selesai atur urutan' : 'Atur urutan (seret)', icon: 'grip', action: () => setArranging(!document.body.classList.contains('arranging')) },
     'sep',
     { heading: 'Tampilan' },
     ...ui.DENSITIES.map(([k, ic, l]) => ({ label: l.replace('Tampilan ', '').replace(/^./, (c) => c.toUpperCase()), icon: ic, checked: k === d, action: () => setDensity(k) })),

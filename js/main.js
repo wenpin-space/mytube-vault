@@ -48,6 +48,13 @@ import { lobby, media, offerResume, setupEvents } from './app-events.js';
 
 await startTranslator(); // bahasa Inggris: tunggu kamusnya dulu supaya teks Indonesia tidak sempat tampil
 installThumbFallback();
+// v45: label kecil & petunjuk yang tergantung bahasa/perangkat
+if (LANG === 'en') document.querySelectorAll('.foot-label[data-en]').forEach((e) => { e.textContent = e.dataset.en; });
+if (/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '')) {
+  const k = document.getElementById('palette-kbd');
+  if (k) k.textContent = '⌘K';
+}
+if (matchMedia('(max-width: 640px)').matches) document.getElementById('search').placeholder = 'Cari atau tempel link';
 
 // Bagian aplikasi dipasang berurutan (dulu satu file main.js yang panjang).
 setupLibrary();

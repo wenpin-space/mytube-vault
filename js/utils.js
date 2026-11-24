@@ -199,9 +199,9 @@ export function filterEntries(entries, query) {
 
 /** Filter cepat di atas daftar. */
 export const QUICK_FILTERS = [
-  { id: 'unwatched', label: 'Belum ditonton', test: (v) => !v.watched, hideOn: ['unwatched'] },
+  { id: 'unwatched', label: 'Belum ditonton', title: 'Belum diputar sampai selesai', test: (v) => !v.watched, hideOn: ['unwatched'] },
   { id: 'fav', label: 'Favorit', test: (v) => v.favorite, hideOn: ['favorites'] },
-  { id: 'never', label: 'Belum pernah diputar', test: (v) => !v.playCount, hideOn: ['history'] },
+  { id: 'never', label: 'Belum pernah diputar', title: 'Belum pernah diputar sama sekali, walau sebentar', test: (v) => !v.playCount, hideOn: ['history'] },
   { id: 'short', label: '< 5 menit', test: (v) => v.duration > 0 && v.duration < 300, group: 'dur' },
   { id: 'long', label: '≥ 10 menit', test: (v) => v.duration >= 600, group: 'dur' },
   { id: 'new', label: 'Baru (7 hari)', test: (v, e) => Date.now() - Date.parse((e && e.addedAt) || v.firstAddedAt) < 7 * 86400000 },

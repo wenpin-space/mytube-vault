@@ -232,6 +232,8 @@ export function offerResume(s) {
   $('resume-fill').style.width = `${d && s.t ? Math.min(100, (s.t / d) * 100) : 0}%`;
   $('resume-card').hidden = false;
   document.body.classList.add('has-resume');
+  // toast naik di atas kartu ini supaya tidak saling menutupi (v45)
+  document.body.style.setProperty('--resume-space', `${$('resume-card').offsetHeight + 10}px`);
 }
 export function hideResume() {
   resumeOffer = null;
