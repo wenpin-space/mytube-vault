@@ -87,16 +87,21 @@ const isDark = () => {
   return matchMedia('(prefers-color-scheme: dark)').matches;
 };
 
+const PALETTE = { accentDark: [125, 180, 197], accentLight: [58, 107, 126], tint: [47, 74, 99] };
 let current = null;
 /** Pasang/lepas warna lagu. id = null → kembali ke warna bawaan. */
 export async function applyTint(id, enabled = true) {
   current = id;
   const root = document.body;
   if (!id || !enabled) { root.classList.remove('tinted'); return; }
-  const c = await readColor(id);
+  let c = await readColor(id);
   if (current !== id) return; // lagu sudah berganti
   if (!c) { root.classList.remove('tinted'); return; }
-  const a = toAccent(c, isDark());
+  // v46: aksen tetap teal dari palet aplikasi (tombol & judul yang sedang diputar tetap jelas);
+  // warna lagu hanya mewarnai latar, dicampur dengan slate supaya senada
+  const mix = (x, y, t) => x.map((v, i) => Math.round(v * (1 - t) + y[i] * t));
+  const a = isDark() ? PALETTE.accentDark : PALETTE.accentLight;
+  c = mix(c, PALETTE.tint, 0.55);
   root.style.setProperty('--np-tint', `rgb(${c.join(' ')})`);
   root.style.setProperty('--np-accent', `rgb(${a.join(' ')})`);
   root.classList.add('tinted');

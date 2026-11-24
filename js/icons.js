@@ -47,7 +47,6 @@ const P = {
   panelRight: '<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="15" y1="4" x2="15" y2="20"/>',
   scissors: '<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/>',
   history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/><polyline points="12 7 12 12 15 14"/>',
-  logo: '<rect x="2" y="4" width="20" height="16" rx="4"/><path d="M10 8.5v7l6-3.5z"/>',
   chevronDown: '<polyline points="5 9 12 16 19 9"/>',
   chevronUp: '<polyline points="5 15 12 8 19 15"/>',
   minimize: '<line x1="5" y1="18" x2="19" y2="18"/>',

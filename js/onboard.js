@@ -4,7 +4,7 @@ import { modal } from './dialogs.js';
 import { icon } from './icons.js';
 import { escapeHtml } from './utils.js';
 
-export const APP_VERSION = 'v45';
+export const APP_VERSION = 'v47';
 const SEEN_KEY = 'mytube_vault_seen_version';
 
 /** Langkah mulai cepat dan statusnya (murni, mudah diuji). */
@@ -50,6 +50,8 @@ export function renderQuickstart(host, state, { installable = false } = {}) {
 
 // [ikon, judul, penjelasan, versi?] — entri bertanda versi sekarang tampil penuh; sisanya dilipat di "Pembaruan sebelumnya".
 const CHANGES = [
+  ['sparkle', 'Logo baru: simpul liontin', 'Logo baru berbentuk simpul liontin emas dengan tali dan rumbai merah, tombol putar gading di tengah, cahaya ungu dan titik-titik biru muda di latar navy. Dipakai untuk ikon aplikasi, ikon Android, ikon iPhone, favicon, dan logo di bar atas.', 'v47'],
+  ['contrast', 'Warna baru: navy, slate, teal & mint', 'Tampilan memakai palet baru: latar navy (#131b2b), panel slate (#2f4a63), aksen teal (#5b91a3) dan mint (#cfeae0), di tema gelap maupun terang, termasuk ikon aplikasi. Warna lagu yang diputar kini hanya mewarnai latar; tombol dan judul yang sedang diputar tetap teal supaya selalu jelas.', 'v46'],
   ['sliders', 'Tampilan lebih tenang', 'Merah penuh kini hanya untuk tombol Putar; Tambah di bar atas jadi tombol biasa dan tag di daftar lagu tidak lagi berwarna. Ajakan backup lebih ringkas dan hanya muncul di 3 kunjungan pertama (setelah itu cukup tanda Lokal saja). Chip tag dikumpulkan jadi satu chip Tag, ikon di bawah sidebar diberi nama, dan Lobby punya label di layar lebar.', 'v45'],
   ['grip', 'Urutan lagu & perbaikan kecil', 'Pegangan geser kini muncul saat baris disorot di PC; di HP lewat tombol urutan → Atur urutan (seret). Teks Inggris di tab Cloud Sync dilengkapi, pesan token GitHub yang ditolak kini menjelaskan langkah berikutnya, dan notifikasi tidak lagi menumpuk di atas kartu Lanjutkan.', 'v45'],
   ['merge', 'Sinkron yang menggabungkan', 'Kalau HP dan PC sama-sama diubah sebelum sempat sinkron, perubahannya kini digabung otomatis: lagu & playlist baru dari keduanya masuk, yang dihapus di salah satu ikut terhapus, jumlah putar diambil yang terbesar. Dialog “pilih versi” hanya muncul kalau penggabungan gagal, dan salinan sebelum digabung tetap disimpan.', 'v44'],
@@ -62,8 +64,6 @@ const CHANGES = [
   ['moon', 'Layar mati & pindah aplikasi di HP', 'YouTube menghentikan musik di browser HP begitu layar mati atau aplikasi ditinggal (aturan YouTube sejak 2026, kecuali Premium di aplikasinya). Sekarang aplikasi tahu lagunya berhenti: tombol & notifikasi tidak lagi menampilkan “sedang diputar”, antrean tidak melompat-lompat karena error, dan begitu aplikasi dibuka lagi lagu dilanjutkan dari posisi terakhir (bisa dimatikan di Setelan → Umum).', 'v43'],
   ['video', 'Tombol video YouTube bisa diklik lagi', 'Pengaturan kualitas, teks (CC), layar penuh, dan tombol lain di video YouTube kembali bisa diklik. Lapisan “ketuk video” dari v41 yang menutupinya dihapus; putar/jeda tetap lewat tombol di video atau player bawah.', 'v42'],
   ['more', 'Menu & tombol lebih ringkas', 'Menu ⋮ lagu kini dimulai dengan empat tombol besar (Berikutnya, Antrean, Playlist, Favorit); yang jarang dipakai ada di Lainnya. Menu player hanya berisi hal soal lagu yang diputar: kecepatan, timer tidur, Berhenti setelah lagu ini, dan potong lagu. Tombol ⋮ player kini paling kanan dan diberi titik bila ada yang aktif. Di HP, mini player cukup Putar & Berikutnya.', 'v41'],
-  ['undo', 'Urungkan di mana-mana', 'Hapus dari library, hapus atau kosongkan playlist, pindah ke playlist lain, dan aksi di mode pilih kini langsung jalan tanpa dialog konfirmasi, dengan tombol Urungkan di notifikasi (atau Ctrl+Z). Di PC, Ctrl+klik dan Shift+klik memilih beberapa lagu sekaligus.', 'v41'],
-  ['merge', 'Lagu ganda & judul bersih', 'Lagu yang sama dengan video berbeda (mis. MV dan versi audio) dikenali saat ditambahkan, dan bisa digabung lewat ⋮ → Cari lagu ganda: playlist, favorit, tag, dan jumlah putarnya ikut digabung. Tempelan seperti “(Official Video)” atau “[HD]” disembunyikan dari judul; judul aslinya tetap tersimpan.', 'v41'],
 ];
 
 /** Tampilkan "Apa yang baru" sekali setelah update (bukan untuk pengguna baru). */
